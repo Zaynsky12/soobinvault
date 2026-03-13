@@ -108,7 +108,7 @@ export function VaultDropzone() {
             // Step 2: On-chain Registration
             setUploadStatusText("Step 2/3: Awaiting wallet approval to register on-chain...");
             const payload = ShelbyBlobClient.createRegisterBlobPayload({
-                account: account.address,
+                account: account.address as any,
                 blobName: droppedFile.name,
                 blobMerkleRoot: commitments.blob_merkle_root,
                 numChunksets: expectedTotalChunksets(commitments.raw_data_size),
@@ -117,7 +117,7 @@ export function VaultDropzone() {
                 encoding: 0,
             });
 
-            const transaction = { data: payload };
+            const transaction: any = { data: payload };
             const transactionSubmitted = await signAndSubmitTransaction(transaction);
 
             setUploadStatusText("Step 2/3: Waiting for blockchain confirmation...");
@@ -134,7 +134,7 @@ export function VaultDropzone() {
                 apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY,
             });
             await shelbyClient.rpc.putBlob({
-                account: account.address,
+                account: account.address.toString(),
                 blobName: droppedFile.name,
                 blobData: new Uint8Array(arrayBuffer),
             });
