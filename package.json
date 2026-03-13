@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@aptos-labs/ts-sdk": "^5.2.1",
+    "@aptos-labs/ts-sdk": "^6.2.0",
     "@aptos-labs/wallet-adapter-react": "^8.3.1",
     "@shelby-protocol/sdk": "^0.2.4",
     "aptos": "^1.22.1",
