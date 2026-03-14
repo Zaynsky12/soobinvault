@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download } from 'lucide-react';
+import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen } from 'lucide-react';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient } from "@shelby-protocol/react";
@@ -17,7 +17,6 @@ export function Dashboard() {
     const shelbyClient = useShelbyClient();
     const [assets, setAssets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [keyMissing, setKeyMissing] = useState(false);
 
     useEffect(() => {
         // Expose function to global window object for debugging
@@ -48,16 +47,9 @@ export function Dashboard() {
     useEffect(() => {
         if (!account) {
             setAssets([]);
-            setKeyMissing(false);
             return;
         }
 
-        if (!process.env.NEXT_PUBLIC_SHELBY_API_KEY || process.env.NEXT_PUBLIC_SHELBY_API_KEY === "REPLACE_WITH_SHELBY_API_KEY") {
-            setKeyMissing(true);
-            return;
-        }
-
-        setKeyMissing(false);
         fetchBlobs();
 
         // Listen for successful uploads from VaultDropzone
@@ -152,23 +144,24 @@ export function Dashboard() {
                                 <Lock size={48} className="mb-4 opacity-50" />
                                 <p>Connect your Petra Wallet to view your secure Vault.</p>
                             </div>
-                        ) : keyMissing ? (
-                            <div className="p-12 text-center text-red-400 flex flex-col items-center">
-                                <Database size={48} className="mb-4 opacity-50" />
-                                <p className="font-semibold text-lg">Shelby API Key is Missing</p>
-                                <p className="text-sm mt-2 max-w-md text-red-300">
-                                    Please define <code>NEXT_PUBLIC_SHELBY_API_KEY</code> in your <code>.env.local</code> file and <strong>restart your development server</strong>.
-                                </p>
-                            </div>
                         ) : isLoading ? (
                             <div className="p-12 text-center text-color-support flex flex-col items-center">
                                 <div className="w-8 h-8 rounded-full border-t-2 border-b-2 border-color-primary animate-spin mb-4" />
                                 <p>Decrypting records and fetching from network nodes...</p>
                             </div>
                         ) : assets.length === 0 ? (
-                            <div className="p-12 text-center text-color-support/60 flex flex-col items-center">
-                                <Database size={48} className="mb-4 opacity-50" />
-                                <p>Your vault is empty. Upload an asset above.</p>
+                            <div className="p-16 text-center flex flex-col items-center justify-center bg-[#0A0A0A]/50 m-4 rounded-2xl border border-white/5 shadow-inner">
+                                <div className="w-20 h-20 rounded-full bg-color-primary/10 flex items-center justify-center mb-6">
+                                    <PackageOpen size={40} className="text-color-primary opacity-80" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-white mb-2">Your Vault is Empty</h3>
+                                <p className="text-gray-400 mb-8 max-w-sm">Start uploading your first file to secure it on Shelby Network</p>
+                                <button
+                                    onClick={() => document.getElementById('vault')?.scrollIntoView({ behavior: 'smooth' })}
+                                    className="px-8 py-3 rounded-full bg-gradient-to-r from-color-primary to-color-accent text-white font-medium hover:scale-105 transition-transform shadow-[0_0_20px_rgba(232,58,118,0.4)]"
+                                >
+                                    Upload Now
+                                </button>
                             </div>
                         ) : (
                             assets.map((asset, index) => {
