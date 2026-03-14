@@ -40,6 +40,10 @@
     "typescript": "^5"
   },
   "overrides": {
-    "@aptos-labs/ts-sdk": "5.2.1"
+    "@aptos-labs/ts-sdk": "5.2.1",
+    "@aptos-labs/aptos-client": "^2.1.0",
+    "@aptos-labs/wallet-standard": "^1.0.0",
+    "aptos": "npm:@aptos-labs/ts-sdk@5.2.1",
+    "webextension-polyfill-ts": "npm:empty-package@1.0.0"
   }
 }
