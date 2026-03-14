@@ -136,10 +136,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     msg.includes('4001');
 
                 if (isUserCancellation) {
-                    console.warn("Transaction cancelled by user:", sdkError);
                     toast.error('Transaction Cancelled');
                 } else {
-                    console.error('DETAIL ERROR UPLOAD:', sdkError);
                     toast.error(sdkError instanceof Error ? sdkError.message : 'Upload failed. Please try again.');
                 }
                 resetTarget();
@@ -147,7 +145,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
         } catch (error) {
             // Outer catch handles unexpected preparation failures (e.g. arrayBuffer read error)
-            console.error('DETAIL ERROR UPLOAD:', error);
             toast.error(error instanceof Error ? error.message : 'Upload failed. Please try again.');
             resetTarget();
         }
