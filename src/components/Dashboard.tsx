@@ -19,6 +19,17 @@ export function Dashboard() {
     const [isLoading, setIsLoading] = useState(false);
     const [keyMissing, setKeyMissing] = useState(false);
 
+    useEffect(() => {
+        // Expose function to global window object for debugging
+        (window as any).checkMyEnv = () => {
+            console.log("=== ENV CHECK ===");
+            console.log("NEXT_PUBLIC_SHELBY_API_KEY:", process.env.NEXT_PUBLIC_SHELBY_API_KEY);
+            console.log("Is it undefined?:", process.env.NEXT_PUBLIC_SHELBY_API_KEY === undefined);
+            console.log("Length:", process.env.NEXT_PUBLIC_SHELBY_API_KEY?.length);
+            console.log("=================");
+        };
+    }, []);
+
     const fetchBlobs = async () => {
         if (!account) return;
         setIsLoading(true);
