@@ -8,7 +8,11 @@ import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useUploadBlobs } from "@shelby-protocol/react";
 
-export function VaultDropzone() {
+interface VaultDropzoneProps {
+    refetch?: () => void;
+}
+
+export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const { account, signAndSubmitTransaction } = useWallet();
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
@@ -65,6 +69,11 @@ export function VaultDropzone() {
     };
 
     const uploadToShelby = async (droppedFile: File) => {
+        if (!process.env.NEXT_PUBLIC_SHELBY_API_KEY) {
+            toast.error('API Key configuration is incomplete in .env.local');
+            return;
+        }
+
         if (!account) {
             toast.error("Please connect your Aptos wallet first!");
             return;
@@ -99,6 +108,18 @@ export function VaultDropzone() {
                     blobs: [{ blobName: droppedFile.name, blobData: fileData }],
                     expirationMicros: Date.now() * 1000 + 86400000000 * 30, // 30 days
                 });
+
+                // Upload completed — show success and clear state
+                toast.success('Upload Successful!');
+                setUploadState('success');
+                resetTarget();
+                
+                // Dispatch a custom event so siblings (like Dashboard) can refetch
+                window.dispatchEvent(new Event('vault:uploadSuccess'));
+                
+                if (refetch) {
+                    refetch();
+                }
             } catch (sdkError) {
                 const msg = sdkError instanceof Error
                     ? sdkError.message.toLowerCase()
@@ -117,25 +138,17 @@ export function VaultDropzone() {
                 if (isUserCancellation) {
                     console.warn("Transaction cancelled by user:", sdkError);
                     toast.error('Transaction Cancelled');
-                    resetTarget();
-                    return; // ← prevents toast.success from running below
+                } else {
+                    console.error('DETAIL ERROR UPLOAD:', sdkError);
+                    toast.error(sdkError instanceof Error ? sdkError.message : 'Upload failed. Please try again.');
                 }
-
-                // All other SDK errors (waitForTransaction timeouts, tx reverts
-                // after the RPC upload, etc.) are suppressed — the blob data was
-                // already delivered to the Shelby network before this error fired.
-                console.warn("SDK error suppressed (upload completed on RPC):", sdkError);
+                resetTarget();
             }
-
-            // Upload completed — show success and clear state
-            toast.success('Upload Successful!');
-            setUploadState('success');
-            setTimeout(() => { resetTarget(); }, 2500);
 
         } catch (error) {
             // Outer catch handles unexpected preparation failures (e.g. arrayBuffer read error)
-            console.error("Upload preparation failed:", error);
-            toast.error("Upload failed. Please try again.");
+            console.error('DETAIL ERROR UPLOAD:', error);
+            toast.error(error instanceof Error ? error.message : 'Upload failed. Please try again.');
             resetTarget();
         }
     };

@@ -19,6 +19,21 @@ export function Dashboard() {
     const [isLoading, setIsLoading] = useState(false);
     const [keyMissing, setKeyMissing] = useState(false);
 
+    const fetchBlobs = async () => {
+        if (!account) return;
+        setIsLoading(true);
+        try {
+            const blobs = await shelbyClient.coordination.getAccountBlobs({
+                account: account.address.toString(),
+            });
+            setAssets(blobs || []);
+        } catch (error) {
+            console.error("Failed to fetch blobs", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (!account) {
             setAssets([]);
@@ -32,23 +47,12 @@ export function Dashboard() {
         }
 
         setKeyMissing(false);
-        let isMounted = true;
-        const fetchBlobs = async () => {
-            setIsLoading(true);
-            try {
-                const blobs = await shelbyClient.coordination.getAccountBlobs({
-                    account: account.address.toString(),
-                });
-                if (isMounted) setAssets(blobs || []);
-            } catch (error) {
-                console.error("Failed to fetch blobs", error);
-            } finally {
-                if (isMounted) setIsLoading(false);
-            }
-        };
-
         fetchBlobs();
-        return () => { isMounted = false; };
+
+        // Listen for successful uploads from VaultDropzone
+        const handleUploadSuccess = () => fetchBlobs();
+        window.addEventListener('vault:uploadSuccess', handleUploadSuccess);
+        return () => window.removeEventListener('vault:uploadSuccess', handleUploadSuccess);
     }, [account, shelbyClient]);
 
     useEffect(() => {
