@@ -149,8 +149,13 @@ export function Dashboard() {
                             </div>
                         ) : (
                             assets.map((asset, index) => {
+                                // blobNameSuffix is the clean filename (e.g. "photo.png").
+                                // asset.name is the full blob key (@address/photo.png) — don't display that.
+                                const displayName: string =
+                                    asset.blobNameSuffix ||
+                                    (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
                                 const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
-                                const isImg = asset.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+                                const isImg = displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
                                 return (
                                     <div key={asset.blob_merkle_root || index} className="asset-row grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-center hover:bg-white/5 transition-all duration-300 group cursor-pointer relative overflow-hidden">
                                         <div className="absolute inset-0 bg-gradient-to-r from-color-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -159,7 +164,7 @@ export function Dashboard() {
                                             <div className="w-10 h-10 rounded-lg glass-panel bg-[#0A0A0A] flex items-center justify-center shadow-inner group-hover:scale-110 group-hover:bg-[#111] transition-all duration-300 border border-white/5">
                                                 {isImg ? <ImageIcon className="text-color-accent" size={18} /> : <FileText className="text-color-support/70" size={18} />}
                                             </div>
-                                            <span className="font-mono text-sm text-white/80 group-hover:text-white truncate transition-colors">{asset.name}</span>
+                                            <span className="font-mono text-sm text-white/80 group-hover:text-white truncate transition-colors">{displayName}</span>
                                         </div>
 
                                         <div className="col-span-1 md:col-span-2 text-color-support/60 font-mono text-sm group-hover:text-color-support transition-colors relative z-10">
@@ -187,7 +192,7 @@ export function Dashboard() {
                                                 title="Copy Link"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    navigator.clipboard.writeText(`https://api.testnet.shelby.xyz/shelby/v1/blobs/${account?.address}/${asset.name}`);
+                                                    navigator.clipboard.writeText(`https://api.testnet.shelby.xyz/shelby/v1/blobs/${account?.address}/${displayName}`);
                                                     alert("Secure Public Link Copied!");
                                                 }}
                                             >
@@ -199,12 +204,12 @@ export function Dashboard() {
                                                 onClick={async (e) => {
                                                     e.stopPropagation();
                                                     try {
-                                                        const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${account?.address}/${asset.name}`;
+                                                        const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${account?.address}/${displayName}`;
                                                         const response = await fetch(downloadUrl);
                                                         const fileData = await response.blob();
                                                         const downloadLink = document.createElement("a");
                                                         downloadLink.href = URL.createObjectURL(fileData);
-                                                        downloadLink.download = asset.name;
+                                                        downloadLink.download = displayName;
                                                         downloadLink.click();
                                                     } catch (err) {
                                                         alert("Failed to download or decrypt asset");

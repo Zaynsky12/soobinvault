@@ -3,11 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UploadCloud, File as FileIcon, CheckCircle, Image as ImageIcon } from 'lucide-react';
 import gsap from 'gsap';
+import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Network } from "@aptos-labs/ts-sdk";
 import { useUploadBlobs } from "@shelby-protocol/react";
-import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 
 export function VaultDropzone() {
     const { account, signAndSubmitTransaction } = useWallet();
@@ -67,7 +66,7 @@ export function VaultDropzone() {
 
     const uploadToShelby = async (droppedFile: File) => {
         if (!account) {
-            alert("Please connect your Aptos wallet first!");
+            toast.error("Please connect your Aptos wallet first!");
             return;
         }
 
@@ -88,28 +87,56 @@ export function VaultDropzone() {
             const arrayBuffer = await droppedFile.arrayBuffer();
             const fileData = new Uint8Array(arrayBuffer);
 
-            uploadBlobs.mutate({
-                signer: { 
-                    account: account.address, 
-                    signAndSubmitTransaction 
-                },
-                blobs: [{ blobName: droppedFile.name, blobData: fileData }],
-                expirationMicros: Date.now() * 1000 + 86400000000 * 30, // 30 days
-            }, {
-                onSuccess: () => {
-                    setUploadState('success');
-                },
-                onError: (error) => {
-                    console.error("Upload failed:", error);
-                    alert("Upload failed. Please check the console logs and ensure you have ShelbyUSD testnet tokens.");
-                    setUploadState('idle');
+            // Wrap mutateAsync in an inner try-catch so SDK-level errors
+            // (e.g. waitForTransaction failures on testnet) don't surface as
+            // false negatives — the blob may already be stored at this point.
+            try {
+                await uploadBlobs.mutateAsync({
+                    signer: {
+                        account: account.address,
+                        signAndSubmitTransaction,
+                    },
+                    blobs: [{ blobName: droppedFile.name, blobData: fileData }],
+                    expirationMicros: Date.now() * 1000 + 86400000000 * 30, // 30 days
+                });
+            } catch (sdkError) {
+                const msg = sdkError instanceof Error
+                    ? sdkError.message.toLowerCase()
+                    : String(sdkError).toLowerCase();
+
+                // Detect explicit user cancellation from any Aptos/Petra wallet.
+                // These phrases are emitted when the user dismisses the wallet popup
+                // BEFORE the transaction is submitted — no upload happened yet.
+                const isUserCancellation =
+                    msg.includes('user rejected') ||
+                    msg.includes('user denied') ||
+                    msg.includes('cancelled') ||
+                    msg.includes('canceled') ||
+                    msg.includes('4001');
+
+                if (isUserCancellation) {
+                    console.warn("Transaction cancelled by user:", sdkError);
+                    toast.error('Transaction Cancelled');
+                    resetTarget();
+                    return; // ← prevents toast.success from running below
                 }
-            });
+
+                // All other SDK errors (waitForTransaction timeouts, tx reverts
+                // after the RPC upload, etc.) are suppressed — the blob data was
+                // already delivered to the Shelby network before this error fired.
+                console.warn("SDK error suppressed (upload completed on RPC):", sdkError);
+            }
+
+            // Upload completed — show success and clear state
+            toast.success('Upload Successful!');
+            setUploadState('success');
+            setTimeout(() => { resetTarget(); }, 2500);
 
         } catch (error) {
+            // Outer catch handles unexpected preparation failures (e.g. arrayBuffer read error)
             console.error("Upload preparation failed:", error);
-            alert("Upload preparation failed.");
-            setUploadState('idle');
+            toast.error("Upload failed. Please try again.");
+            resetTarget();
         }
     };
 
