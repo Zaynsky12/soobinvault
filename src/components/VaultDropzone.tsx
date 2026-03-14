@@ -69,11 +69,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     };
 
     const uploadToShelby = async (droppedFile: File) => {
-        if (!process.env.NEXT_PUBLIC_SHELBY_API_KEY) {
-            toast.error('API Key configuration is incomplete in .env.local');
-            return;
-        }
-
         if (!account) {
             toast.error("Please connect your Aptos wallet first!");
             return;
