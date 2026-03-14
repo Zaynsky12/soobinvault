@@ -11,7 +11,6 @@ import { Toaster } from "react-hot-toast";
 const WalletProvider = dynamic((() => import("@/components/WalletProvider")) as any, { ssr: false }) as any;
 const Navbar = dynamic((() => import("@/components/Navbar")) as any, { ssr: false }) as any;
 
-console.log("Shelby API Key Loaded:", !!process.env.NEXT_PUBLIC_SHELBY_API_KEY);
 
 const shelbyClient = new ShelbyClient({
     network: Network.TESTNET,

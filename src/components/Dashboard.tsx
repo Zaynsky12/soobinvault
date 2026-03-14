@@ -83,7 +83,15 @@ export function Dashboard() {
                 });
 
             // Protocol animation moved to Protocol.tsx
+        }, containerRef);
 
+        return () => ctx.revert();
+    }, []);
+
+    useEffect(() => {
+        if (!assets || assets.length === 0) return;
+
+        const ctx = gsap.context(() => {
             gsap.fromTo(".asset-row",
                 { x: -50, opacity: 0 },
                 {
@@ -100,7 +108,7 @@ export function Dashboard() {
         }, containerRef);
 
         return () => ctx.revert();
-    }, []);
+    }, [assets]);
 
     return (
         <section ref={containerRef} id="dashboard" className="py-24 relative z-10 px-6 mt-12 mb-32">
