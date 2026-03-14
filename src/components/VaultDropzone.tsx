@@ -5,15 +5,9 @@ import { UploadCloud, File as FileIcon, CheckCircle, Image as ImageIcon } from '
 import gsap from 'gsap';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
-import { Buffer } from "buffer";
-import {
-    createDefaultErasureCodingProvider,
-    generateCommitments,
-    ShelbyBlobClient,
-    expectedTotalChunksets,
-    ShelbyClient
-} from "@shelby-protocol/sdk/browser";
+import { Network } from "@aptos-labs/ts-sdk";
+import { useUploadBlobs } from "@shelby-protocol/react";
+import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 
 export function VaultDropzone() {
     const { account, signAndSubmitTransaction } = useWallet();
@@ -22,6 +16,13 @@ export function VaultDropzone() {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success'>('idle');
     const [uploadStatusText, setUploadStatusText] = useState<string>("Encrypting and distributing to nodes...");
+    
+    const shelbyClient = React.useMemo(() => new ShelbyClient({
+        network: Network.TESTNET,
+        apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY,
+    }), []);
+
+    const uploadBlobs = useUploadBlobs({ client: shelbyClient });
 
     const dropzoneRef = useRef<HTMLDivElement>(null);
     const iconRef = useRef<HTMLDivElement>(null);
@@ -75,16 +76,6 @@ export function VaultDropzone() {
             return;
         }
 
-        if (!process.env.NEXT_PUBLIC_SHELBY_API_KEY || process.env.NEXT_PUBLIC_SHELBY_API_KEY === "REPLACE_WITH_SHELBY_API_KEY") {
-            alert("Shelby API Key is missing! Please define NEXT_PUBLIC_SHELBY_API_KEY in .env.local and restart the server.");
-            return;
-        }
-
-        if (!process.env.NEXT_PUBLIC_APTOS_API_KEY || process.env.NEXT_PUBLIC_APTOS_API_KEY === "REPLACE_WITH_APTOS_API_KEY") {
-            alert("Aptos API Key is missing! Please define NEXT_PUBLIC_APTOS_API_KEY in .env.local and restart the server.");
-            return;
-        }
-
         setFile(droppedFile);
 
         // Create preview if image
@@ -97,52 +88,32 @@ export function VaultDropzone() {
 
         try {
             setUploadState('uploading');
+            setUploadStatusText("Encrypting and distributing to nodes...");
 
-            // Step 1: File Encoding
-            setUploadStatusText("Step 1/3: Encoding file & generating commitments...");
             const arrayBuffer = await droppedFile.arrayBuffer();
-            const data = Buffer.from(arrayBuffer);
-            const provider = await createDefaultErasureCodingProvider();
-            const commitments = await generateCommitments(provider, data);
+            const fileData = new Uint8Array(arrayBuffer);
 
-            // Step 2: On-chain Registration
-            setUploadStatusText("Step 2/3: Awaiting wallet approval to register on-chain...");
-            const payload = ShelbyBlobClient.createRegisterBlobPayload({
-                account: account.address as any,
-                blobName: droppedFile.name,
-                blobMerkleRoot: commitments.blob_merkle_root,
-                numChunksets: expectedTotalChunksets(commitments.raw_data_size),
-                expirationMicros: (1000 * 60 * 60 * 24 * 30 + Date.now()) * 1000, // 30 days
-                blobSize: commitments.raw_data_size,
-                encoding: 0,
+            uploadBlobs.mutate({
+                signer: { 
+                    account: account.address as any, 
+                    signAndSubmitTransaction 
+                },
+                blobs: [{ blobName: droppedFile.name, blobData: fileData }],
+                expirationMicros: Date.now() * 1000 + 86400000000 * 30, // 30 days
+            }, {
+                onSuccess: () => {
+                    setUploadState('success');
+                },
+                onError: (error) => {
+                    console.error("Upload failed:", error);
+                    alert("Upload failed. Please check the console logs and ensure you have ShelbyUSD testnet tokens.");
+                    setUploadState('idle');
+                }
             });
 
-            const transaction: any = { data: payload };
-            const transactionSubmitted = await signAndSubmitTransaction(transaction);
-
-            setUploadStatusText("Step 2/3: Waiting for blockchain confirmation...");
-            const aptosClient = new Aptos(new AptosConfig({
-                network: Network.TESTNET,
-                clientConfig: { API_KEY: process.env.NEXT_PUBLIC_APTOS_API_KEY }
-            }));
-            await aptosClient.waitForTransaction({ transactionHash: transactionSubmitted.hash });
-
-            // Step 3: RPC Upload
-            setUploadStatusText("Step 3/3: Distributing encrypted fragments to nodes...");
-            const shelbyClient = new ShelbyClient({
-                network: Network.TESTNET,
-                apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY,
-            });
-            await shelbyClient.rpc.putBlob({
-                account: account.address.toString(),
-                blobName: droppedFile.name,
-                blobData: new Uint8Array(arrayBuffer),
-            });
-
-            setUploadState('success');
         } catch (error) {
-            console.error("Upload failed:", error);
-            alert("Upload failed. Please check the console logs and ensure you have ShelbyUSD testnet tokens.");
+            console.error("Upload preparation failed:", error);
+            alert("Upload preparation failed.");
             setUploadState('idle');
         }
     };
