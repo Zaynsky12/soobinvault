@@ -12,9 +12,15 @@ const WalletProvider = dynamic((() => import("@/components/WalletProvider")) as 
 const Navbar = dynamic((() => import("@/components/Navbar")) as any, { ssr: false }) as any;
 
 
+
 const shelbyClient = new ShelbyClient({
     network: Network.TESTNET,
     apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY,
+    aptos: {
+        clientConfig: {
+            API_KEY: process.env.NEXT_PUBLIC_APTOS_API_KEY || process.env.NEXT_PUBLIC_SHELBY_API_KEY,
+        }
+    }
 });
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
