@@ -20,6 +20,9 @@ const shelbyClient = new ShelbyClient({
         clientConfig: {
             API_KEY: process.env.NEXT_PUBLIC_APTOS_API_KEY || process.env.NEXT_PUBLIC_SHELBY_API_KEY,
         }
+    },
+    indexer: {
+        apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY
     }
 });
 
