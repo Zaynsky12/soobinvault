@@ -9,9 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@aptos-labs/aptos-client": "^1.2.0",
     "@aptos-labs/ts-sdk": "^5.2.1",
     "@aptos-labs/wallet-adapter-react": "^8.3.1",
     "@shelby-protocol/sdk": "^0.2.4",
+    "aptos": "^1.22.1",
     "buffer": "^6.0.3",
     "clsx": "^2.1.1",
     "gsap": "^3.14.2",
