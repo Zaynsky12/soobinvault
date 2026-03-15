@@ -34,22 +34,24 @@ export function Dashboard() {
                 account: account.address.toString(),
             });
             
-            // Sort assets by descent order (latest first) based on common indexer fields
+            // Sort assets by descent order (latest first) based on official SDK field and indexer fields
             const sortedBlobs = (blobs || []).sort((a: any, b: any) => {
-                const timeA = a.indexed_at || a.block_timestamp || 0;
-                const timeB = b.indexed_at || b.block_timestamp || 0;
+                const timeA = a.creationMicros || a.timestamp || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
+                const timeB = b.creationMicros || b.timestamp || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
                 
-                // If we have timestamps, sort by them; otherwise, we might rely on the original order
+                // If we have timestamps, sort by them (descending: newest first)
                 if (timeA && timeB) return Number(timeB) - Number(timeA);
                 
-                // Fallback to reversed order if no explicit timestamps are found,
-                // assuming the API returns them in ascending chronological order by default.
+                // If only one has a timestamp, the other goes to the bottom
+                if (timeA && !timeB) return -1;
+                if (!timeA && timeB) return 1;
+
                 return 0; 
             });
 
             // If no timestamps were found to sort by, and the list isn't empty, 
-            // reverse it as a safe fallback for "newest first".
-            if (sortedBlobs.length > 0 && !sortedBlobs[0].indexed_at && !sortedBlobs[0].block_timestamp) {
+            // reverse it as a safe fallback for "newest first" (most APIs return oldest first).
+            if (sortedBlobs.length > 0 && !(sortedBlobs[0].creationMicros || sortedBlobs[0].timestamp || sortedBlobs[0].indexed_at)) {
                 setAssets([...sortedBlobs].reverse());
             } else {
                 setAssets(sortedBlobs);
