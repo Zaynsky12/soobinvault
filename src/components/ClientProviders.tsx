@@ -49,7 +49,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
                             fontSize: '14px',
                         },
                         success: {
-                            iconTheme: { primary: '#E83A76', secondary: '#1a0d12' },
+                            iconTheme: { primary: '#10b981', secondary: '#1a0d12' },
                         },
                         error: {
                             iconTheme: { primary: '#ef4444', secondary: '#1a0d12' },
