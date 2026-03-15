@@ -46,7 +46,12 @@ export function LinkPreviewModal({
         }
 
         try {
-            const response = await fetch(assetUrl);
+            const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
+            const response = await fetch(assetUrl, {
+                headers: {
+                    'Authorization': `Bearer ${apiKey.trim()}`
+                }
+            });
             const contentType = response.headers.get('content-type');
             
             if (contentType && contentType.includes('application/json')) {
@@ -76,7 +81,14 @@ export function LinkPreviewModal({
                 const url = URL.createObjectURL(typedBlob);
                 setBlobUrl(url);
             } else {
-                setFetchError(`Server returned ${response.status}: ${response.statusText}`);
+                let errorMessage = `Server returned ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    errorMessage += `: ${errorData.message || errorData.error || response.statusText}`;
+                } catch (e) {
+                    errorMessage += `: ${response.statusText}`;
+                }
+                setFetchError(errorMessage);
             }
         } catch (error) {
             setFetchError(error instanceof Error ? error.message : 'An unexpected error occurred');

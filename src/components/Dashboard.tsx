@@ -171,7 +171,7 @@ export function Dashboard() {
                                     (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
                                 const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
                                 const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
-                                const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${account?.address}/${displayName}`;
+                                const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(account?.address?.toString() || '')}/${encodeURIComponent(displayName)}`;
 
                                 const handleOpenPreview = () => {
                                     setSelectedAsset({
@@ -181,6 +181,29 @@ export function Dashboard() {
                                         isImage: isImg
                                     });
                                     setIsPreviewModalOpen(true);
+                                };
+
+                                const handleDownload = async (e?: React.MouseEvent) => {
+                                    if (e) e.stopPropagation();
+                                    const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
+                                    try {
+                                        const response = await fetch(downloadUrl, {
+                                            headers: {
+                                                'Authorization': `Bearer ${apiKey.trim()}`
+                                            }
+                                        });
+                                        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+                                        const fileData = await response.blob();
+                                        const downloadLink = document.createElement("a");
+                                        const url = URL.createObjectURL(fileData);
+                                        downloadLink.href = url;
+                                        downloadLink.download = displayName;
+                                        downloadLink.click();
+                                        setTimeout(() => URL.revokeObjectURL(url), 100);
+                                    } catch (err) {
+                                        console.error("Download failed", err);
+                                        alert(`Failed to download asset: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                                    }
                                 };
 
                                 return (
@@ -231,19 +254,7 @@ export function Dashboard() {
                                             <button
                                                 className="p-2 rounded-lg bg-color-primary/10 hover:bg-color-primary/20 text-color-primary hover:text-white transition-all hover:scale-110"
                                                 title="Download"
-                                                onClick={async (e) => {
-                                                    e.stopPropagation();
-                                                    try {
-                                                        const response = await fetch(downloadUrl);
-                                                        const fileData = await response.blob();
-                                                        const downloadLink = document.createElement("a");
-                                                        downloadLink.href = URL.createObjectURL(fileData);
-                                                        downloadLink.download = displayName;
-                                                        downloadLink.click();
-                                                    } catch (err) {
-                                                        alert("Failed to download or decrypt asset");
-                                                    }
-                                                }}
+                                                onClick={handleDownload}
                                             >
                                                 <Download size={16} />
                                             </button>
@@ -275,15 +286,24 @@ export function Dashboard() {
                 isImage={selectedAsset?.isImage || false}
                 onDownload={async () => {
                     if (selectedAsset) {
+                         const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
                          try {
-                             const response = await fetch(selectedAsset.url);
+                             const response = await fetch(selectedAsset.url, {
+                                 headers: {
+                                     'Authorization': `Bearer ${apiKey.trim()}`
+                                 }
+                             });
+                             if (!response.ok) throw new Error(`Server returned ${response.status}`);
                              const fileData = await response.blob();
                              const downloadLink = document.createElement("a");
-                             downloadLink.href = URL.createObjectURL(fileData);
+                             const url = URL.createObjectURL(fileData);
+                             downloadLink.href = url;
                              downloadLink.download = selectedAsset.name;
                              downloadLink.click();
+                             setTimeout(() => URL.revokeObjectURL(url), 100);
                          } catch (err) {
-                             alert("Failed to download or decrypt asset");
+                             console.error("Download failed", err);
+                             alert(`Failed to download asset: ${err instanceof Error ? err.message : 'Unknown error'}`);
                          }
                     }
                 }}
