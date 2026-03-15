@@ -33,7 +33,27 @@ export function Dashboard() {
             const blobs = await shelbyClient.coordination.getAccountBlobs({
                 account: account.address.toString(),
             });
-            setAssets(blobs || []);
+            
+            // Sort assets by descent order (latest first) based on common indexer fields
+            const sortedBlobs = (blobs || []).sort((a: any, b: any) => {
+                const timeA = a.indexed_at || a.block_timestamp || 0;
+                const timeB = b.indexed_at || b.block_timestamp || 0;
+                
+                // If we have timestamps, sort by them; otherwise, we might rely on the original order
+                if (timeA && timeB) return Number(timeB) - Number(timeA);
+                
+                // Fallback to reversed order if no explicit timestamps are found,
+                // assuming the API returns them in ascending chronological order by default.
+                return 0; 
+            });
+
+            // If no timestamps were found to sort by, and the list isn't empty, 
+            // reverse it as a safe fallback for "newest first".
+            if (sortedBlobs.length > 0 && !sortedBlobs[0].indexed_at && !sortedBlobs[0].block_timestamp) {
+                setAssets([...sortedBlobs].reverse());
+            } else {
+                setAssets(sortedBlobs);
+            }
         } catch (error) {
             console.error("Failed to fetch blobs", error);
         } finally {
