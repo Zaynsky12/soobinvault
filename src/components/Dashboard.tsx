@@ -105,21 +105,32 @@ export function Dashboard() {
         <section ref={containerRef} id="dashboard" className="py-24 relative z-10 px-6 mt-12 mb-32">
             <div className="container mx-auto max-w-6xl">
 
-                <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b border-white/10 pb-6">
-                    <div>
-                        <h2 className="text-4xl md:text-5xl font-bold mb-3 text-white">Your Vault</h2>
-                        <p className="text-color-support text-lg">Manage your distributed assets</p>
-                    </div>
-                    <div className="mt-8 md:mt-0 flex flex-wrap gap-4">
-                        <div className="dash-stat px-6 py-4 rounded-2xl glass-panel bg-[#0A0A0A]/80 border-white/5 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#FBB3CC]/30 to-transparent" />
-                            <span className="text-xs text-color-support/50 uppercase tracking-widest font-semibold block mb-2">Total Stored</span>
-                            <span className="text-2xl font-mono text-white tracking-tight group-hover:text-[#FBB3CC] transition-colors">14.8 <span className="text-sm font-sans text-color-support/40">GB</span></span>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 border-b border-white/5 pb-8">
+                    <div className="mb-8 md:mb-0">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-color-primary/10 border border-color-primary/20 mb-4">
+                            <span className="w-2 h-2 rounded-full bg-color-primary animate-pulse" />
+                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-color-primary">Vault Protocol Active</span>
                         </div>
-                        <div className="dash-stat px-6 py-4 rounded-2xl glass-panel bg-[#0A0A0A]/80 border-white/5 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#E83A76]/30 to-transparent" />
-                            <span className="text-xs text-color-support/50 uppercase tracking-widest font-semibold block mb-2">Network Nodes</span>
-                            <span className="text-2xl font-mono text-white tracking-tight group-hover:text-[#E83A76] transition-colors">128 <span className="text-sm font-sans text-color-support/40">Active</span></span>
+                        <h2 className="text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight">Your Vault</h2>
+                        <p className="text-color-support/60 text-lg font-light max-w-md">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
+                    </div>
+                    <div className="w-full md:w-auto flex flex-wrap gap-4">
+                        <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
+                            <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-primary/20 to-transparent" />
+                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.2em] font-bold block mb-3">Total Assets</span>
+                            <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
+                        </div>
+                        <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-accent/30 transition-all duration-500">
+                            <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-accent/20 to-transparent" />
+                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.2em] font-bold block mb-3">Active Syncs</span>
+                            <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-color-accent transition-colors">
+                                {assets.filter(a => a.status === 'syncing' || a.status === 'checking').length || 0}
+                            </span>
+                        </div>
+                        <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-white/20 transition-all duration-500">
+                            <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.2em] font-bold block mb-3">Node Capacity</span>
+                            <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-white transition-colors">99.9<span className="text-xs font-sans text-color-support/30">%</span></span>
                         </div>
                     </div>
                 </div>
@@ -149,18 +160,23 @@ export function Dashboard() {
                                 <p>Decrypting records and fetching from network nodes...</p>
                             </div>
                         ) : assets.length === 0 ? (
-                            <div className="p-16 text-center flex flex-col items-center justify-center bg-[#0A0A0A]/50 m-4 rounded-2xl border border-white/5 shadow-inner">
-                                <div className="w-20 h-20 rounded-full bg-color-primary/10 flex items-center justify-center mb-6">
-                                    <PackageOpen size={40} className="text-color-primary opacity-80" />
+                            <div className="p-20 text-center flex flex-col items-center justify-center bg-[#050505] m-6 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
+                                <div className="absolute inset-0 bg-gradient-to-br from-color-primary/5 via-transparent to-color-accent/5" />
+                                <div className="relative z-10">
+                                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-color-primary/20 to-color-accent/20 flex items-center justify-center mb-8 mx-auto shadow-[0_0_40px_rgba(232,58,118,0.1)] border border-white/10 group">
+                                        <PackageOpen size={48} className="text-color-primary animate-pulse" />
+                                    </div>
+                                    <h3 className="text-3xl font-bold text-white mb-4 tracking-tight">Vault Protocol Initialized</h3>
+                                    <p className="text-color-support/60 mb-10 max-w-sm mx-auto font-light leading-relaxed text-lg">
+                                        Your secure environment is ready, but no assets have been provisioned yet.
+                                    </p>
+                                    <button
+                                        onClick={() => window.location.href = '/vault'}
+                                        className="px-10 py-4 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent text-white font-bold uppercase tracking-widest text-xs hover:scale-105 transition-all shadow-[0_0_30px_rgba(232,58,118,0.3)] hover:shadow-[0_0_50px_rgba(232,58,118,0.5)]"
+                                    >
+                                        Deploy First Asset
+                                    </button>
                                 </div>
-                                <h3 className="text-2xl font-bold text-white mb-2">Your Vault is Empty</h3>
-                                <p className="text-gray-400 mb-8 max-w-sm">Start uploading your first file to secure it on Shelby Network</p>
-                                <button
-                                    onClick={() => document.getElementById('vault')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="px-8 py-3 rounded-full bg-gradient-to-r from-color-primary to-color-accent text-white font-medium hover:scale-105 transition-transform shadow-[0_0_20px_rgba(232,58,118,0.4)]"
-                                >
-                                    Upload Now
-                                </button>
                             </div>
                         ) : (
                             assets.map((asset, index) => {
@@ -385,61 +401,94 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
 
     return (
         <div 
-            className={`asset-row grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-center transition-all duration-300 relative overflow-hidden ${status === 'live' ? 'hover:bg-white/5 cursor-pointer group' : 'opacity-70 cursor-not-allowed'}`}
+            className={`asset-row flex flex-col md:grid md:grid-cols-12 gap-4 p-5 md:p-6 items-center transition-all duration-500 relative overflow-hidden border-b border-white/5 last:border-0 ${status === 'live' ? 'hover:bg-white/[0.03] cursor-pointer group' : 'opacity-60 cursor-not-allowed'}`}
             onClick={status === 'live' ? handleOpenPreview : undefined}
         >
-            <div className="absolute inset-0 bg-gradient-to-r from-color-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            {/* Hover Background Artifact */}
+            <div className="absolute inset-0 bg-gradient-to-r from-color-primary/[0.03] via-transparent to-color-accent/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
-            <div className="col-span-1 md:col-span-12 lg:col-span-5 flex items-center gap-4 relative z-10">
-                <div className="w-10 h-10 rounded-lg glass-panel bg-[#0A0A0A] flex items-center justify-center shadow-inner group-hover:scale-110 group-hover:bg-[#111] transition-all duration-300 border border-white/5">
-                    {isImg ? <ImageIcon className="text-color-accent" size={18} /> : <FileText className="text-color-support/70" size={18} />}
-                </div>
-                <div className="flex flex-col min-w-0">
-                    <div className="flex items-center gap-2">
-                        <span className="text-white font-medium truncate group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
-                        {status === 'live' ? (
-                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 text-[10px] font-bold uppercase tracking-wider border border-green-500/20">
-                                <CheckCircle2 size={10} />
-                                <span>Live</span>
-                            </div>
-                        ) : status === 'syncing' ? (
-                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-color-primary/10 text-color-primary text-[10px] font-bold uppercase tracking-wider border border-color-primary/20 animate-pulse">
-                                <Clock size={10} />
-                                <span>Syncing</span>
-                            </div>
+            {/* Asset Identity (Mobile Header) */}
+            <div className="w-full col-span-12 lg:col-span-5 flex items-center justify-between md:justify-start gap-4 relative z-10">
+                <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-12 h-12 rounded-xl glass-panel bg-[#050505] flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
+                        {isImg ? (
+                            <ImageIcon className="text-color-accent group-hover:text-white transition-colors" size={20} />
                         ) : (
-                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 text-color-support/40 text-[10px] font-bold uppercase tracking-wider border border-white/10">
-                                <Loader2 size={10} className="animate-spin" />
-                                <span>Pending</span>
-                            </div>
+                            <FileText className="text-color-support/60 group-hover:text-white transition-colors" size={20} />
                         )}
                     </div>
-                    <span className="text-color-support/40 text-[11px] font-mono tracking-wider items-center flex gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-color-primary/30" />
-                        SECURE PAYLOAD ID: {asset.blob_merkle_root?.substring(0, 12)}...
-                    </span>
+                    <div className="flex flex-col min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
+                        </div>
+                        <span className="text-color-support/40 text-[10px] font-mono tracking-widest items-center flex gap-2">
+                            <span className="w-1 h-1 rounded-full bg-color-primary/50" />
+                            {asset.blob_merkle_root?.substring(0, 16)}...
+                            <span className="hidden md:inline text-[9px] opacity-30">| BLOB_ID</span>
+                        </span>
+                    </div>
+                </div>
+
+                {/* Mobile-only Status */}
+                <div className="md:hidden flex items-center gap-2">
+                     {status === 'live' ? (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 text-green-400 text-[9px] font-bold uppercase tracking-widest border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]">
+                            <CheckCircle2 size={10} />
+                            <span>Live</span>
+                        </div>
+                    ) : status === 'syncing' ? (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-color-primary/10 text-color-primary text-[9px] font-bold uppercase tracking-widest border border-color-primary/20 animate-pulse shadow-[0_0_15px_rgba(232,58,118,0.1)]">
+                            <Clock size={10} />
+                            <span>Syncing</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 text-color-support/30 text-[9px] font-bold uppercase tracking-widest border border-white/10">
+                            <Loader2 size={10} className="animate-spin" />
+                            <span>Check</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            <div className="col-span-1 md:col-span-4 lg:col-span-2 relative z-10">
-                <div className="flex flex-col">
-                    <span className="text-color-support/60 text-xs font-medium mb-1 flex items-center gap-1.5 grayscale group-hover:grayscale-0 transition-all">
-                        <Database size={12} className="text-color-primary" />
-                        CAPACITY
-                    </span>
-                    <span className="text-white/80 font-mono text-xs tracking-widest">{sizeMB} MB</span>
-                </div>
+            {/* Capacity / Size (Desktop Only in Grid) */}
+            <div className="hidden md:flex col-span-2 relative z-10 flex-col">
+                <span className="text-[10px] text-color-support/30 font-bold uppercase tracking-[0.2em] mb-1">Capacity</span>
+                <span className="text-white/80 font-mono text-xs tracking-widest">{sizeMB} MB</span>
             </div>
 
-            <div className="col-span-1 md:col-span-4 lg:col-span-2 text-color-support/50 font-mono text-sm group-hover:text-color-support transition-colors relative z-10 flex items-center">
-                <span className="md:hidden text-color-support/30 mr-2 font-sans text-xs uppercase tracking-widest">Hash:</span>
-                {asset.blob_merkle_root ? `${asset.blob_merkle_root.slice(0, 10)}...` : '...'}
+            {/* Time / Hash (Desktop Only) */}
+            <div className="hidden md:flex col-span-2 text-color-support/50 font-mono text-xs tracking-widest relative z-10 flex-col">
+                <span className="text-[10px] text-color-support/30 font-bold uppercase tracking-[0.2em] mb-1">Network Hash</span>
+                <span className="group-hover:text-color-support transition-colors">
+                    {asset.blob_merkle_root ? `${asset.blob_merkle_root.slice(0, 8)}...` : '...'}
+                </span>
             </div>
 
-            <div className="col-span-1 md:col-span-4 lg:col-span-3 flex justify-start md:justify-end items-center gap-3 relative z-10">
-                <div className="flex items-center bg-black/40 p-1.5 rounded-xl border border-white/5 group-hover:border-color-primary/30 transition-all duration-500">
+            {/* Status (Desktop Only) */}
+            <div className="hidden md:flex col-span-2 relative z-10">
+                {status === 'live' ? (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-green-500/5 text-green-400 text-[10px] font-bold uppercase tracking-[0.15em] border border-green-500/10 group-hover:border-green-500/30 transition-all shadow-[0_0_20px_rgba(34,197,94,0.05)]">
+                        <CheckCircle2 size={12} className="shrink-0" />
+                        <span>Available</span>
+                    </div>
+                ) : status === 'syncing' ? (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-color-primary/5 text-color-primary text-[10px] font-bold uppercase tracking-[0.15em] border border-color-primary/10 animate-pulse shadow-[0_0_20px_rgba(232,58,118,0.05)]">
+                        <Clock size={12} className="shrink-0" />
+                        <span>Synchronizing</span>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.03] text-color-support/30 text-[10px] font-bold uppercase tracking-[0.15em] border border-white/5">
+                        <Loader2 size={12} className="animate-spin shrink-0" />
+                        <span>Verifying</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Actions (Responsive) */}
+            <div className="w-full md:w-auto md:col-span-1 flex justify-end items-center gap-3 relative z-10 mt-4 md:mt-0">
+                <div className="flex items-center w-full md:w-auto bg-black/40 p-1.5 rounded-2xl border border-white/5 group-hover:border-color-primary/20 transition-all duration-500 shadow-2xl">
                     <button 
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 font-bold text-[11px] uppercase tracking-[0.15em] shadow-lg shadow-color-primary/5 hover:shadow-color-primary/20"
+                        className="flex-grow md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 font-bold text-[10px] uppercase tracking-[0.2em] shadow-lg hover:shadow-color-primary/20"
                         onClick={(e) => {
                             e.stopPropagation();
                             navigator.clipboard.writeText(downloadUrl);
@@ -447,14 +496,15 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                         }}
                     >
                         <LinkIcon size={12} />
-                        Copy Link
+                        <span className="md:hidden lg:inline">Copy Secure Link</span>
+                        <span className="hidden md:inline lg:hidden">Link</span>
                     </button>
                     
-                    <div className="w-[1px] h-4 bg-white/10 mx-2" />
+                    <div className="w-[1px] h-4 bg-white/10 mx-2 shrink-0" />
                     
                     <button
-                        className={`p-2 rounded-lg transition-all ${status === 'live' ? 'bg-color-primary/10 hover:bg-color-primary/20 text-color-primary hover:text-white hover:scale-110' : 'bg-white/5 text-color-support/20 cursor-not-allowed'}`}
-                        title={status === 'live' ? "Download" : "Indexing..."}
+                        className={`p-2.5 rounded-xl transition-all shadow-lg ${status === 'live' ? 'bg-white/5 hover:bg-color-accent text-white hover:scale-110 hover:shadow-color-accent/30' : 'bg-white/5 text-color-support/20 cursor-not-allowed'}`}
+                        title={status === 'live' ? "Download Payload" : "Indexing..."}
                         onClick={status === 'live' ? handleDownload : (e) => e.stopPropagation()}
                         disabled={status !== 'live'}
                     >
