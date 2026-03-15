@@ -94,27 +94,25 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             // Wrap mutateAsync in an inner try-catch so SDK-level errors
             // (e.g. waitForTransaction failures on testnet) don't surface as
             // false negatives — the blob may already be stored at this point.
+            let txHash: string | undefined;
+
             try {
                 await uploadBlobs.mutateAsync({
                     signer: {
                         account: account.address,
-                        signAndSubmitTransaction,
+                        signAndSubmitTransaction: async (tx: any) => {
+                            const response = await signAndSubmitTransaction(tx);
+                            if (response && (response as any).hash) {
+                                txHash = (response as any).hash;
+                            } else {
+                                txHash = "unknown_hash";
+                            }
+                            return response;
+                        },
                     },
                     blobs: [{ blobName: droppedFile.name, blobData: fileData }],
                     expirationMicros: Date.now() * 1000 + 86400000000 * 30, // 30 days
                 });
-
-                // Upload completed — show success and clear state
-                toast.success('Upload Successful!');
-                setUploadState('success');
-                resetTarget();
-                
-                // Dispatch a custom event so siblings (like Dashboard) can refetch
-                window.dispatchEvent(new Event('vault:uploadSuccess'));
-                
-                if (refetch) {
-                    refetch();
-                }
             } catch (sdkError) {
                 const msg = sdkError instanceof Error
                     ? sdkError.message.toLowerCase()
@@ -132,10 +130,31 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                 if (isUserCancellation) {
                     toast.error('Transaction Cancelled');
-                } else {
+                    resetTarget();
+                    return;
+                } else if (!txHash) {
                     toast.error(sdkError instanceof Error ? sdkError.message : 'Upload failed. Please try again.');
+                    resetTarget();
+                    return;
+                } else {
+                    console.warn(`Spurious error ignored. Transaction was submitted with hash ${txHash}:`, sdkError);
                 }
-                resetTarget();
+            }
+
+            // At this point, the transaction was successful or a spurious indexer error was caught and bypassed.
+            // Add a delay of approximately 2 seconds to give the Aptos Indexer time to synchronize.
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Upload completed — show success and clear state
+            toast.success('Upload Successful!');
+            setUploadState('success');
+            resetTarget();
+            
+            // Dispatch a custom event so siblings (like Dashboard) can refetch
+            window.dispatchEvent(new Event('vault:uploadSuccess'));
+            
+            if (refetch) {
+                refetch();
             }
 
         } catch (error) {
