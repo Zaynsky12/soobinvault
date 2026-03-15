@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock } from 'lucide-react';
+import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search } from 'lucide-react';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient } from "@shelby-protocol/react";
@@ -18,6 +18,7 @@ export function Dashboard() {
     const shelbyClient = useShelbyClient();
     const [assets, setAssets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
     // Modal State
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -108,71 +109,6 @@ export function Dashboard() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 border-b border-white/5 pb-8">
                     <div className="mb-8 md:mb-0">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-color-primary/10 border border-color-primary/20 mb-4">
-                            <span className="w-2 h-2 rounded-full bg-color-primary animate-pulse" />
-                            <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-color-primary">Vault Protocol Active</span>
-                        </div>
-                        <h2 className="text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none">Your Vault</h2>
-                        <p className="text-color-support/60 text-lg font-normal max-w-md leading-relaxed">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
-                    </div>
-                    <div className="w-full md:w-auto flex flex-wrap gap-4">
-                        <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
-                            <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-primary/20 to-transparent" />
-                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block mb-3">Total Assets</span>
-                            <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
-                        </div>
-
-                    </div>
-                </div>
-
-
-
-                <GlassCard className="assets-container p-0 overflow-hidden border-white/5 bg-[#050505]/90 backdrop-blur-3xl rounded-3xl">
-                    {/* Table Header */}
-                    <div className="hidden md:grid grid-cols-12 gap-4 p-5 border-b border-white/5 text-color-support/40 text-[10px] font-bold uppercase tracking-[0.2em] bg-[#0A0A0A]">
-                        <div className="col-span-6">Asset Name</div>
-                        <div className="col-span-2">Capacity</div>
-                        <div className="col-span-2 text-center">Download</div>
-                        <div className="col-span-2 text-right">Share</div>
-                    </div>
-
-                    {/* Asset Rows */}
-                    <div className="divide-y divide-white/5 min-h-[200px]">
-                        {!account ? (
-                            <div className="p-12 text-center text-color-support/60 flex flex-col items-center">
-                                <Lock size={48} className="mb-4 opacity-50" />
-                                <p>Connect your Petra Wallet to view your secure Vault.</p>
-                            </div>
-                        ) : isLoading ? (
-                            <div className="p-12 text-center text-color-support flex flex-col items-center">
-                                <div className="w-8 h-8 rounded-full border-t-2 border-b-2 border-color-primary animate-spin mb-4" />
-                                <p>Decrypting records and fetching from network nodes...</p>
-                            </div>
-                        ) : assets.length === 0 ? (
-                            <div className="p-20 text-center flex flex-col items-center justify-center bg-[#050505] m-6 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
-                                <div className="absolute inset-0 bg-gradient-to-br from-color-primary/5 via-transparent to-color-accent/5" />
-                                <div className="relative z-10">
-                                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-color-primary/20 to-color-accent/20 flex items-center justify-center mb-8 mx-auto shadow-[0_0_40px_rgba(232,58,118,0.1)] border border-white/10 group">
-                                        <PackageOpen size={48} className="text-color-primary animate-pulse" />
-                                    </div>
-                                    <h3 className="text-3xl font-bold text-white mb-4 tracking-tight">Vault Protocol Initialized</h3>
-                                    <p className="text-color-support/60 mb-10 max-w-sm mx-auto font-light leading-relaxed text-lg">
-                                        Your secure environment is ready, but no assets have been provisioned yet.
-                                    </p>
-                                    <button
-                                        onClick={() => window.location.href = '/vault'}
-                                        className="px-10 py-4 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent text-white font-bold uppercase tracking-widest text-xs hover:scale-105 transition-all shadow-[0_0_30px_rgba(232,58,118,0.3)] hover:shadow-[0_0_50px_rgba(232,58,118,0.5)]"
-                                    >
-                                        Deploy First Asset
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            assets.map((asset, index) => {
-                                // blobNameSuffix is the clean filename (e.g. "photo.png").
-                                // asset.name is the full blob key (@address/photo.png) — don't display that.
-                                const displayName: string =
-                                    asset.blobNameSuffix ||
-                                    (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
                                 const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
                                 const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
                                 const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(account?.address?.toString() || '')}/${encodeURIComponent(displayName)}`;
