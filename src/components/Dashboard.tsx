@@ -182,8 +182,7 @@ export function Dashboard() {
                                     });
                                     setIsPreviewModalOpen(true);
                                 };
-
-                                const handleDownload = async (e?: React.MouseEvent) => {
+                                 const handleDownload = async (e?: React.MouseEvent) => {
                                     if (e) e.stopPropagation();
                                     const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
                                     try {
@@ -192,7 +191,18 @@ export function Dashboard() {
                                                 'Authorization': `Bearer ${apiKey.trim()}`
                                             }
                                         });
-                                        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+                                        
+                                        if (!response.ok) {
+                                            let errorDetail = `Server returned ${response.status}`;
+                                            try {
+                                                const errorData = await response.json();
+                                                errorDetail += `: ${errorData.message || errorData.error || response.statusText}`;
+                                            } catch (e) {
+                                                errorDetail += `: ${response.statusText}`;
+                                            }
+                                            throw new Error(errorDetail);
+                                        }
+
                                         const fileData = await response.blob();
                                         const downloadLink = document.createElement("a");
                                         const url = URL.createObjectURL(fileData);
@@ -293,7 +303,18 @@ export function Dashboard() {
                                      'Authorization': `Bearer ${apiKey.trim()}`
                                  }
                              });
-                             if (!response.ok) throw new Error(`Server returned ${response.status}`);
+                             
+                             if (!response.ok) {
+                                 let errorDetail = `Server returned ${response.status}`;
+                                 try {
+                                     const errorData = await response.json();
+                                     errorDetail += `: ${errorData.message || errorData.error || response.statusText}`;
+                                 } catch (e) {
+                                     errorDetail += `: ${response.statusText}`;
+                                 }
+                                 throw new Error(errorDetail);
+                             }
+
                              const fileData = await response.blob();
                              const downloadLink = document.createElement("a");
                              const url = URL.createObjectURL(fileData);
