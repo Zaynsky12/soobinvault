@@ -58,7 +58,22 @@ export function LinkPreviewModal({
                 }
             } else if (response.ok) {
                 const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
+                
+                // Force correct MIME type for previewing
+                let forcedMimeType = blob.type;
+                if (isPdf) {
+                    forcedMimeType = 'application/pdf';
+                } else if (isImage) {
+                    const ext = assetName.split('.').pop()?.toLowerCase();
+                    if (ext === 'jpg' || ext === 'jpeg') forcedMimeType = 'image/jpeg';
+                    else if (ext === 'png') forcedMimeType = 'image/png';
+                    else if (ext === 'gif') forcedMimeType = 'image/gif';
+                    else if (ext === 'webp') forcedMimeType = 'image/webp';
+                    else if (ext === 'svg') forcedMimeType = 'image/svg+xml';
+                }
+                
+                const typedBlob = new Blob([blob], { type: forcedMimeType });
+                const url = URL.createObjectURL(typedBlob);
                 setBlobUrl(url);
             } else {
                 setFetchError(`Server returned ${response.status}: ${response.statusText}`);
