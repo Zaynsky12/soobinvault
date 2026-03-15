@@ -51,7 +51,8 @@ export function Dashboard() {
 
             // If no timestamps were found to sort by, and the list isn't empty, 
             // reverse it as a safe fallback for "newest first" (most APIs return oldest first).
-            if (sortedBlobs.length > 0 && !(sortedBlobs[0].creationMicros || sortedBlobs[0].timestamp || sortedBlobs[0].indexed_at)) {
+            const firstBlob = sortedBlobs[0] as any;
+            if (sortedBlobs.length > 0 && !(firstBlob.creationMicros || firstBlob.timestamp || firstBlob.indexed_at)) {
                 setAssets([...sortedBlobs].reverse());
             } else {
                 setAssets(sortedBlobs);
