@@ -133,7 +133,25 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     resetTarget();
                     return;
                 } else if (!txHash) {
-                    toast.error(sdkError instanceof Error ? sdkError.message : 'Upload failed. Please try again.');
+                    let errorMessage = sdkError instanceof Error ? sdkError.message : 'Upload failed. Please try again.';
+                    
+                    // The SDK API sometimes returns stringified JSON errors
+                    try {
+                        const parsed = JSON.parse(errorMessage);
+                        if (parsed && parsed.message) {
+                            errorMessage = parsed.message;
+                        } else if (parsed && parsed.error) {
+                            errorMessage = parsed.error;
+                        }
+                    } catch (e) {
+                        // Not JSON, ignore
+                    }
+                    
+                    if (errorMessage.toLowerCase().includes('not yet been marked successfully written')) {
+                        errorMessage = 'This file is currently being processed by the network. Please check your Dashboard in a few minutes or try again later.';
+                    }
+
+                    toast.error(errorMessage);
                     resetTarget();
                     return;
                 } else {
@@ -159,7 +177,18 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
         } catch (error) {
             // Outer catch handles unexpected preparation failures (e.g. arrayBuffer read error)
-            toast.error(error instanceof Error ? error.message : 'Upload failed. Please try again.');
+            let errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
+            
+            try {
+                const parsed = JSON.parse(errorMessage);
+                if (parsed && parsed.message) {
+                    errorMessage = parsed.message;
+                }
+            } catch (e) {
+                // Not JSON, ignore
+            }
+            
+            toast.error(errorMessage);
             resetTarget();
         }
     };
