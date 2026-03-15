@@ -15,16 +15,19 @@ const Navbar = dynamic((() => import("@/components/Navbar")) as any, { ssr: fals
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
     const shelbyClient = React.useMemo(() => {
+        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY;
+        console.log("[Shelby] Initializing client. Key present:", !!apiKey);
+        
         return new ShelbyClient({
             network: Network.TESTNET,
-            apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY,
+            apiKey: apiKey,
             aptos: {
                 clientConfig: {
-                    API_KEY: process.env.NEXT_PUBLIC_APTOS_API_KEY || process.env.NEXT_PUBLIC_SHELBY_API_KEY,
+                    API_KEY: process.env.NEXT_PUBLIC_APTOS_API_KEY || apiKey,
                 }
             },
             indexer: {
-                apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY
+                apiKey: apiKey
             }
         });
     }, [process.env.NEXT_PUBLIC_SHELBY_API_KEY, process.env.NEXT_PUBLIC_APTOS_API_KEY]);
