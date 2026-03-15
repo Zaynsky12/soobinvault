@@ -18,7 +18,7 @@ export function Dashboard() {
     const shelbyClient = useShelbyClient();
     const [assets, setAssets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    
+
     // Modal State
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [selectedAsset, setSelectedAsset] = useState<{
@@ -120,18 +120,7 @@ export function Dashboard() {
                             <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block mb-3">Total Assets</span>
                             <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
                         </div>
-                        <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-accent/30 transition-all duration-500">
-                            <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-accent/20 to-transparent" />
-                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block mb-3">Network Health</span>
-                            <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-color-accent transition-colors">
-                                Optimal
-                            </span>
-                        </div>
-                        <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-white/20 transition-all duration-500">
-                            <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block mb-3">Node Capacity</span>
-                            <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-white transition-colors">99.9<span className="text-xs font-sans text-color-support/30">%</span></span>
-                        </div>
+
                     </div>
                 </div>
 
@@ -142,8 +131,8 @@ export function Dashboard() {
                     <div className="hidden md:grid grid-cols-12 gap-4 p-5 border-b border-white/5 text-color-support/40 text-[10px] font-bold uppercase tracking-[0.2em] bg-[#0A0A0A]">
                         <div className="col-span-7">Asset Name</div>
                         <div className="col-span-2">Capacity</div>
-                        <div className="col-span-2">Network Hash</div>
-                        <div className="col-span-1 text-right">Settings</div>
+                        <div className="col-span-2">Download</div>
+                        <div className="col-span-1 text-right">Share</div>
                     </div>
 
                     {/* Asset Rows */}
@@ -197,7 +186,7 @@ export function Dashboard() {
                                     });
                                     setIsPreviewModalOpen(true);
                                 };
-                                 const handleDownload = async (e?: React.MouseEvent) => {
+                                const handleDownload = async (e?: React.MouseEvent) => {
                                     if (e) e.stopPropagation();
                                     const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
                                     try {
@@ -206,7 +195,7 @@ export function Dashboard() {
                                                 'Authorization': `Bearer ${apiKey.trim()}`
                                             }
                                         });
-                                        
+
                                         if (!response.ok) {
                                             let errorDetail = `Server returned ${response.status}`;
                                             try {
@@ -232,7 +221,7 @@ export function Dashboard() {
                                 };
 
                                 return (
-                                    <AssetRow 
+                                    <AssetRow
                                         key={asset.blob_merkle_root || index}
                                         asset={asset}
                                         index={index}
@@ -259,7 +248,7 @@ export function Dashboard() {
             </div>
 
             {/* Link Preview Modal */}
-            <LinkPreviewModal 
+            <LinkPreviewModal
                 isOpen={isPreviewModalOpen}
                 onClose={() => setIsPreviewModalOpen(false)}
                 assetName={selectedAsset?.name || ''}
@@ -268,45 +257,45 @@ export function Dashboard() {
                 isImage={selectedAsset?.isImage || false}
                 onDownload={async () => {
                     if (selectedAsset) {
-                         const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
-                         try {
-                             const response = await fetch(selectedAsset.url, {
-                                 headers: {
-                                     'Authorization': `Bearer ${apiKey.trim()}`
-                                 }
-                             });
-                             
-                             if (!response.ok) {
-                                 const contentType = response.headers.get('content-type');
-                                 let errorDetail = "";
-                                 if (contentType && contentType.includes('application/json')) {
-                                     try {
-                                         const errorData = await response.json();
-                                         if (errorData.error && errorData.error.toLowerCase().includes('not yet been marked successfully written')) {
-                                             errorDetail = "This file is still being indexed on the Shelby network. Please wait a few moments and try again.";
-                                         } else {
-                                             errorDetail = errorData.message || errorData.error || response.statusText;
-                                         }
-                                     } catch (e) {
-                                         errorDetail = response.statusText;
-                                     }
-                                 } else {
-                                     errorDetail = response.statusText;
-                                 }
-                                 throw new Error(errorDetail || `Server returned ${response.status}`);
-                             }
+                        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
+                        try {
+                            const response = await fetch(selectedAsset.url, {
+                                headers: {
+                                    'Authorization': `Bearer ${apiKey.trim()}`
+                                }
+                            });
 
-                             const fileData = await response.blob();
-                             const downloadLink = document.createElement("a");
-                             const url = URL.createObjectURL(fileData);
-                             downloadLink.href = url;
-                             downloadLink.download = selectedAsset.name;
-                             downloadLink.click();
-                             setTimeout(() => URL.revokeObjectURL(url), 100);
-                         } catch (err) {
-                             console.error("Download failed", err);
-                             alert(`${err instanceof Error ? err.message : 'An unexpected error occurred during download'}`);
-                         }
+                            if (!response.ok) {
+                                const contentType = response.headers.get('content-type');
+                                let errorDetail = "";
+                                if (contentType && contentType.includes('application/json')) {
+                                    try {
+                                        const errorData = await response.json();
+                                        if (errorData.error && errorData.error.toLowerCase().includes('not yet been marked successfully written')) {
+                                            errorDetail = "This file is still being indexed on the Shelby network. Please wait a few moments and try again.";
+                                        } else {
+                                            errorDetail = errorData.message || errorData.error || response.statusText;
+                                        }
+                                    } catch (e) {
+                                        errorDetail = response.statusText;
+                                    }
+                                } else {
+                                    errorDetail = response.statusText;
+                                }
+                                throw new Error(errorDetail || `Server returned ${response.status}`);
+                            }
+
+                            const fileData = await response.blob();
+                            const downloadLink = document.createElement("a");
+                            const url = URL.createObjectURL(fileData);
+                            downloadLink.href = url;
+                            downloadLink.download = selectedAsset.name;
+                            downloadLink.click();
+                            setTimeout(() => URL.revokeObjectURL(url), 100);
+                        } catch (err) {
+                            console.error("Download failed", err);
+                            alert(`${err instanceof Error ? err.message : 'An unexpected error occurred during download'}`);
+                        }
                     }
                 }}
             />
@@ -316,7 +305,7 @@ export function Dashboard() {
 
 function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview }: any) {
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
-    
+
     useEffect(() => {
         const checkStatus = async () => {
             const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
@@ -364,7 +353,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                     'Authorization': `Bearer ${apiKey.trim()}`
                 }
             });
-            
+
             if (!response.ok) {
                 const contentType = response.headers.get('content-type');
                 let errorDetail = "";
@@ -399,7 +388,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
     };
 
     return (
-        <div 
+        <div
             className={`asset-row flex flex-col md:grid md:grid-cols-12 gap-4 p-5 md:p-6 items-center transition-all duration-500 relative overflow-hidden border-b border-white/5 last:border-0 ${status === 'live' ? 'hover:bg-white/[0.03] cursor-pointer group' : 'opacity-60 cursor-not-allowed'}`}
             onClick={status === 'live' ? handleOpenPreview : undefined}
         >
@@ -420,10 +409,10 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
                         </div>
-                        <span className="text-color-support/40 text-[10px] font-mono tracking-widest items-center flex gap-2">
+                        {/* <span className="text-color-support/40 text-[10px] font-mono tracking-widest items-center flex gap-2">
                             <Lock size={10} className="text-color-primary/40" />
                             SECURED_BLOB_HASH: {asset.blob_merkle_root?.substring(0, 16)}...
-                        </span>
+                        </span> */}
                     </div>
                 </div>
             </div>
@@ -435,41 +424,51 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             </div>
 
             {/* Time / Hash (Desktop Only) */}
-            <div className="hidden md:flex col-span-2 text-color-support/50 font-mono text-xs tracking-widest relative z-10 flex-col">
+            {/* <div className="hidden md:flex col-span-2 text-color-support/50 font-mono text-xs tracking-widest relative z-10 flex-col">
                 <span className="text-[10px] text-color-support/30 font-bold uppercase tracking-[0.2em] mb-1 md:hidden">Network Hash</span>
                 <span className="group-hover:text-color-support transition-colors">
                     {asset.blob_merkle_root ? `${asset.blob_merkle_root.slice(0, 8)}...` : '...'}
                 </span>
+            </div> */}
+
+            <div className="hidden md:flex col-span-1 relative z-10 flex-col">
+
+                <button
+                    className="flex-grow md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 font-bold text-[10px] uppercase tracking-[0.2em] shadow-lg hover:shadow-color-primary/20"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(downloadUrl);
+                        alert("Secure link copied to clipboard");
+                    }}
+                >
+                    <LinkIcon size={12} />
+                    {/* <span className="md:hidden lg:inline">Copy Secure Link</span> */}
+                    <span className="hidden md:inline lg:hidden">Link</span>
+                </button>
+            </div>
+
+            <div className="hidden md:flex col-span-1 relative z-10 flex justify-end items-center">
+
+                <button
+                    className={`p-2.5 rounded-xl transition-all shadow-lg ${status === 'live' ? 'bg-white/5 hover:bg-color-accent text-white hover:scale-110 hover:shadow-color-accent/30' : 'bg-white/5 text-color-support/20 cursor-not-allowed'}`}
+                    title={status === 'live' ? "Download Payload" : "Indexing..."}
+                    onClick={status === 'live' ? handleDownload : (e) => e.stopPropagation()}
+                    disabled={status !== 'live'}
+                >
+                    <Download size={16} />
+                </button>
             </div>
 
             {/* Actions (Responsive) */}
-            <div className="w-full md:w-auto md:col-span-1 flex justify-end items-center gap-3 relative z-10 mt-4 md:mt-0">
+            {/* <div className="w-full md:w-auto md:col-span-1 flex justify-end items-center gap-3 relative z-10 mt-4 md:mt-0">
                 <div className="flex items-center w-full md:w-auto bg-black/40 p-1.5 rounded-2xl border border-white/5 group-hover:border-color-primary/20 transition-all duration-500 shadow-2xl">
-                    <button 
-                        className="flex-grow md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 font-bold text-[10px] uppercase tracking-[0.2em] shadow-lg hover:shadow-color-primary/20"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(downloadUrl);
-                            alert("Secure link copied to clipboard");
-                        }}
-                    >
-                        <LinkIcon size={12} />
-                        <span className="md:hidden lg:inline">Copy Secure Link</span>
-                        <span className="hidden md:inline lg:hidden">Link</span>
-                    </button>
                     
+
                     <div className="w-[1px] h-4 bg-white/10 mx-2 shrink-0" />
+
                     
-                    <button
-                        className={`p-2.5 rounded-xl transition-all shadow-lg ${status === 'live' ? 'bg-white/5 hover:bg-color-accent text-white hover:scale-110 hover:shadow-color-accent/30' : 'bg-white/5 text-color-support/20 cursor-not-allowed'}`}
-                        title={status === 'live' ? "Download Payload" : "Indexing..."}
-                        onClick={status === 'live' ? handleDownload : (e) => e.stopPropagation()}
-                        disabled={status !== 'live'}
-                    >
-                        <Download size={16} />
-                    </button>
                 </div>
-            </div>
+            </div> */}
         </div>
     );
 }
