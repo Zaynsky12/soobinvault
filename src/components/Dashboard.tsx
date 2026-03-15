@@ -122,9 +122,9 @@ export function Dashboard() {
                         </div>
                         <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-accent/30 transition-all duration-500">
                             <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-accent/20 to-transparent" />
-                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block mb-3">Active Syncs</span>
+                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block mb-3">Network Health</span>
                             <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-color-accent transition-colors">
-                                {assets.filter(a => a.status === 'syncing' || a.status === 'checking').length || 0}
+                                Optimal
                             </span>
                         </div>
                         <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-white/20 transition-all duration-500">
@@ -421,24 +421,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                             <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
                         </div>
                         <span className="text-color-support/40 text-[10px] font-mono tracking-widest items-center flex gap-2">
-                             {status === 'live' ? (
-                                <div className="flex items-center gap-1.5 text-green-400 font-bold uppercase text-[9px]">
-                                    <CheckCircle2 size={10} />
-                                    <span>Sync</span>
-                                </div>
-                            ) : status === 'syncing' ? (
-                                <div className="flex items-center gap-1.5 text-color-primary font-bold uppercase text-[9px] animate-pulse">
-                                    <Clock size={10} />
-                                    <span>Sync</span>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-1.5 text-white/20 font-bold uppercase text-[9px]">
-                                    <Loader2 size={10} className="animate-spin" />
-                                    <span>Sync</span>
-                                </div>
-                            )}
-                            <span className="w-1 h-1 rounded-full bg-white/10" />
-                            {asset.blob_merkle_root?.substring(0, 16)}...
+                            <Lock size={10} className="text-color-primary/40" />
+                            SECURED_BLOB_HASH: {asset.blob_merkle_root?.substring(0, 16)}...
                         </span>
                     </div>
                 </div>
