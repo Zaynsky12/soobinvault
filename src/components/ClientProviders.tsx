@@ -13,20 +13,22 @@ const Navbar = dynamic((() => import("@/components/Navbar")) as any, { ssr: fals
 
 
 
-const shelbyClient = new ShelbyClient({
-    network: Network.TESTNET,
-    apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY,
-    aptos: {
-        clientConfig: {
-            API_KEY: process.env.NEXT_PUBLIC_APTOS_API_KEY || process.env.NEXT_PUBLIC_SHELBY_API_KEY,
-        }
-    },
-    indexer: {
-        apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY
-    }
-});
-
 export function ClientProviders({ children }: { children: React.ReactNode }) {
+    const shelbyClient = React.useMemo(() => {
+        return new ShelbyClient({
+            network: Network.TESTNET,
+            apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY,
+            aptos: {
+                clientConfig: {
+                    API_KEY: process.env.NEXT_PUBLIC_APTOS_API_KEY || process.env.NEXT_PUBLIC_SHELBY_API_KEY,
+                }
+            },
+            indexer: {
+                apiKey: process.env.NEXT_PUBLIC_SHELBY_API_KEY
+            }
+        });
+    }, []);
+
     return (
         <WalletProvider>
             <ShelbyClientProvider client={shelbyClient}>
