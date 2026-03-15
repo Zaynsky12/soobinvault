@@ -18,16 +18,6 @@ export function Dashboard() {
     const [assets, setAssets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
-    useEffect(() => {
-        // Expose function to global window object for debugging
-        (window as any).checkMyEnv = () => {
-            console.log("=== ENV CHECK ===");
-            console.log("NEXT_PUBLIC_SHELBY_API_KEY:", process.env.NEXT_PUBLIC_SHELBY_API_KEY);
-            console.log("Is it undefined?:", process.env.NEXT_PUBLIC_SHELBY_API_KEY === undefined);
-            console.log("Length:", process.env.NEXT_PUBLIC_SHELBY_API_KEY?.length);
-            console.log("=================");
-        };
-    }, []);
 
     const fetchBlobs = async () => {
         if (!account) return;
@@ -244,6 +234,9 @@ export function Dashboard() {
                     {/* Pagination / Footer */}
                     <div className="p-6 border-t border-white/5 flex justify-between items-center bg-black/30">
                         <span className="text-sm text-color-support/50 font-medium">Viewing secure assets on the decentralized network.</span>
+                        <span className="text-xs font-mono text-white/30 tracking-widest">
+                            Connection mode: {process.env.NEXT_PUBLIC_SHELBY_API_KEY ? 'Secure' : 'Public/Limited'}
+                        </span>
                     </div>
                 </GlassCard>
 

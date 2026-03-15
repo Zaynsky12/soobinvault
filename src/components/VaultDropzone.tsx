@@ -253,6 +253,10 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                     {/* Ambient drag glow */}
                     <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-color-primary/30 blur-[120px] rounded-full pointer-events-none transition-opacity duration-500 ${isDragging ? 'opacity-100' : 'opacity-0'}`} />
+                    
+                    <div className="absolute bottom-4 right-4 text-[10px] font-mono text-white/30 tracking-widest pointer-events-none">
+                        Connection mode: {process.env.NEXT_PUBLIC_SHELBY_API_KEY ? 'Secure' : 'Public/Limited'}
+                    </div>
                 </GlassCard>
             </div>
         </section>
