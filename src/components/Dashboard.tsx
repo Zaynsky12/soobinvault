@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen } from 'lucide-react';
+import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock } from 'lucide-react';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient } from "@shelby-protocol/react";
@@ -217,59 +217,16 @@ export function Dashboard() {
                                 };
 
                                 return (
-                                    <div 
-                                        key={asset.blob_merkle_root || index} 
-                                        className="asset-row grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-center hover:bg-white/5 transition-all duration-300 group cursor-pointer relative overflow-hidden"
-                                        onClick={handleOpenPreview}
-                                    >
-                                        <div className="absolute inset-0 bg-gradient-to-r from-color-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-
-                                        <div className="col-span-1 md:col-span-5 flex items-center gap-4 relative z-10">
-                                            <div className="w-10 h-10 rounded-lg glass-panel bg-[#0A0A0A] flex items-center justify-center shadow-inner group-hover:scale-110 group-hover:bg-[#111] transition-all duration-300 border border-white/5">
-                                                {isImg ? <ImageIcon className="text-color-accent" size={18} /> : <FileText className="text-color-support/70" size={18} />}
-                                            </div>
-                                            <span className="font-mono text-sm text-white/80 group-hover:text-white truncate transition-colors">{displayName}</span>
-                                        </div>
-
-                                        <div className="col-span-1 md:col-span-2 text-color-support/60 font-mono text-sm group-hover:text-color-support transition-colors relative z-10">
-                                            <span className="md:hidden text-color-support/30 mr-2 font-sans text-xs uppercase tracking-widest">Size:</span>
-                                            {sizeMB} <span className="text-xs text-color-support/40 font-sans">MB</span>
-                                        </div>
-
-                                        <div className="col-span-1 md:col-span-2 text-color-support/50 font-mono text-sm group-hover:text-color-support transition-colors relative z-10 flex items-center">
-                                            <span className="md:hidden text-color-support/30 mr-2 font-sans text-xs uppercase tracking-widest">Hash:</span>
-                                            {asset.blob_merkle_root ? `${asset.blob_merkle_root.slice(0, 10)}...` : '...'}
-                                        </div>
-
-                                        <div className="col-span-1 md:col-span-2 flex items-center gap-2 relative z-10">
-                                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 group-hover:border-green-500/40 transition-colors">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
-                                                <span className="text-[10px] uppercase tracking-widest font-semibold">
-                                                    Secured
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="col-span-1 md:col-span-1 flex items-center justify-end gap-2 mt-4 md:mt-0 relative z-10 opacity-50 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-color-support hover:text-white transition-all hover:scale-110"
-                                                title="Copy Link"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleOpenPreview();
-                                                }}
-                                            >
-                                                <LinkIcon size={16} />
-                                            </button>
-                                            <button
-                                                className="p-2 rounded-lg bg-color-primary/10 hover:bg-color-primary/20 text-color-primary hover:text-white transition-all hover:scale-110"
-                                                title="Download"
-                                                onClick={handleDownload}
-                                            >
-                                                <Download size={16} />
-                                            </button>
-                                        </div>
-                                    </div>
+                                    <AssetRow 
+                                        key={asset.blob_merkle_root || index}
+                                        asset={asset}
+                                        index={index}
+                                        displayName={displayName}
+                                        sizeMB={sizeMB}
+                                        isImg={isImg}
+                                        downloadUrl={downloadUrl}
+                                        handleOpenPreview={handleOpenPreview}
+                                    />
                                 );
                             })
                         )}
@@ -305,14 +262,23 @@ export function Dashboard() {
                              });
                              
                              if (!response.ok) {
-                                 let errorDetail = `Server returned ${response.status}`;
-                                 try {
-                                     const errorData = await response.json();
-                                     errorDetail += `: ${errorData.message || errorData.error || response.statusText}`;
-                                 } catch (e) {
-                                     errorDetail += `: ${response.statusText}`;
+                                 const contentType = response.headers.get('content-type');
+                                 let errorDetail = "";
+                                 if (contentType && contentType.includes('application/json')) {
+                                     try {
+                                         const errorData = await response.json();
+                                         if (errorData.error && errorData.error.toLowerCase().includes('not yet been marked successfully written')) {
+                                             errorDetail = "This file is still being indexed on the Shelby network. Please wait a few moments and try again.";
+                                         } else {
+                                             errorDetail = errorData.message || errorData.error || response.statusText;
+                                         }
+                                     } catch (e) {
+                                         errorDetail = response.statusText;
+                                     }
+                                 } else {
+                                     errorDetail = response.statusText;
                                  }
-                                 throw new Error(errorDetail);
+                                 throw new Error(errorDetail || `Server returned ${response.status}`);
                              }
 
                              const fileData = await response.blob();
@@ -324,11 +290,177 @@ export function Dashboard() {
                              setTimeout(() => URL.revokeObjectURL(url), 100);
                          } catch (err) {
                              console.error("Download failed", err);
-                             alert(`Failed to download asset: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                             alert(`${err instanceof Error ? err.message : 'An unexpected error occurred during download'}`);
                          }
                     }
                 }}
             />
         </section>
+    );
+}
+
+function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview }: any) {
+    const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
+    
+    useEffect(() => {
+        const checkStatus = async () => {
+            const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
+            try {
+                // Check if the blob is available
+                const response = await fetch(downloadUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey.trim()}`,
+                        'Range': 'bytes=0-0'
+                    }
+                });
+
+                if (response.ok) {
+                    setStatus('live');
+                } else if (response.status === 404 || response.status === 500) {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        const data = await response.json();
+                        if (data.error && data.error.toLowerCase().includes('not yet been marked successfully written')) {
+                            setStatus('syncing');
+                        } else {
+                            setStatus('live');
+                        }
+                    } else {
+                        setStatus('live');
+                    }
+                } else {
+                    setStatus('live');
+                }
+            } catch (e) {
+                setStatus('live');
+            }
+        };
+
+        checkStatus();
+    }, [downloadUrl]);
+
+    const handleDownload = async (e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
+        try {
+            const response = await fetch(downloadUrl, {
+                headers: {
+                    'Authorization': `Bearer ${apiKey.trim()}`
+                }
+            });
+            
+            if (!response.ok) {
+                const contentType = response.headers.get('content-type');
+                let errorDetail = "";
+                if (contentType && contentType.includes('application/json')) {
+                    try {
+                        const errorData = await response.json();
+                        if (errorData.error && errorData.error.toLowerCase().includes('not yet been marked successfully written')) {
+                            errorDetail = "This file is still being indexed on the Shelby network. Please wait a few moments and try again.";
+                        } else {
+                            errorDetail = errorData.message || errorData.error || response.statusText;
+                        }
+                    } catch (e) {
+                        errorDetail = response.statusText;
+                    }
+                } else {
+                    errorDetail = response.statusText;
+                }
+                throw new Error(errorDetail || `Server returned ${response.status}`);
+            }
+
+            const fileData = await response.blob();
+            const downloadLink = document.createElement("a");
+            const url = URL.createObjectURL(fileData);
+            downloadLink.href = url;
+            downloadLink.download = displayName;
+            downloadLink.click();
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+        } catch (err) {
+            console.error("Download failed", err);
+            alert(`${err instanceof Error ? err.message : 'An unexpected error occurred during download'}`);
+        }
+    };
+
+    return (
+        <div 
+            className="asset-row grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-center hover:bg-white/5 transition-all duration-300 group cursor-pointer relative overflow-hidden"
+            onClick={handleOpenPreview}
+        >
+            <div className="absolute inset-0 bg-gradient-to-r from-color-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+            <div className="col-span-1 md:col-span-12 lg:col-span-5 flex items-center gap-4 relative z-10">
+                <div className="w-10 h-10 rounded-lg glass-panel bg-[#0A0A0A] flex items-center justify-center shadow-inner group-hover:scale-110 group-hover:bg-[#111] transition-all duration-300 border border-white/5">
+                    {isImg ? <ImageIcon className="text-color-accent" size={18} /> : <FileText className="text-color-support/70" size={18} />}
+                </div>
+                <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-2">
+                        <span className="text-white font-medium truncate group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
+                        {status === 'live' ? (
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 text-[10px] font-bold uppercase tracking-wider border border-green-500/20">
+                                <CheckCircle2 size={10} />
+                                <span>Live</span>
+                            </div>
+                        ) : status === 'syncing' ? (
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-color-primary/10 text-color-primary text-[10px] font-bold uppercase tracking-wider border border-color-primary/20 animate-pulse">
+                                <Clock size={10} />
+                                <span>Syncing</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 text-color-support/40 text-[10px] font-bold uppercase tracking-wider border border-white/10">
+                                <Loader2 size={10} className="animate-spin" />
+                                <span>Pending</span>
+                            </div>
+                        )}
+                    </div>
+                    <span className="text-color-support/40 text-[11px] font-mono tracking-wider items-center flex gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-color-primary/30" />
+                        SECURE PAYLOAD ID: {asset.blob_merkle_root?.substring(0, 12)}...
+                    </span>
+                </div>
+            </div>
+
+            <div className="col-span-1 md:col-span-4 lg:col-span-2 relative z-10">
+                <div className="flex flex-col">
+                    <span className="text-color-support/60 text-xs font-medium mb-1 flex items-center gap-1.5 grayscale group-hover:grayscale-0 transition-all">
+                        <Database size={12} className="text-color-primary" />
+                        CAPACITY
+                    </span>
+                    <span className="text-white/80 font-mono text-xs tracking-widest">{sizeMB} MB</span>
+                </div>
+            </div>
+
+            <div className="col-span-1 md:col-span-4 lg:col-span-2 text-color-support/50 font-mono text-sm group-hover:text-color-support transition-colors relative z-10 flex items-center">
+                <span className="md:hidden text-color-support/30 mr-2 font-sans text-xs uppercase tracking-widest">Hash:</span>
+                {asset.blob_merkle_root ? `${asset.blob_merkle_root.slice(0, 10)}...` : '...'}
+            </div>
+
+            <div className="col-span-1 md:col-span-4 lg:col-span-3 flex justify-start md:justify-end items-center gap-3 relative z-10">
+                <div className="flex items-center bg-black/40 p-1.5 rounded-xl border border-white/5 group-hover:border-color-primary/30 transition-all duration-500">
+                    <button 
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 font-bold text-[11px] uppercase tracking-[0.15em] shadow-lg shadow-color-primary/5 hover:shadow-color-primary/20"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(downloadUrl);
+                            alert("Secure link copied to clipboard");
+                        }}
+                    >
+                        <LinkIcon size={12} />
+                        Copy Link
+                    </button>
+                    
+                    <div className="w-[1px] h-4 bg-white/10 mx-2" />
+                    
+                    <button
+                        className="p-2 rounded-lg bg-color-primary/10 hover:bg-color-primary/20 text-color-primary hover:text-white transition-all hover:scale-110"
+                        title="Download"
+                        onClick={handleDownload}
+                    >
+                        <Download size={16} />
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 }
