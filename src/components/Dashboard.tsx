@@ -139,12 +139,11 @@ export function Dashboard() {
 
                 <GlassCard className="assets-container p-0 overflow-hidden border-white/5 bg-[#050505]/90 backdrop-blur-3xl rounded-3xl">
                     {/* Table Header */}
-                    <div className="hidden md:grid grid-cols-12 gap-4 p-5 border-b border-white/5 text-color-support/40 text-xs font-semibold uppercase tracking-widest bg-[#0A0A0A]">
-                        <div className="col-span-5">Asset Name</div>
-                        <div className="col-span-2">Size</div>
-                        <div className="col-span-2">Uploaded</div>
-                        <div className="col-span-2">Status</div>
-                        <div className="col-span-1 text-right">Actions</div>
+                    <div className="hidden md:grid grid-cols-12 gap-4 p-5 border-b border-white/5 text-color-support/40 text-[10px] font-bold uppercase tracking-[0.2em] bg-[#0A0A0A]">
+                        <div className="col-span-7">Asset Name</div>
+                        <div className="col-span-2">Capacity</div>
+                        <div className="col-span-2">Network Hash</div>
+                        <div className="col-span-1 text-right">Settings</div>
                     </div>
 
                     {/* Asset Rows */}
@@ -408,7 +407,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             <div className="absolute inset-0 bg-gradient-to-r from-color-primary/[0.03] via-transparent to-color-accent/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
             {/* Asset Identity (Mobile Header) */}
-            <div className="w-full col-span-12 lg:col-span-5 flex items-center justify-between md:justify-start gap-4 relative z-10">
+            <div className="w-full col-span-12 lg:col-span-7 flex items-center justify-between md:justify-start gap-4 relative z-10">
                 <div className="flex items-center gap-4 min-w-0">
                     <div className="w-12 h-12 rounded-xl glass-panel bg-[#050505] flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
                         {isImg ? (
@@ -422,66 +421,41 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                             <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
                         </div>
                         <span className="text-color-support/40 text-[10px] font-mono tracking-widest items-center flex gap-2">
-                            <span className="w-1 h-1 rounded-full bg-color-primary/50" />
+                             {status === 'live' ? (
+                                <div className="flex items-center gap-1.5 text-green-400 font-bold uppercase text-[9px]">
+                                    <CheckCircle2 size={10} />
+                                    <span>Sync</span>
+                                </div>
+                            ) : status === 'syncing' ? (
+                                <div className="flex items-center gap-1.5 text-color-primary font-bold uppercase text-[9px] animate-pulse">
+                                    <Clock size={10} />
+                                    <span>Sync</span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1.5 text-white/20 font-bold uppercase text-[9px]">
+                                    <Loader2 size={10} className="animate-spin" />
+                                    <span>Sync</span>
+                                </div>
+                            )}
+                            <span className="w-1 h-1 rounded-full bg-white/10" />
                             {asset.blob_merkle_root?.substring(0, 16)}...
-                            <span className="hidden md:inline text-[9px] opacity-30">| BLOB_ID</span>
                         </span>
                     </div>
-                </div>
-
-                {/* Mobile-only Status */}
-                <div className="md:hidden flex items-center gap-2">
-                     {status === 'live' ? (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 text-green-400 text-[9px] font-bold uppercase tracking-widest border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.1)]">
-                            <CheckCircle2 size={10} />
-                            <span>Live</span>
-                        </div>
-                    ) : status === 'syncing' ? (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-color-primary/10 text-color-primary text-[9px] font-bold uppercase tracking-widest border border-color-primary/20 animate-pulse shadow-[0_0_15px_rgba(232,58,118,0.1)]">
-                            <Clock size={10} />
-                            <span>Syncing</span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 text-color-support/30 text-[9px] font-bold uppercase tracking-widest border border-white/10">
-                            <Loader2 size={10} className="animate-spin" />
-                            <span>Check</span>
-                        </div>
-                    )}
                 </div>
             </div>
 
             {/* Capacity / Size (Desktop Only in Grid) */}
             <div className="hidden md:flex col-span-2 relative z-10 flex-col">
-                <span className="text-[10px] text-color-support/30 font-bold uppercase tracking-[0.2em] mb-1">Capacity</span>
+                <span className="text-[10px] text-color-support/30 font-bold uppercase tracking-[0.2em] mb-1 md:hidden">Capacity</span>
                 <span className="text-white/80 font-mono text-xs tracking-widest">{sizeMB} MB</span>
             </div>
 
             {/* Time / Hash (Desktop Only) */}
             <div className="hidden md:flex col-span-2 text-color-support/50 font-mono text-xs tracking-widest relative z-10 flex-col">
-                <span className="text-[10px] text-color-support/30 font-bold uppercase tracking-[0.2em] mb-1">Network Hash</span>
+                <span className="text-[10px] text-color-support/30 font-bold uppercase tracking-[0.2em] mb-1 md:hidden">Network Hash</span>
                 <span className="group-hover:text-color-support transition-colors">
                     {asset.blob_merkle_root ? `${asset.blob_merkle_root.slice(0, 8)}...` : '...'}
                 </span>
-            </div>
-
-            {/* Status (Desktop Only) */}
-            <div className="hidden md:flex col-span-2 relative z-10">
-                {status === 'live' ? (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-green-500/5 text-green-400 text-[10px] font-bold uppercase tracking-[0.15em] border border-green-500/10 group-hover:border-green-500/30 transition-all shadow-[0_0_20px_rgba(34,197,94,0.05)]">
-                        <CheckCircle2 size={12} className="shrink-0" />
-                        <span>Available</span>
-                    </div>
-                ) : status === 'syncing' ? (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-color-primary/5 text-color-primary text-[10px] font-bold uppercase tracking-[0.15em] border border-color-primary/10 animate-pulse shadow-[0_0_20px_rgba(232,58,118,0.05)]">
-                        <Clock size={12} className="shrink-0" />
-                        <span>Synchronizing</span>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.03] text-color-support/30 text-[10px] font-bold uppercase tracking-[0.15em] border border-white/5">
-                        <Loader2 size={12} className="animate-spin shrink-0" />
-                        <span>Verifying</span>
-                    </div>
-                )}
             </div>
 
             {/* Actions (Responsive) */}
