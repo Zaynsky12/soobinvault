@@ -129,10 +129,10 @@ export function Dashboard() {
                 <GlassCard className="assets-container p-0 overflow-hidden border-white/5 bg-[#050505]/90 backdrop-blur-3xl rounded-3xl">
                     {/* Table Header */}
                     <div className="hidden md:grid grid-cols-12 gap-4 p-5 border-b border-white/5 text-color-support/40 text-[10px] font-bold uppercase tracking-[0.2em] bg-[#0A0A0A]">
-                        <div className="col-span-7">Asset Name</div>
+                        <div className="col-span-6">Asset Name</div>
                         <div className="col-span-2">Capacity</div>
-                        <div className="col-span-2">Download</div>
-                        <div className="col-span-1 text-right">Share</div>
+                        <div className="col-span-2 text-center">Download</div>
+                        <div className="col-span-2 text-right">Share</div>
                     </div>
 
                     {/* Asset Rows */}
@@ -394,81 +394,55 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         >
             {/* Hover Background Artifact */}
             <div className="absolute inset-0 bg-gradient-to-r from-color-primary/[0.03] via-transparent to-color-accent/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-            {/* Asset Identity (Mobile Header) */}
-            <div className="w-full col-span-12 lg:col-span-7 flex items-center justify-between md:justify-start gap-4 relative z-10">
-                <div className="flex items-center gap-4 min-w-0">
-                    <div className="w-12 h-12 rounded-xl glass-panel bg-[#050505] flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
-                        {isImg ? (
-                            <ImageIcon className="text-color-accent group-hover:text-white transition-colors" size={20} />
-                        ) : (
-                            <FileText className="text-color-support/60 group-hover:text-white transition-colors" size={20} />
-                        )}
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
-                        </div>
-                        {/* <span className="text-color-support/40 text-[10px] font-mono tracking-widest items-center flex gap-2">
-                            <Lock size={10} className="text-color-primary/40" />
-                            SECURED_BLOB_HASH: {asset.blob_merkle_root?.substring(0, 16)}...
-                        </span> */}
-                    </div>
+            {/* Asset Identity */}
+            <div className="w-full col-span-12 md:col-span-6 flex items-center gap-4 relative z-10">
+                <div className="w-12 h-12 rounded-xl glass-panel bg-[#050505] flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
+                    {isImg ? (
+                        <ImageIcon className="text-color-accent group-hover:text-white transition-colors" size={20} />
+                    ) : (
+                        <FileText className="text-color-support/60 group-hover:text-white transition-colors" size={20} />
+                    )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                    <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
+                    <span className="md:hidden text-color-support/40 text-[10px] font-mono tracking-widest uppercase mt-1">
+                        {sizeMB} MB • SECURED
+                    </span>
                 </div>
             </div>
 
-            {/* Capacity / Size (Desktop Only in Grid) */}
+            {/* Capacity (Desktop Only) */}
             <div className="hidden md:flex col-span-2 relative z-10 flex-col">
-                <span className="text-[10px] text-color-support/30 font-bold uppercase tracking-[0.2em] mb-1 md:hidden">Capacity</span>
                 <span className="text-white/80 font-mono text-xs tracking-widest">{sizeMB} MB</span>
             </div>
 
-            {/* Time / Hash (Desktop Only) */}
-            {/* <div className="hidden md:flex col-span-2 text-color-support/50 font-mono text-xs tracking-widest relative z-10 flex-col">
-                <span className="text-[10px] text-color-support/30 font-bold uppercase tracking-[0.2em] mb-1 md:hidden">Network Hash</span>
-                <span className="group-hover:text-color-support transition-colors">
-                    {asset.blob_merkle_root ? `${asset.blob_merkle_root.slice(0, 8)}...` : '...'}
-                </span>
-            </div> */}
-
-            <div className="hidden md:flex col-span-1 relative z-10 flex-col">
-
+            {/* Download Button */}
+            <div className="w-full md:col-span-2 relative z-10 flex md:justify-center items-center mt-4 md:mt-0">
                 <button
-                    className="flex-grow md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 font-bold text-[10px] uppercase tracking-[0.2em] shadow-lg hover:shadow-color-primary/20"
+                    className={`w-full md:w-12 md:h-12 flex items-center justify-center gap-2 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all shadow-lg ${status === 'live' ? 'bg-white/5 hover:bg-color-accent text-white hover:scale-110' : 'bg-white/5 text-color-support/20 cursor-not-allowed'}`}
+                    title={status === 'live' ? "Download Payload" : "Indexing..."}
+                    onClick={status === 'live' ? handleDownload : (e) => e.stopPropagation()}
+                    disabled={status !== 'live'}
+                >
+                    <Download size={18} />
+                    <span className="md:hidden font-bold text-[10px] uppercase tracking-[0.2em]">Download File</span>
+                </button>
+            </div>
+
+            {/* Share Button */}
+            <div className="w-full md:col-span-2 relative z-10 flex md:justify-end items-center mb-2 md:mb-0">
+                <button
+                    className="w-full md:w-12 md:h-12 flex items-center justify-center gap-2 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 shadow-lg"
                     onClick={(e) => {
                         e.stopPropagation();
                         navigator.clipboard.writeText(downloadUrl);
                         alert("Secure link copied to clipboard");
                     }}
                 >
-                    <LinkIcon size={12} />
-                    {/* <span className="md:hidden lg:inline">Copy Secure Link</span> */}
-                    <span className="hidden md:inline lg:hidden">Link</span>
+                    <LinkIcon size={18} />
+                    <span className="md:hidden font-bold text-[10px] uppercase tracking-[0.2em]">Copy Share Link</span>
                 </button>
             </div>
-
-            <div className="hidden md:flex col-span-1 relative z-10 flex justify-end items-center">
-
-                <button
-                    className={`p-2.5 rounded-xl transition-all shadow-lg ${status === 'live' ? 'bg-white/5 hover:bg-color-accent text-white hover:scale-110 hover:shadow-color-accent/30' : 'bg-white/5 text-color-support/20 cursor-not-allowed'}`}
-                    title={status === 'live' ? "Download Payload" : "Indexing..."}
-                    onClick={status === 'live' ? handleDownload : (e) => e.stopPropagation()}
-                    disabled={status !== 'live'}
-                >
-                    <Download size={16} />
-                </button>
-            </div>
-
-            {/* Actions (Responsive) */}
-            {/* <div className="w-full md:w-auto md:col-span-1 flex justify-end items-center gap-3 relative z-10 mt-4 md:mt-0">
-                <div className="flex items-center w-full md:w-auto bg-black/40 p-1.5 rounded-2xl border border-white/5 group-hover:border-color-primary/20 transition-all duration-500 shadow-2xl">
-                    
-
-                    <div className="w-[1px] h-4 bg-white/10 mx-2 shrink-0" />
-
-                    
-                </div>
-            </div> */}
         </div>
     );
 }
