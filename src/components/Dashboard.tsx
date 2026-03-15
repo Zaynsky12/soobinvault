@@ -109,27 +109,27 @@ export function Dashboard() {
                     <div className="mb-8 md:mb-0">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-color-primary/10 border border-color-primary/20 mb-4">
                             <span className="w-2 h-2 rounded-full bg-color-primary animate-pulse" />
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-color-primary">Vault Protocol Active</span>
+                            <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-color-primary">Vault Protocol Active</span>
                         </div>
-                        <h2 className="text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight">Your Vault</h2>
-                        <p className="text-color-support/60 text-lg font-light max-w-md">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
+                        <h2 className="text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none">Your Vault</h2>
+                        <p className="text-color-support/60 text-lg font-normal max-w-md leading-relaxed">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
                     </div>
                     <div className="w-full md:w-auto flex flex-wrap gap-4">
                         <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
                             <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-primary/20 to-transparent" />
-                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.2em] font-bold block mb-3">Total Assets</span>
+                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block mb-3">Total Assets</span>
                             <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
                         </div>
                         <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-accent/30 transition-all duration-500">
                             <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-accent/20 to-transparent" />
-                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.2em] font-bold block mb-3">Active Syncs</span>
+                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block mb-3">Active Syncs</span>
                             <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-color-accent transition-colors">
                                 {assets.filter(a => a.status === 'syncing' || a.status === 'checking').length || 0}
                             </span>
                         </div>
                         <div className="dash-stat flex-1 md:flex-none min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-white/20 transition-all duration-500">
                             <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.2em] font-bold block mb-3">Node Capacity</span>
+                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block mb-3">Node Capacity</span>
                             <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-white transition-colors">99.9<span className="text-xs font-sans text-color-support/30">%</span></span>
                         </div>
                     </div>

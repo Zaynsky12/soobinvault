@@ -17,8 +17,10 @@
   /* Ultra dark pink-tinted background */
   --color-clean: #FFFFFF;
 
-  --font-sans: var(--font-inter);
-  --font-heading: var(--font-plus-jakarta);
+  --font-sans: var(--font-outfit);
+  --font-body: var(--font-inter);
+  --font-heading: var(--font-urbanist);
+  --font-display: var(--font-plus-jakarta);
   --font-mono: var(--font-jetbrains-mono);
 
   --radius-xl: 1.5rem;
@@ -29,7 +31,9 @@ body {
   font-family: var(--font-sans);
   background-color: var(--color-deep);
   color: var(--color-clean);
-  line-height: 1.65;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1,
@@ -39,8 +43,8 @@ h4,
 h5,
 h6 {
   font-family: var(--font-heading);
-  letter-spacing: -0.05em;
-  /* tracking-tighter */
+  letter-spacing: -0.02em;
+  font-weight: 700;
 }
 
 code,

@@ -94,12 +94,12 @@ export function Hero() {
                     <span className="text-xs font-mono font-medium text-color-support uppercase tracking-widest">Build on Shelby</span>
                 </div>
 
-                <h1 className="animate-in text-5xl md:text-7xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-color-support drop-shadow-lg leading-tight">
+                <h1 className="animate-in text-5xl md:text-7xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-color-support drop-shadow-lg leading-[1.1] tracking-tight">
                     Unbreakable Storage for the Decentralized Web.
                 </h1>
 
-                <p className="animate-in text-xl md:text-2xl text-[#A3A3A3] mb-12 max-w-2xl mx-auto font-light">
-                    Store, share, and <span className="text-white font-medium">stream</span> your files on the world's most powerful <span className="text-color-accent">cryptographic</span> storage network.
+                <p className="animate-in text-xl md:text-2xl text-[#A3A3A3] mb-12 max-w-2xl mx-auto font-normal leading-relaxed">
+                    Store, share, and <span className="text-white font-semibold">stream</span> your files on the world's most powerful <span className="text-color-accent">cryptographic</span> storage network.
                 </p>
 
                 <div className="animate-in flex flex-col sm:flex-row items-center justify-center gap-4">
