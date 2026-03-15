@@ -15,7 +15,7 @@ export function Footer() {
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.4)] group-hover:shadow-[0_0_30px_rgba(251,179,204,0.6)] transition-all duration-300">
                             <Image
                                 src="/logo.png"  // Path starting from the root of the public folder
-                                alt="shoobinvault Logo"
+                                alt="soobinvault Logo"
                                 width={40}
                                 height={40}
                                 className="rounded-xl"

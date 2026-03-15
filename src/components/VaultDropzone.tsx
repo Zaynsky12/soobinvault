@@ -259,7 +259,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     <CheckCircle size={48} strokeWidth={2} />
                                 </div>
                                 <h3 className="text-3xl font-semibold mb-3 text-white">Asset Secured</h3>
-                                <p className="text-color-support text-lg mb-8">Your file is now immutably stored on the shoobinvault network.</p>
+                                <p className="text-color-support text-lg mb-8">Your file is now immutably stored on the soobinvault network.</p>
                                 <button
                                     onClick={resetTarget}
                                     className="px-8 py-4 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 text-white transition-colors font-medium backdrop-blur-md"

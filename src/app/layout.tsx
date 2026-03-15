@@ -9,7 +9,7 @@ const plusJakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-pl
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono" });
 
 export const metadata: Metadata = {
-  title: "ShoobinVault | Network",
+  title: "SoobinVault | Network",
   description: "The decentralized, unbreakable vault for your digital life.",
 };
 
