@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Shield, Menu, X } from 'lucide-react';
 import gsap from 'gsap';
+import Link from 'next/link';
 import { MagneticButton } from './ui/MagneticButton';
 import { WalletSelector } from './WalletSelector';
 
@@ -43,9 +44,9 @@ export default function Navbar(): React.ReactNode {
     };
 
     const navLinks = [
-        { name: 'Dashboard', href: '#dashboard' },
-        { name: 'Capabilities', href: '#features' },
-        { name: 'Vault', href: '#vault' },
+        { name: 'Home', href: '/' },
+        { name: 'Vault', href: '/vault' },
+        { name: 'Dashboard', href: '/dashboard' },
     ];
 
     return (
@@ -59,7 +60,7 @@ export default function Navbar(): React.ReactNode {
                         }`}>
 
                         {/* Logo */}
-                        <div className="flex items-center gap-3 cursor-pointer group">
+                        <Link href="/" className="flex items-center gap-3 cursor-pointer group">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.4)] group-hover:shadow-[0_0_30px_rgba(251,179,204,0.6)] transition-all duration-300">
                                 <Image
                                     src="/logo.png"
@@ -70,19 +71,19 @@ export default function Navbar(): React.ReactNode {
                                 />
                             </div>
                             <span className="font-heading font-bold text-xl tracking-tight text-white">SoobinVault</span>
-                        </div>
+                        </Link>
 
                         {/* Desktop Links */}
                         <nav className="hidden md:flex items-center gap-8">
                             {navLinks.map((link) => (
-                                <a
+                                <Link
                                     key={link.name}
                                     href={link.href}
                                     className="text-color-support/80 hover:text-white font-medium text-sm transition-colors duration-200 relative group"
                                 >
                                     {link.name}
                                     <span className="absolute -bottom-1 left-0 w-0 h-[2px] bg-color-accent transition-all duration-300 group-hover:w-full rounded-full"></span>
-                                </a>
+                                </Link>
                             ))}
                         </nav>
 
@@ -112,14 +113,14 @@ export default function Navbar(): React.ReactNode {
                         }`}>
                         <div className="p-6 flex flex-col gap-6">
                             {navLinks.map((link) => (
-                                <a
+                                <Link
                                     key={link.name}
                                     href={link.href}
                                     className="text-xl font-medium text-color-support hover:text-white"
                                     onClick={() => setMobileMenuOpen(false)}
                                 >
                                     {link.name}
-                                </a>
+                                </Link>
                             ))}
                             <div className="pt-6 border-t border-white/10">
                                 <button
