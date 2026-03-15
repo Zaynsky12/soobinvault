@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SoobinVault
 
-## Getting Started
+SoobinVault is a curated collection of useful tools, resources, and utilities for developers and creators. It provides a centralized place to discover modern tools for web development, design, productivity, and AI-powered workflows.
 
-First, run the development server:
+The goal of this project is to help developers quickly find high-quality tools without spending hours searching the internet.
+
+🌐 **Live Website:** [https://soobinvault.vercel.app/](https://soobinvault.vercel.app/)
+
+## Features
+
+- 🔎 **Curated Developer Tools:** Discover useful tools for web development, design, and productivity.
+- 🧠 **Categorized Resources:** Tools are organized into categories like frontend, backend, hosting, APIs, icons, fonts, and more.
+- ⚡ **Fast & Minimal Interface:** Simple and lightweight design to quickly explore developer resources.
+- 🧰 **Developer-Focused Platform:** Built to help developers find tools for building, designing, deploying, and optimizing web applications.
+
+## Tech Stack
+
+- **Frontend:** Modern JavaScript Framework
+- **Styling:** CSS / TailwindCSS
+- **Deployment:** Vercel
+
+## Run Locally
+
+Clone the repository:
+
+```bash
+git clone https://github.com/username/soobinvault.git
+```
+
+Go to the project folder:
+
+```bash
+cd soobinvault
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open in browser:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Build for Production
 
-## Learn More
+Build the project:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Preview production build:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run preview
+```
