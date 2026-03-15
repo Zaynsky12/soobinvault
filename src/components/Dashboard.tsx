@@ -385,8 +385,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
 
     return (
         <div 
-            className="asset-row grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-center hover:bg-white/5 transition-all duration-300 group cursor-pointer relative overflow-hidden"
-            onClick={handleOpenPreview}
+            className={`asset-row grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-center transition-all duration-300 relative overflow-hidden ${status === 'live' ? 'hover:bg-white/5 cursor-pointer group' : 'opacity-70 cursor-not-allowed'}`}
+            onClick={status === 'live' ? handleOpenPreview : undefined}
         >
             <div className="absolute inset-0 bg-gradient-to-r from-color-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
@@ -453,9 +453,10 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                     <div className="w-[1px] h-4 bg-white/10 mx-2" />
                     
                     <button
-                        className="p-2 rounded-lg bg-color-primary/10 hover:bg-color-primary/20 text-color-primary hover:text-white transition-all hover:scale-110"
-                        title="Download"
-                        onClick={handleDownload}
+                        className={`p-2 rounded-lg transition-all ${status === 'live' ? 'bg-color-primary/10 hover:bg-color-primary/20 text-color-primary hover:text-white hover:scale-110' : 'bg-white/5 text-color-support/20 cursor-not-allowed'}`}
+                        title={status === 'live' ? "Download" : "Indexing..."}
+                        onClick={status === 'live' ? handleDownload : (e) => e.stopPropagation()}
+                        disabled={status !== 'live'}
                     >
                         <Download size={16} />
                     </button>
