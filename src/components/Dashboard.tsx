@@ -112,9 +112,9 @@ export function Dashboard() {
                     </div>
                     
                     <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch md:items-end gap-3 md:gap-4">
-                        <div className="dash-stat flex-1 md:flex-none md:min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
+                        <div className="dash-stat flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start flex-1 md:flex-none md:min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
                             <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-primary/20 to-transparent" />
-                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block mb-3">Total Assets</span>
+                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block md:mb-3">Total Assets</span>
                             <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
                         </div>
 
