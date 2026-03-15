@@ -1,0 +1,246 @@
+import React, { useEffect, useState } from 'react';
+import { X, Copy, CheckCircle, Image as ImageIcon, FileText, Download, Loader2, RefreshCw } from 'lucide-react';
+import gsap from 'gsap';
+import { GlassCard } from './ui/GlassCard';
+
+interface LinkPreviewModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    assetUrl: string | null;
+    assetName: string;
+    assetSizeStr: string;
+    isImage: boolean;
+    onDownload: () => void;
+}
+
+export function LinkPreviewModal({
+    isOpen,
+    onClose,
+    assetUrl,
+    assetName,
+    assetSizeStr,
+    isImage,
+    onDownload
+}: LinkPreviewModalProps) {
+    const [copied, setCopied] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
+    const [blobUrl, setBlobUrl] = useState<string | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [fetchError, setFetchError] = useState<string | null>(null);
+    
+    const modalRef = React.useRef<HTMLDivElement>(null);
+    const overlayRef = React.useRef<HTMLDivElement>(null);
+
+    const isPdf = assetName.toLowerCase().endsWith('.pdf');
+
+    const fetchAsset = async () => {
+        if (!assetUrl) return;
+        
+        setIsFetching(true);
+        setFetchError(null);
+        setIsProcessing(false);
+        
+        if (blobUrl) {
+            URL.revokeObjectURL(blobUrl);
+            setBlobUrl(null);
+        }
+
+        try {
+            const response = await fetch(assetUrl);
+            const contentType = response.headers.get('content-type');
+            
+            if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
+                if (data.error && data.error.toLowerCase().includes('not yet been marked successfully written')) {
+                    setIsProcessing(true);
+                } else {
+                    setFetchError(data.message || data.error || 'Failed to fetch asset');
+                }
+            } else if (response.ok) {
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                setBlobUrl(url);
+            } else {
+                setFetchError(`Server returned ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            setFetchError(error instanceof Error ? error.message : 'An unexpected error occurred');
+        } finally {
+            setIsFetching(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen && assetUrl) {
+            fetchAsset();
+        }
+    }, [isOpen, assetUrl]);
+
+    useEffect(() => {
+        if (isOpen) {
+            setCopied(false);
+            document.body.style.overflow = 'hidden';
+            
+            const tl = gsap.timeline();
+            tl.to(overlayRef.current, { opacity: 1, duration: 0.3, ease: 'power2.out', display: 'flex' })
+              .fromTo(modalRef.current, 
+                  { y: 50, opacity: 0, scale: 0.95 },
+                  { y: 0, opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.5)' },
+                  "-=0.1"
+              );
+        } else {
+            document.body.style.overflow = 'auto';
+            
+            const tl = gsap.timeline();
+            tl.to(modalRef.current, { y: 20, opacity: 0, scale: 0.95, duration: 0.2, ease: 'power2.in' })
+              .to(overlayRef.current, { opacity: 0, duration: 0.2, ease: 'power2.in', display: 'none' });
+        }
+    }, [isOpen]);
+
+    const handleCopy = () => {
+        if (assetUrl) {
+            navigator.clipboard.writeText(assetUrl);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    if (!isOpen) { /* Using GSAP for unmount handling visually, but need to render it to animate */ }
+
+    return (
+        <div 
+            ref={overlayRef}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm opacity-0 hidden"
+            style={{ display: isOpen ? 'flex' : 'none' }}
+            onClick={(e) => {
+                if (e.target === overlayRef.current) onClose();
+            }}
+        >
+            <div ref={modalRef} className="w-full max-w-lg">
+                <GlassCard 
+                    className="w-full p-0 overflow-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                >
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
+                    <h3 className="text-lg font-semibold text-white">Asset Preview</h3>
+                    <button 
+                        onClick={onClose}
+                        className="p-2 transition-colors rounded-lg text-color-support hover:text-white hover:bg-white/10"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6">
+                    {/* Preview Area */}
+                    <div className="flex flex-col items-center justify-center w-full mb-6 overflow-hidden border border-dashed rounded-xl h-80 border-white/20 bg-black/50 relative">
+                        {isFetching ? (
+                            <div className="flex flex-col items-center gap-3 text-color-support/60">
+                                <Loader2 size={48} className="animate-spin text-color-primary" />
+                                <p className="text-sm font-medium">Fetching secure content...</p>
+                            </div>
+                        ) : isProcessing ? (
+                            <div className="flex flex-col items-center text-center px-10">
+                                <RefreshCw size={48} className="text-color-accent mb-4 animate-spin-slow" />
+                                <h4 className="text-lg font-semibold text-white mb-2">Processing on Network</h4>
+                                <p className="text-sm text-color-support/70 mb-6">This asset has been submitted but is still being indexed by the network nodes. Please wait a moment.</p>
+                                <button 
+                                    onClick={fetchAsset}
+                                    className="px-6 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white text-sm transition-all"
+                                >
+                                    Check Status Again
+                                </button>
+                            </div>
+                        ) : fetchError ? (
+                            <div className="flex flex-col items-center text-center px-10">
+                                <FileText size={48} className="text-red-400/50 mb-4" />
+                                <h4 className="text-lg font-semibold text-white mb-2">Preview Unavailable</h4>
+                                <p className="text-sm text-red-400/80 mb-6">{fetchError}</p>
+                                <button 
+                                    onClick={fetchAsset}
+                                    className="px-6 py-2 rounded-full bg-color-primary/10 hover:bg-color-primary/20 border border-color-primary/20 text-color-primary text-sm transition-all"
+                                >
+                                    Retry Fetch
+                                </button>
+                            </div>
+                        ) : blobUrl ? (
+                            <>
+                                {isImage ? (
+                                    <img 
+                                        src={blobUrl} 
+                                        alt={assetName} 
+                                        className="object-contain w-full h-full p-2"
+                                    />
+                                ) : isPdf ? (
+                                    <iframe 
+                                        src={`${blobUrl}#toolbar=0`} 
+                                        className="w-full h-full border-none"
+                                        title="PDF Preview"
+                                    />
+                                ) : (
+                                    <div className="flex flex-col items-center gap-4 text-color-support/40">
+                                        <FileText size={80} strokeWidth={1} />
+                                        <p className="text-sm font-medium">Preview not available for this file type</p>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="flex items-center justify-center w-full h-full text-color-primary/40">
+                                <FileText size={64} className="opacity-50" />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Asset Info */}
+                    <div className="mb-6">
+                        <h4 className="text-xl font-medium text-white truncate" title={assetName}>{assetName}</h4>
+                        <div className="flex gap-4 mt-2 text-sm text-color-support/60 font-mono">
+                            <span>Size: {assetSizeStr} MB</span>
+                        </div>
+                    </div>
+
+                    {/* Secure Link Input & Actions */}
+                    <div className="space-y-3">
+                        <label className="text-xs font-semibold tracking-widest uppercase text-color-support/50">
+                            Secure Public Link
+                        </label>
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1 px-4 py-3 overflow-hidden border rounded-lg bg-black/80 border-white/10 text-color-support/80 font-mono text-sm whitespace-nowrap text-ellipsis">
+                                {assetUrl || 'Generating secure link...'}
+                            </div>
+                            <button
+                                onClick={handleCopy}
+                                disabled={!assetUrl}
+                                className="flex items-center justify-center px-4 py-3 transition-colors border rounded-lg bg-color-primary/10 border-color-primary/20 text-color-primary hover:bg-color-primary/20 disabled:opacity-50 min-w-[100px]"
+                            >
+                                {copied ? (
+                                    <>
+                                        <CheckCircle size={18} className="mr-2" />
+                                        Copied
+                                    </>
+                                ) : (
+                                    <>
+                                        <Copy size={18} className="mr-2" />
+                                        Copy
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                        <div className="flex justify-end pt-2">
+                            <button
+                                onClick={onDownload}
+                                disabled={!assetUrl}
+                                className="flex items-center px-4 py-2 text-sm font-medium transition-colors border rounded-lg text-white/80 border-white/10 hover:bg-white/5 disabled:opacity-50"
+                            >
+                                <Download size={16} className="mr-2" />
+                                Download Asset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </GlassCard>
+            </div>
+        </div>
+    );
+}

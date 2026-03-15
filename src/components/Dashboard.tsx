@@ -8,6 +8,7 @@ import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient } from "@shelby-protocol/react";
 import { useState } from 'react';
+import { LinkPreviewModal } from './LinkPreviewModal';
 
 // ... (existing code)
 
@@ -17,7 +18,15 @@ export function Dashboard() {
     const shelbyClient = useShelbyClient();
     const [assets, setAssets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-
+    
+    // Modal State
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+    const [selectedAsset, setSelectedAsset] = useState<{
+        name: string;
+        url: string;
+        sizeStr: string;
+        isImage: boolean;
+    } | null>(null);
 
     const fetchBlobs = async () => {
         if (!account) return;
@@ -161,9 +170,25 @@ export function Dashboard() {
                                     asset.blobNameSuffix ||
                                     (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
                                 const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
-                                const isImg = displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+                                const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+                                const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${account?.address}/${displayName}`;
+
+                                const handleOpenPreview = () => {
+                                    setSelectedAsset({
+                                        name: displayName,
+                                        url: downloadUrl,
+                                        sizeStr: sizeMB,
+                                        isImage: isImg
+                                    });
+                                    setIsPreviewModalOpen(true);
+                                };
+
                                 return (
-                                    <div key={asset.blob_merkle_root || index} className="asset-row grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-center hover:bg-white/5 transition-all duration-300 group cursor-pointer relative overflow-hidden">
+                                    <div 
+                                        key={asset.blob_merkle_root || index} 
+                                        className="asset-row grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-center hover:bg-white/5 transition-all duration-300 group cursor-pointer relative overflow-hidden"
+                                        onClick={handleOpenPreview}
+                                    >
                                         <div className="absolute inset-0 bg-gradient-to-r from-color-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
                                         <div className="col-span-1 md:col-span-5 flex items-center gap-4 relative z-10">
@@ -198,8 +223,7 @@ export function Dashboard() {
                                                 title="Copy Link"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    navigator.clipboard.writeText(`https://api.testnet.shelby.xyz/shelby/v1/blobs/${account?.address}/${displayName}`);
-                                                    alert("Secure Public Link Copied!");
+                                                    handleOpenPreview();
                                                 }}
                                             >
                                                 <LinkIcon size={16} />
@@ -210,7 +234,6 @@ export function Dashboard() {
                                                 onClick={async (e) => {
                                                     e.stopPropagation();
                                                     try {
-                                                        const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${account?.address}/${displayName}`;
                                                         const response = await fetch(downloadUrl);
                                                         const fileData = await response.blob();
                                                         const downloadLink = document.createElement("a");
@@ -241,6 +264,30 @@ export function Dashboard() {
                 </GlassCard>
 
             </div>
+
+            {/* Link Preview Modal */}
+            <LinkPreviewModal 
+                isOpen={isPreviewModalOpen}
+                onClose={() => setIsPreviewModalOpen(false)}
+                assetName={selectedAsset?.name || ''}
+                assetUrl={selectedAsset?.url || null}
+                assetSizeStr={selectedAsset?.sizeStr || '0'}
+                isImage={selectedAsset?.isImage || false}
+                onDownload={async () => {
+                    if (selectedAsset) {
+                         try {
+                             const response = await fetch(selectedAsset.url);
+                             const fileData = await response.blob();
+                             const downloadLink = document.createElement("a");
+                             downloadLink.href = URL.createObjectURL(fileData);
+                             downloadLink.download = selectedAsset.name;
+                             downloadLink.click();
+                         } catch (err) {
+                             alert("Failed to download or decrypt asset");
+                         }
+                    }
+                }}
+            />
         </section>
     );
 }
