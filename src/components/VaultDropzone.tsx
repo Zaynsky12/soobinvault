@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, File as FileIcon, CheckCircle, Image as ImageIcon } from 'lucide-react';
+import { UploadCloud, File as FileIcon, CheckCircle, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
 import gsap from 'gsap';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
@@ -19,6 +19,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success'>('idle');
     const [uploadStatusText, setUploadStatusText] = useState<string>("Encrypting and distributing to nodes...");
+    const [lastTxHash, setLastTxHash] = useState<string | null>(null);
     
     const uploadBlobs = useUploadBlobs({});
 
@@ -102,11 +103,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         account: account.address,
                         signAndSubmitTransaction: async (tx: any) => {
                             const response = await signAndSubmitTransaction(tx);
-                            if (response && (response as any).hash) {
-                                txHash = (response as any).hash;
-                            } else {
-                                txHash = "unknown_hash";
-                            }
+                                if (response && (response as any).hash) {
+                                    txHash = (response as any).hash;
+                                    setLastTxHash(txHash || null);
+                                } else {
+                                    txHash = "unknown_hash";
+                                }
                             return response;
                         },
                     },
@@ -214,6 +216,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setPreviewUrl(null);
         setUploadState('idle');
         setUploadStatusText("Encrypting and distributing to nodes...");
+        setLastTxHash(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -288,7 +291,20 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     <CheckCircle size={48} strokeWidth={2} />
                                 </div>
                                 <h3 className="text-3xl font-semibold mb-3 text-white">Asset Secured</h3>
-                                <p className="text-color-support text-lg mb-8">Your file is now immutably stored on the soobinvault network.</p>
+                                <p className="text-color-support text-lg mb-6">Your file is now immutably stored on the soobinvault network.</p>
+                                
+                                {lastTxHash && (
+                                    <a 
+                                        href={`https://explorer.aptoslabs.com/txn/${lastTxHash}?network=testnet`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="mb-8 px-6 py-2 rounded-xl bg-color-primary/10 border border-color-primary/20 text-color-primary hover:bg-color-primary/20 transition-all flex items-center gap-2 font-mono text-xs"
+                                    >
+                                        <LinkIcon size={14} />
+                                        View Transaction: {lastTxHash.substring(0, 10)}...{lastTxHash.substring(lastTxHash.length - 10)}
+                                    </a>
+                                )}
+
                                 <button
                                     onClick={resetTarget}
                                     className="px-8 py-4 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 text-white transition-colors font-medium backdrop-blur-md"
