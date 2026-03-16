@@ -17,7 +17,7 @@ if (typeof window !== 'undefined') {
 
 export function Dashboard() {
     const containerRef = useRef<HTMLDivElement>(null);
-    const { account } = useWallet();
+    const { account, connected } = useWallet();
     const shelbyClient = useShelbyClient();
     const [assets, setAssets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -152,9 +152,16 @@ export function Dashboard() {
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 border-b border-white/5 pb-8">
                     <div className="mb-8 md:mb-0">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-color-primary/10 border border-color-primary/20 mb-4">
-                            <span className="w-2 h-2 rounded-full bg-color-primary animate-pulse" />
-                            <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-color-primary">Vault Protocol Active</span>
+                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-4 transition-all duration-500 ${connected
+                            ? 'bg-color-primary/10 border-color-primary/20 shadow-[0_0_15px_rgba(232,58,118,0.1)]'
+                            : 'bg-white/5 border-white/10 opacity-70'
+                            }`}>
+                            <span className={`w-2 h-2 rounded-full transition-all duration-500 ${connected ? 'bg-color-primary animate-pulse' : 'bg-color-support/40'
+                                }`} />
+                            <span className={`text-[10px] font-bold uppercase tracking-[0.15em] transition-colors duration-500 ${connected ? 'text-color-primary' : 'text-color-support/40'
+                                }`}>
+                                Vault Protocol {connected ? 'Active' : 'Inactive'}
+                            </span>
                         </div>
                         <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none">Your Vault</h2>
                         <p className="text-color-support/60 text-base sm:text-lg font-normal max-w-md leading-relaxed">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
