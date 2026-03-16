@@ -153,12 +153,12 @@ export function Dashboard() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 border-b border-white/5 pb-8">
                     <div className="mb-8 md:mb-0">
                         <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-4 transition-all duration-500 ${connected
-                            ? 'bg-color-primary/10 border-color-primary/20 shadow-[0_0_15px_rgba(232,58,118,0.1)]'
-                            : 'bg-white/5 border-white/10 opacity-70'
+                            ? 'bg-green-500/10 border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
+                            : 'bg-red-500/10 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
                             }`}>
-                            <span className={`w-2 h-2 rounded-full transition-all duration-500 ${connected ? 'bg-color-primary animate-pulse' : 'bg-color-support/40'
+                            <span className={`w-2 h-2 rounded-full transition-all duration-500 ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-500'
                                 }`} />
-                            <span className={`text-[10px] font-bold uppercase tracking-[0.15em] transition-colors duration-500 ${connected ? 'text-color-primary' : 'text-color-support/40'
+                            <span className={`text-[10px] font-bold uppercase tracking-[0.15em] transition-colors duration-500 ${connected ? 'text-green-400' : 'text-red-400'
                                 }`}>
                                 Vault Protocol {connected ? 'Active' : 'Inactive'}
                             </span>
