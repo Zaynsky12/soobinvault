@@ -66,22 +66,6 @@ export function Dashboard() {
         }
     };
 
-    // Auto-polling for pending assets
-    useEffect(() => {
-        if (!account || assets.length === 0) return;
-
-        // Check if any asset is missing a hash or is in a syncing state
-        const hasPendingAssets = assets.some(asset => {
-            const hash = asset.blob_merkle_root || asset.merkle_root || asset.transaction_hash || asset.tx_hash || asset.hash || '';
-            const status = asset.status || '';
-            return !hash || status.toLowerCase().includes('pending') || status.toLowerCase().includes('syncing');
-        });
-
-        if (hasPendingAssets) {
-            const interval = setInterval(fetchBlobs, 5000);
-            return () => clearInterval(interval);
-        }
-    }, [account, assets]);
 
     useEffect(() => {
         if (!account) {
@@ -390,27 +374,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                     if (contentType && contentType.includes('application/json')) {
                         const data = await response.json();
                         if (data.error && data.error.toLowerCase().includes('not yet been marked successfully written')) {
-                            setStatus('syncing');
-                            // Poll again in 5 seconds
-                            timeoutId = setTimeout(checkStatus, 5000);
-                        } else {
-                            setStatus('live');
-                        }
-                    } else {
-                        setStatus('live');
-                    }
-                } else {
-                    setStatus('live');
-                }
-            } catch (e) {
-                setStatus('live');
-            }
-        };
-
         checkStatus();
-        return () => {
-            if (timeoutId) clearTimeout(timeoutId);
-        };
     }, [downloadUrl]);
 
     const handleDownload = async (e?: React.MouseEvent) => {
