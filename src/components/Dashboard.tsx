@@ -164,7 +164,7 @@ export function Dashboard() {
                         <div className="col-span-6">Asset Name</div>
                         <div className="col-span-2">Capacity</div>
                         <div className="col-span-2 text-center">Download</div>
-                        <div className="col-span-2 text-right">TX HASH</div>
+                        <div className="col-span-2 text-right">Explorer</div>
                     </div>
 
                     {/* Asset Rows */}
@@ -466,14 +466,14 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                         e.stopPropagation();
                         if (assetHash) {
                             navigator.clipboard.writeText(assetHash);
-                            toast.success("TX HASH copied to clipboard");
+                            toast.success("Explorer ID copied to clipboard");
                         } else {
-                            toast.error("Hash not available");
+                            toast.error("Explorer data not available");
                         }
                     }}
                 >
                     <LinkIcon size={18} />
-                    <span className="md:hidden font-bold text-[10px] uppercase tracking-[0.2em]">Copy TX HASH</span>
+                    <span className="md:hidden font-bold text-[10px] uppercase tracking-[0.2em]">Copy Explorer ID</span>
                 </button>
             </div>
         </div>

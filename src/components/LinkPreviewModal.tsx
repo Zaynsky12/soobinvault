@@ -232,11 +232,11 @@ export function LinkPreviewModal({
                     {/* Secure Hash Input & Actions */}
                     <div className="space-y-3">
                         <label className="text-xs font-semibold tracking-widest uppercase text-color-support/50">
-                            Secure Public Hash
+                            Explorer Details
                         </label>
                         <div className="flex items-center gap-2">
                             <div className="flex-1 px-4 py-3 overflow-hidden border rounded-lg bg-black/80 border-white/10 text-color-support/80 font-mono text-sm whitespace-nowrap text-ellipsis">
-                                {assetHash || 'Generating secure hash...'}
+                                {assetHash || 'Generating explorer link...'}
                             </div>
                             <button
                                 onClick={handleCopy}
