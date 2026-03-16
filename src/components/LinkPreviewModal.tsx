@@ -139,15 +139,15 @@ export function LinkPreviewModal({
     return (
         <div 
             ref={overlayRef}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm opacity-0 hidden"
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm opacity-0 hidden"
             style={{ display: isOpen ? 'flex' : 'none' }}
             onClick={(e) => {
                 if (e.target === overlayRef.current) onClose();
             }}
         >
-            <div ref={modalRef} className="w-full max-w-lg">
+            <div ref={modalRef} className="w-full max-w-lg max-h-[95vh] flex">
                 <GlassCard 
-                    className="w-full p-0 overflow-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                    className="w-full p-0 overflow-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col"
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
@@ -161,9 +161,9 @@ export function LinkPreviewModal({
                 </div>
 
                 {/* Content */}
-                <div className="p-6">
+                <div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar">
                     {/* Preview Area */}
-                    <div className="flex flex-col items-center justify-center w-full mb-6 overflow-hidden border border-dashed rounded-xl h-80 border-white/20 bg-black/50 relative">
+                    <div className="flex flex-col items-center justify-center w-full mb-6 overflow-hidden border border-dashed rounded-xl h-64 sm:h-80 border-white/20 bg-black/50 relative">
                         {isFetching ? (
                             <div className="flex flex-col items-center gap-3 text-color-support/60">
                                 <Loader2 size={48} className="animate-spin text-color-primary" />
@@ -234,14 +234,14 @@ export function LinkPreviewModal({
                         <label className="text-xs font-semibold tracking-widest uppercase text-color-support/50">
                             Explorer Details
                         </label>
-                        <div className="flex items-center gap-2">
-                            <div className="flex-1 px-4 py-3 overflow-hidden border rounded-lg bg-black/80 border-white/10 text-color-support/80 font-mono text-sm whitespace-nowrap text-ellipsis">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <div className="flex-1 px-4 py-3 overflow-hidden border rounded-lg bg-black/80 border-white/10 text-color-support/80 font-mono text-xs sm:text-sm whitespace-nowrap text-ellipsis">
                                 {assetHash || 'Generating explorer link...'}
                             </div>
                             <button
                                 onClick={handleCopy}
                                 disabled={!assetHash}
-                                className="flex items-center justify-center px-4 py-3 transition-colors border rounded-lg bg-color-primary/10 border-color-primary/20 text-color-primary hover:bg-color-primary/20 disabled:opacity-50 min-w-[100px]"
+                                className="flex items-center justify-center px-4 py-3 transition-colors border rounded-lg bg-color-primary/10 border-color-primary/20 text-color-primary hover:bg-color-primary/20 disabled:opacity-50 sm:min-w-[100px]"
                             >
                                 {copied ? (
                                     <>

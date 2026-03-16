@@ -132,8 +132,8 @@ export function Dashboard() {
                             <span className="w-2 h-2 rounded-full bg-color-primary animate-pulse" />
                             <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-color-primary">Vault Protocol Active</span>
                         </div>
-                        <h2 className="text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none">Your Vault</h2>
-                        <p className="text-color-support/60 text-lg font-normal max-w-md leading-relaxed">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
+                        <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none">Your Vault</h2>
+                        <p className="text-color-support/60 text-base sm:text-lg font-normal max-w-md leading-relaxed">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
                     </div>
                     
                     <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch md:items-end gap-3 md:gap-4">
@@ -448,20 +448,20 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             {/* Download Button */}
             <div className="w-full md:col-span-2 relative z-10 flex md:justify-center items-center mt-4 md:mt-0">
                 <button
-                    className={`w-full md:w-12 md:h-12 flex items-center justify-center gap-2 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all shadow-lg ${status === 'live' ? 'bg-white/5 hover:bg-color-accent text-white hover:scale-110' : 'bg-white/5 text-color-support/20 cursor-not-allowed'}`}
+                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all shadow-lg ${status === 'live' ? 'bg-white/5 hover:bg-color-accent text-white hover:scale-110' : 'bg-white/5 text-color-support/20 cursor-not-allowed'}`}
                     title={status === 'live' ? "Download Payload" : "Indexing..."}
                     onClick={status === 'live' ? handleDownload : (e) => e.stopPropagation()}
                     disabled={status !== 'live'}
                 >
                     <Download size={18} />
-                    <span className="md:hidden font-bold text-[10px] uppercase tracking-[0.2em]">Download File</span>
+                    <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">Download File</span>
                 </button>
             </div>
 
             {/* Share Button */}
             <div className="w-full md:col-span-2 relative z-10 flex md:justify-end items-center mb-2 md:mb-0">
                 <button
-                    className="w-full md:w-12 md:h-12 flex items-center justify-center gap-2 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 shadow-lg"
+                    className="w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 shadow-lg"
                     onClick={(e) => {
                         e.stopPropagation();
                         if (assetHash) {
@@ -473,7 +473,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                     }}
                 >
                     <LinkIcon size={18} />
-                    <span className="md:hidden font-bold text-[10px] uppercase tracking-[0.2em]">Copy Explorer ID</span>
+                    <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">Copy Explorer ID</span>
                 </button>
             </div>
         </div>
