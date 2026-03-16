@@ -109,10 +109,15 @@ export function Hero() {
                     >
                         {isLoading ? "Connecting..." : connected && account ? `Connected: ${account.address.toString().slice(0, 6)}...` : "Connect Petra Wallet"}
                     </MagneticButton>
-                    <button className="text-color-support hover:text-white transition-colors duration-200 font-semibold px-8 py-4 w-full sm:w-auto glass-panel rounded-2xl hover:bg-white/10 relative overflow-hidden group">
+                    <a 
+                        href="https://docs.shelby.xyz/" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-color-support hover:text-white transition-colors duration-200 font-semibold px-8 py-4 w-full sm:w-auto glass-panel rounded-2xl hover:bg-white/10 relative overflow-hidden group flex items-center justify-center"
+                    >
                         <span className="relative z-10">Explore Documentation</span>
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                    </button>
+                    </a>
                 </div>
             </div>
 
