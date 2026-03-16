@@ -213,12 +213,19 @@ export function Dashboard() {
                                     // Robust extraction of identifier and name from indexer "@identifier/path" format
                                     const nameStr = typeof asset.name === 'string' ? asset.name : '';
                                     const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+                                    
+                                    // Use extracted identifier or fallback to account address
                                     const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
-                                    const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr || asset.name);
+                                    // Use extracted nameOnly or fallback to blobNameSuffix or raw name
+                                    const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
 
-                                    const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(identifier)}/${encodeURIComponent(nameOnly)}`;
+                                    // Only construct a download URL if we have both an identifier and a name
+                                    const downloadUrl = (identifier && nameOnly) 
+                                        ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(identifier)}/${encodeURIComponent(nameOnly)}`
+                                        : null;
 
                                     const handleOpenPreview = () => {
+                                        if (!downloadUrl) return;
                                         setSelectedAsset({
                                             name: displayName,
                                             url: downloadUrl,
@@ -315,6 +322,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
 
     useEffect(() => {
+        if (!downloadUrl) return;
+        
         let timeoutId: NodeJS.Timeout;
         const checkStatus = async () => {
             const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
