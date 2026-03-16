@@ -22,6 +22,7 @@ export function Dashboard() {
     const [assets, setAssets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [optimisticAssets, setOptimisticAssets] = useState<any[]>([]);
 
     // Modal State
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -76,13 +77,29 @@ export function Dashboard() {
     useEffect(() => {
         if (!account) {
             setAssets([]);
+            setOptimisticAssets([]);
             return;
         }
 
         fetchBlobs();
 
         // Listen for successful uploads from VaultDropzone
-        const handleUploadSuccess = () => fetchBlobs();
+        const handleUploadSuccess = (e: any) => {
+            if (e.detail) {
+                // Add to optimistic state
+                const newAsset = {
+                    name: e.detail.name,
+                    size: e.detail.size,
+                    transaction_hash: e.detail.txHash,
+                    timestamp: e.detail.timestamp,
+                    isOptimistic: true,
+                    status: 'syncing'
+                };
+                setOptimisticAssets(prev => [newAsset, ...prev]);
+            }
+            fetchBlobs();
+        };
+        
         window.addEventListener('vault:uploadSuccess', handleUploadSuccess);
         return () => window.removeEventListener('vault:uploadSuccess', handleUploadSuccess);
     }, [account, shelbyClient]);
@@ -206,8 +223,28 @@ export function Dashboard() {
                                 </div>
                             </div>
                         ) : (
-                            assets
-                                .filter(asset => {
+                            (() => {
+                                // Combine real assets with optimistic ones, prefer real ones (at the front)
+                                const combined = [...assets, ...optimisticAssets]
+                                    .filter((asset, index, self) => {
+                                        // Match by txHash or name to identify duplicates
+                                        const tx = asset.transaction_hash || asset.tx_hash || asset.upload_tx_hash;
+                                        const name = asset.blobNameSuffix || asset.name;
+                                        
+                                        return self.findIndex(a => {
+                                            const aTx = a.transaction_hash || a.tx_hash || a.upload_tx_hash;
+                                            const aName = a.blobNameSuffix || a.name;
+                                            return (tx && aTx && tx === aTx) || (name && aName && name === aName);
+                                        }) === index;
+                                    })
+                                    .sort((a, b) => {
+                                        const timeA = a.timestamp || a.creationMicros || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
+                                        const timeB = b.timestamp || b.creationMicros || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
+                                        return Number(timeB) - Number(timeA);
+                                    });
+
+                                return combined
+                                    .filter(asset => {
                                     const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || asset.blob_id || asset.blobId || (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) || '';
                                     const name = asset.blobNameSuffix || (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
                                     return name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -308,6 +345,7 @@ export function Dashboard() {
                                         />
                                     );
                                 })
+                            })()
                         )}
                     </div>
 
@@ -380,18 +418,13 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         if (!downloadUrl) return;
         
         const checkStatus = async () => {
-            // Add a random delay to stagger requests and avoid 429 Rate Limit
-            const delay = Math.floor(Math.random() * 2000) + 100;
-            await new Promise(resolve => setTimeout(resolve, delay));
-
             if (!downloadUrl) {
-                setStatus('syncing'); // Fallback if no URL can be constructed yet
+                setStatus('syncing'); 
                 return;
             }
 
             const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
             try {
-                // Check if the blob is available
                 const response = await fetch(downloadUrl, {
                     method: 'GET',
                     headers: {
@@ -401,29 +434,37 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 });
 
                 if (response.ok) {
+                    // Only show success toast if it transitions from a non-live state and is likely a new file
+                    if (status !== 'live' && (status === 'syncing' || asset.isOptimistic)) {
+                        toast.success(`File ${displayName} berhasil terdeteksi dan siap didownload!`, {
+                            duration: 4000,
+                            icon: '✅'
+                        });
+                    }
                     setStatus('live');
                 } else if (response.status === 429) {
                     console.warn(`[Shelby] Rate limited checking ${displayName}`);
-                    setTimeout(checkStatus, 5000 + Math.random() * 5000);
-                } else if (response.status === 404) {
-                    console.log(`[Shelby] 404 for ${displayName}. Treating as syncing... URL:`, downloadUrl);
+                    setTimeout(checkStatus, 15000); // Wait longer on rate limit
+                } else if (response.status === 404 || response.status === 500) {
                     setStatus('syncing');
-                } else if (response.status === 500) {
-                    // Internal server error might mean it's being processed
-                    setStatus('syncing');
+                    // Poll again in 6 seconds (faster polling for fresh files)
+                    setTimeout(checkStatus, 6000);
                 } else {
-                    // Any other error, keep checking
                     setStatus('checking');
+                    setTimeout(checkStatus, 10000);
                 }
             } catch (e) {
                 console.error(`[Shelby] Status check failed for ${displayName}`, e);
-                // On network error, stay in 'checking' instead of pretending it's 'live'
                 setStatus('checking');
+                setTimeout(checkStatus, 15000);
             }
         };
 
-        checkStatus();
-    }, [downloadUrl, displayName]);
+        // If not live yet, check status
+        if (status !== 'live') {
+            checkStatus();
+        }
+    }, [downloadUrl, displayName]); // Remove status from deps to avoid loop, use internal logic
 
     const handleDownload = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
@@ -524,7 +565,14 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                     )}
                 </div>
                 <div className="flex flex-col min-w-0">
-                    <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
+                        {asset.isOptimistic && (
+                            <span className="px-2 py-0.5 rounded-md bg-color-primary/10 border border-color-primary/20 text-[8px] font-bold text-color-primary uppercase tracking-tighter animate-pulse">
+                                Processing
+                            </span>
+                        )}
+                    </div>
                     <span className="md:hidden text-color-support/40 text-[10px] font-mono tracking-widest uppercase mt-1">
                         {sizeMB} MB • SECURED
                     </span>

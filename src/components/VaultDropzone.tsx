@@ -170,8 +170,15 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             setUploadState('success');
             resetTarget();
             
-            // Dispatch a custom event so siblings (like Dashboard) can refetch
-            window.dispatchEvent(new Event('vault:uploadSuccess'));
+            // Dispatch a custom event with metadata so siblings (like Dashboard) can show optimistic UI
+            window.dispatchEvent(new CustomEvent('vault:uploadSuccess', { 
+                detail: { 
+                    name: droppedFile.name, 
+                    size: droppedFile.size,
+                    txHash: txHash,
+                    timestamp: Date.now()
+                } 
+            }));
             
             if (refetch) {
                 refetch();
