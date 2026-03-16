@@ -273,9 +273,9 @@ export function Dashboard() {
                                     // Use extracted nameOnly or fallback to blobNameSuffix or raw name
                                     const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
 
-                                    // Construct the download URL with strict encoding for both parts
+                                    // Construct the download URL with strict encoding for both parts, but allowing slashes to remain literal for paths
                                     const downloadUrl = (finalIdentifier && nameOnly) 
-                                        ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(finalIdentifier)}/${encodeURIComponent(nameOnly)}`
+                                        ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(finalIdentifier)}/${nameOnly.split('/').map((segment: string) => encodeURIComponent(segment)).join('/')}`
                                         : null;
 
                                     if (index === 0) {
@@ -447,11 +447,11 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                     setTimeout(checkStatus, 15000); // Wait longer on rate limit
                 } else if (response.status === 404 || response.status === 500) {
                     setStatus('syncing');
-                    // Poll again in 6 seconds (faster polling for fresh files)
-                    setTimeout(checkStatus, 6000);
+                    // Faster polling for fresh/syncing files as requested (3-5s)
+                    setTimeout(checkStatus, 3000 + Math.random() * 2000);
                 } else {
                     setStatus('checking');
-                    setTimeout(checkStatus, 10000);
+                    setTimeout(checkStatus, 5000);
                 }
             } catch (e) {
                 console.error(`[Shelby] Status check failed for ${displayName}`, e);
@@ -587,11 +587,11 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             {/* Download Button */}
             <div className="w-full md:col-span-2 relative z-10 flex md:justify-center items-center mt-4 md:mt-0">
                 <button
-                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all shadow-lg ${
+                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all duration-700 shadow-lg ${
                         status === 'live' 
-                            ? 'bg-white/5 hover:bg-color-accent text-white hover:scale-110' 
-                            : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed'
-                    }`}
+                            ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate' 
+                            : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed border border-white/5'
+                    } ${status === 'live' && asset.isOptimistic ? 'animate-bounce-short' : ''}`}
                     title={status === 'live' ? "Download Payload" : "File sedang dalam proses finalisasi..."}
                     onClick={(e) => {
                         e.stopPropagation();

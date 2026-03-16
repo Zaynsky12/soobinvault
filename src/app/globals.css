@@ -97,3 +97,22 @@ pre {
 .glass-panel-curve-large {
   @apply rounded-[2.5rem] overflow-hidden;
 }
+
+@keyframes bounce-short {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-bounce-short {
+  animation: bounce-short 0.5s ease-in-out 3;
+}
+
+@keyframes glow-activate {
+  0% { box-shadow: 0 0 0 rgba(232, 58, 118, 0); }
+  50% { box-shadow: 0 0 30px rgba(232, 58, 118, 0.4); }
+  100% { box-shadow: 0 0 0 rgba(232, 58, 118, 0); }
+}
+
+.animate-glow-activate {
+  animation: glow-activate 2s ease-in-out infinite;
+}
