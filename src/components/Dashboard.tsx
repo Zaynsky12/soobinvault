@@ -151,7 +151,7 @@ export function Dashboard() {
             <div className="container mx-auto max-w-6xl">
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 border-b border-white/5 pb-8">
-                    <div className="mb-8 md:mb-0">
+                    <div className="mb-8 md:mb-0 flex flex-col items-center md:items-start">
                         <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-4 transition-all duration-500 ${connected
                             ? 'bg-green-500/10 border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
                             : 'bg-red-500/10 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
@@ -163,8 +163,8 @@ export function Dashboard() {
                                 Vault Protocol {connected ? 'Active' : 'Inactive'}
                             </span>
                         </div>
-                        <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none">Your Vault</h2>
-                        <p className="text-color-support/60 text-base sm:text-lg font-normal max-w-md leading-relaxed">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
+                        <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none text-center md:text-left">Your Vault</h2>
+                        <p className="text-color-support/60 text-base sm:text-lg font-normal max-w-md leading-relaxed text-center md:text-left mx-auto md:mx-0">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
                     </div>
                     
                     <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch md:items-end gap-3 md:gap-4">
