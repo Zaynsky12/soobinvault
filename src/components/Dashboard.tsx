@@ -241,7 +241,7 @@ export function Dashboard() {
 
                                     // Only construct a download URL if we have both an identifier and a name
                                     const downloadUrl = (identifier && nameOnly) 
-                                        ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(identifier)}/${encodeURIComponent(nameOnly)}`
+                                        ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(identifier)}/${nameOnly}`
                                         : null;
 
                                     const assetHash = asset.blob_merkle_root || 
@@ -355,7 +355,7 @@ export function Dashboard() {
                             setTimeout(() => URL.revokeObjectURL(url), 100);
                         } catch (err) {
                             console.error("Download failed", err);
-                            alert(`${err instanceof Error ? err.message : 'An unexpected error occurred during download'}`);
+                            toast.error(err instanceof Error ? err.message : 'An unexpected error occurred during download');
                         }
                     }
                 }}
@@ -450,9 +450,15 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             downloadLink.download = displayName;
             downloadLink.click();
             setTimeout(() => URL.revokeObjectURL(url), 100);
+            toast.success("Download started!");
         } catch (err) {
             console.error("Download failed", err);
-            alert(`${err instanceof Error ? err.message : 'An unexpected error occurred during download'}`);
+            const msg = err instanceof Error ? err.message : 'An unexpected error occurred during download';
+            if (msg.toLowerCase().includes('indexed')) {
+                toast.loading(msg, { duration: 3000 });
+            } else {
+                toast.error(msg);
+            }
         }
     };
 
