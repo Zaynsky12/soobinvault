@@ -226,6 +226,7 @@ export function Dashboard() {
                                         ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(identifier)}/${encodeURIComponent(nameOnly)}`
                                         : null;
 
+                                    const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || '';
                                     const handleOpenPreview = () => {
                                         if (!downloadUrl) return;
                                         setSelectedAsset({
@@ -233,15 +234,16 @@ export function Dashboard() {
                                             url: downloadUrl,
                                             sizeStr: sizeMB,
                                             isImage: isImg,
-                                            hash: asset.blob_merkle_root || ''
+                                            hash: assetHash
                                         });
                                         setIsPreviewModalOpen(true);
                                     };
 
                                     return (
                                         <AssetRow
-                                            key={asset.blob_merkle_root || index}
+                                            key={assetHash || asset.blob_merkle_root || index}
                                             asset={asset}
+                                            assetHash={assetHash}
                                             index={index}
                                             displayName={displayName}
                                             sizeMB={sizeMB}
@@ -322,7 +324,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview }: any) {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview, assetHash }: any) {
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
 
     useEffect(() => {
@@ -462,8 +464,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                     className="w-full md:w-12 md:h-12 flex items-center justify-center gap-2 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 shadow-lg"
                     onClick={(e) => {
                         e.stopPropagation();
-                        if (asset.blob_merkle_root) {
-                            navigator.clipboard.writeText(asset.blob_merkle_root);
+                        if (assetHash) {
+                            navigator.clipboard.writeText(assetHash);
                             toast.success("TX HASH copied to clipboard");
                         } else {
                             toast.error("Hash not available");
