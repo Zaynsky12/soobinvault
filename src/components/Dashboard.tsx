@@ -308,6 +308,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
 
     useEffect(() => {
+        let timeoutId: NodeJS.Timeout;
         const checkStatus = async () => {
             const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
             try {
@@ -328,6 +329,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                         const data = await response.json();
                         if (data.error && data.error.toLowerCase().includes('not yet been marked successfully written')) {
                             setStatus('syncing');
+                            // Poll again in 5 seconds
+                            timeoutId = setTimeout(checkStatus, 5000);
                         } else {
                             setStatus('live');
                         }
@@ -343,6 +346,9 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         };
 
         checkStatus();
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        };
     }, [downloadUrl]);
 
     const handleDownload = async (e?: React.MouseEvent) => {
