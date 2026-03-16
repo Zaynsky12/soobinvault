@@ -26,6 +26,7 @@ export function Dashboard() {
         sizeStr: string;
         isImage: boolean;
         hash: string;
+        txHash: string;
     } | null>(null);
 
     const fetchBlobs = async () => {
@@ -240,11 +241,19 @@ export function Dashboard() {
                                     
                                     // Extract transaction hash specifically for Explorer link
                                     const txHash = asset.transaction_hash || 
-                                                 asset.tx_hash || 
-                                                 asset.upload_tx_hash || 
-                                                 asset.creation_tx_hash || 
-                                                 (asset.metadata && (asset.metadata.transaction_hash || asset.metadata.tx_hash)) ||
-                                                 '';
+                                                  asset.tx_hash || 
+                                                  asset.upload_tx_hash || 
+                                                  asset.creation_tx_hash || 
+                                                  asset.transactionHash || 
+                                                  asset.blob_transaction_hash ||
+                                                  asset.txHash ||
+                                                  (asset.metadata && (
+                                                      asset.metadata.transaction_hash || 
+                                                      asset.metadata.tx_hash || 
+                                                      asset.metadata.upload_tx_hash ||
+                                                      asset.metadata.transactionHash
+                                                  )) ||
+                                                  '';
                                     
                                     // Debug log for identifying hash fields if none found
                                     if (!assetHash && index === 0) {
@@ -257,7 +266,8 @@ export function Dashboard() {
                                             url: downloadUrl,
                                             sizeStr: sizeMB,
                                             isImage: isImg,
-                                            hash: assetHash
+                                            hash: assetHash,
+                                            txHash: txHash
                                         });
                                         setIsPreviewModalOpen(true);
                                     };
@@ -297,12 +307,13 @@ export function Dashboard() {
                 onClose={() => setIsPreviewModalOpen(false)}
                 assetName={selectedAsset?.name || ''}
                 assetHash={selectedAsset?.hash || ''}
+                txHash={selectedAsset?.txHash || ''}
                 assetUrl={selectedAsset?.url || null}
                 assetSizeStr={selectedAsset?.sizeStr || '0'}
                 isImage={selectedAsset?.isImage || false}
                 onDownload={async () => {
                     if (selectedAsset) {
-                        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
+                        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMW6KNMWogb1qcygNFwS";
                         try {
                             const response = await fetch(selectedAsset.url, {
                                 headers: {
