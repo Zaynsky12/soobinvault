@@ -66,23 +66,6 @@ export function Dashboard() {
         }
     };
 
-    // Auto-polling for pending assets
-    useEffect(() => {
-        if (!account || assets.length === 0) return;
-
-        // Check if any asset is missing a hash or is in a syncing state
-        const hasPendingAssets = assets.some(asset => {
-            const hash = asset.blob_merkle_root || asset.merkle_root || asset.transaction_hash || asset.tx_hash || asset.hash || '';
-            const status = asset.status || '';
-            return !hash || status.toLowerCase().includes('pending') || status.toLowerCase().includes('syncing');
-        });
-
-        if (hasPendingAssets) {
-            const interval = setInterval(fetchBlobs, 5000);
-            return () => clearInterval(interval);
-        }
-    }, [account, assets]);
-
     useEffect(() => {
         if (!account) {
             setAssets([]);
@@ -254,14 +237,6 @@ export function Dashboard() {
                                                     (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) ||
                                                     '';
                                     
-                                    // Extract transaction hash specifically for Explorer link
-                                    const txHash = asset.transaction_hash || 
-                                                 asset.tx_hash || 
-                                                 asset.upload_tx_hash || 
-                                                 asset.creation_tx_hash || 
-                                                 (asset.metadata && (asset.metadata.transaction_hash || asset.metadata.tx_hash)) ||
-                                                 '';
-                                    
                                     // Debug log for identifying hash fields if none found
                                     if (!assetHash && index === 0) {
                                         console.log("Asset structure debug (missing hash):", asset);
@@ -289,7 +264,6 @@ export function Dashboard() {
                                             isImg={isImg}
                                             downloadUrl={downloadUrl}
                                             handleOpenPreview={handleOpenPreview}
-                                            txHash={txHash}
                                         />
                                     );
                                 })
@@ -364,7 +338,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview, assetHash, txHash }: any) {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview, assetHash }: any) {
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
 
     useEffect(() => {
@@ -498,26 +472,23 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 </button>
             </div>
 
-            {/* Explorer Button */}
+            {/* Share Button */}
             <div className="w-full md:col-span-2 relative z-10 flex md:justify-end items-center mb-2 md:mb-0">
-                {txHash ? (
-                    <a
-                        href={`https://explorer.aptoslabs.com/txn/${txHash}?network=testnet`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 shadow-lg group/link"
-                        onClick={(e) => e.stopPropagation()}
-                        title="View in Explorer"
-                    >
-                        <LinkIcon size={18} />
-                        <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">View in Explorer</span>
-                    </a>
-                ) : (
-                    <div className="w-full md:w-auto px-4 py-2 rounded-lg bg-white/5 border border-white/10 flex items-center gap-2 group/pending">
-                        <Loader2 size={14} className="animate-spin text-color-support/40" />
-                        <span className="text-[10px] text-color-support/40 font-bold uppercase tracking-wider">Transaction processing...</span>
-                    </div>
-                )}
+                <button
+                    className="w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 shadow-lg"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (assetHash) {
+                            navigator.clipboard.writeText(assetHash);
+                            toast.success("Explorer ID copied to clipboard");
+                        } else {
+                            toast.error("Explorer data not available");
+                        }
+                    }}
+                >
+                    <LinkIcon size={18} />
+                    <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">Copy Explorer ID</span>
+                </button>
             </div>
         </div>
     );
