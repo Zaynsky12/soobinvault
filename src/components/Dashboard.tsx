@@ -441,13 +441,6 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 });
 
                 if (response.ok) {
-                    // Only show success toast if it transitions from a non-live state and is likely a new file
-                    if (status !== 'live' && (status === 'syncing' || asset.isOptimistic)) {
-                        toast.success(`File ${displayName} berhasil terdeteksi dan siap didownload!`, {
-                            duration: 4000,
-                            icon: '✅'
-                        });
-                    }
                     setStatus('live');
                 } else if (response.status === 429) {
                     console.warn(`[Shelby] Rate limited checking ${displayName}`);
