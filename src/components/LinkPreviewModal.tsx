@@ -256,13 +256,19 @@ export function LinkPreviewModal({
                                 )}
                             </button>
                         </div>
-                        <div className="flex justify-end pt-2">
+                        <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 pt-4">
+                            <button
+                                onClick={onClose}
+                                className="order-2 sm:order-1 flex items-center justify-center px-6 py-2.5 text-sm font-medium transition-all rounded-xl text-color-support/60 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5"
+                            >
+                                Close Protocol
+                            </button>
                             <button
                                 onClick={onDownload}
                                 disabled={!assetUrl}
-                                className="flex items-center px-4 py-2 text-sm font-medium transition-colors border rounded-lg text-white/80 border-white/10 hover:bg-white/5 disabled:opacity-50"
+                                className="order-1 sm:order-2 flex items-center justify-center px-6 py-2.5 text-sm font-bold transition-all rounded-xl text-white bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.03] active:scale-[0.97] shadow-lg shadow-color-primary/20 disabled:opacity-50 disabled:hover:scale-100"
                             >
-                                <Download size={16} className="mr-2" />
+                                <Download size={18} className="mr-2" />
                                 Download Asset
                             </button>
                         </div>
