@@ -65,7 +65,7 @@ export function Footer() {
 
             <div className="container mx-auto px-6 pt-8 border-t border-white/10 text-center flex flex-col md:flex-row items-center justify-between">
                 <p className="text-color-support/50 text-xs mb-4 md:mb-0">
-                    © {new Date().getFullYear()} SoobinVault Network. All rights reserved.
+                    made by <a href="https://x.com/owsnpidc" target="_blank" rel="noopener noreferrer" className="hover:text-color-primary transition-colors font-medium">zayn</a>
                 </p>
             </div>
         </footer>
