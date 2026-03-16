@@ -64,7 +64,7 @@ export function Footer() {
             </div>
 
             <div className="container mx-auto px-6 pt-8 border-t border-white/10 text-center flex flex-col items-center justify-center">
-                <p className="text-color-support/50 text-xs mb-4 md:mb-0">
+                <p className="text-color-support/50 text-sm mb-4 md:mb-0">
                     © Made By <a href="https://x.com/owsnpidc" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors font-medium">Zayn</a>
                 </p>
             </div>
