@@ -72,6 +72,7 @@ pre {
       rgba(232, 58, 118, 0.1) 60%,
       rgba(232, 58, 118, 0.4));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;

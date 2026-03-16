@@ -209,7 +209,7 @@ export function Dashboard() {
                                         (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
                                     const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
                                     const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
-                                    const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(account?.address?.toString() || '')}/${encodeURIComponent(displayName)}`;
+                                    const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(asset.blob_merkle_root || '')}/${encodeURIComponent(displayName)}`;
 
                                     const handleOpenPreview = () => {
                                         setSelectedAsset({
