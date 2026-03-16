@@ -354,7 +354,6 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
     useEffect(() => {
         if (!downloadUrl) return;
         
-        let timeoutId: NodeJS.Timeout;
         const checkStatus = async () => {
             const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
             try {
@@ -374,6 +373,21 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                     if (contentType && contentType.includes('application/json')) {
                         const data = await response.json();
                         if (data.error && data.error.toLowerCase().includes('not yet been marked successfully written')) {
+                            setStatus('syncing');
+                        } else {
+                            setStatus('live');
+                        }
+                    } else {
+                        setStatus('live');
+                    }
+                } else {
+                    setStatus('live');
+                }
+            } catch (e) {
+                setStatus('live');
+            }
+        };
+
         checkStatus();
     }, [downloadUrl]);
 
@@ -433,6 +447,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         >
             {/* Hover Background Artifact */}
             <div className="absolute inset-0 bg-gradient-to-r from-color-primary/[0.03] via-transparent to-color-accent/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            
             {/* Asset Identity */}
             <div className="w-full col-span-12 md:col-span-6 flex items-center gap-4 relative z-10">
                 <div className="w-12 h-12 rounded-xl glass-panel bg-[#050505] flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
@@ -496,3 +511,4 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         </div>
     );
 }
+
