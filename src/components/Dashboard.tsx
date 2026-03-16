@@ -228,17 +228,27 @@ export function Dashboard() {
                                     const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
                                     // Ensure the identifier has the 0x prefix if it appears to be a raw hex address
                                     let finalIdentifier = identifier;
-                                    if (finalIdentifier && !finalIdentifier.startsWith('0x') && /^[0-9a-fA-F]{64}$/.test(finalIdentifier)) {
+                                    const isHex = /^[0-9a-fA-F]+$/.test(finalIdentifier);
+                                    if (finalIdentifier && !finalIdentifier.startsWith('0x') && isHex && finalIdentifier.length >= 60) {
                                         finalIdentifier = `0x${finalIdentifier}`;
                                     }
 
                                     // Use extracted nameOnly or fallback to blobNameSuffix or raw name
                                     const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
 
-                                    // Only construct a download URL if we have both an identifier and a name
+                                    // Construct the download URL with strict encoding for both parts
                                     const downloadUrl = (finalIdentifier && nameOnly) 
-                                        ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(finalIdentifier)}/${nameOnly}`
+                                        ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(finalIdentifier)}/${encodeURIComponent(nameOnly)}`
                                         : null;
+
+                                    if (index === 0) {
+                                        console.log(`[Debug] URL Construction for ${displayName}:`, {
+                                            rawIdentifier: identifier,
+                                            finalIdentifier,
+                                            nameOnly,
+                                            downloadUrl
+                                        });
+                                    }
 
                                     const assetHash = asset.blob_merkle_root || 
                                                     asset.merkle_root || 
@@ -374,7 +384,10 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             const delay = Math.floor(Math.random() * 2000) + 100;
             await new Promise(resolve => setTimeout(resolve, delay));
 
-            if (!downloadUrl) return;
+            if (!downloadUrl) {
+                setStatus('syncing'); // Fallback if no URL can be constructed yet
+                return;
+            }
 
             const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
             try {
@@ -390,26 +403,22 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 if (response.ok) {
                     setStatus('live');
                 } else if (response.status === 429) {
-                    // If rate limited, we'll try again much later or just stay in 'checking'
-                    console.warn(`[Shelby] Rate limited while checking ${displayName}`);
+                    console.warn(`[Shelby] Rate limited checking ${displayName}`);
                     setTimeout(checkStatus, 5000 + Math.random() * 5000);
-                } else if (response.status === 404 || response.status === 500) {
-                    const contentType = response.headers.get('content-type');
-                    if (contentType && contentType.includes('application/json')) {
-                        const data = await response.json();
-                        if (data.error && data.error.toLowerCase().includes('not yet been marked successfully written')) {
-                            setStatus('syncing');
-                        } else {
-                            setStatus('live');
-                        }
-                    } else {
-                        setStatus('live');
-                    }
+                } else if (response.status === 404) {
+                    console.log(`[Shelby] 404 for ${displayName}. Treating as syncing... URL:`, downloadUrl);
+                    setStatus('syncing');
+                } else if (response.status === 500) {
+                    // Internal server error might mean it's being processed
+                    setStatus('syncing');
                 } else {
-                    setStatus('live');
+                    // Any other error, keep checking
+                    setStatus('checking');
                 }
             } catch (e) {
-                setStatus('live');
+                console.error(`[Shelby] Status check failed for ${displayName}`, e);
+                // On network error, stay in 'checking' instead of pretending it's 'live'
+                setStatus('checking');
             }
         };
 
