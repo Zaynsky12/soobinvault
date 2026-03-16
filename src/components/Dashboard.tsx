@@ -430,11 +430,16 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             setTimeout(() => URL.revokeObjectURL(url), 100);
             toast.success("Download started!");
         } catch (err) {
-            console.error("Download failed", err);
-            const msg = err instanceof Error ? err.message : 'An unexpected error occurred during download';
-            if (msg.toLowerCase().includes('indexed')) {
-                toast.loading(msg, { duration: 3000 });
+            const msg = err instanceof Error ? err.message : String(err);
+            
+            // Tame specific indexing error with a user-friendly info toast
+            if (msg.toLowerCase().includes('index') || msg.toLowerCase().includes('process')) {
+                toast("File sedang dalam proses finalisasi di jaringan. Coba lagi dalam 30 detik.", {
+                    icon: '⏳',
+                    duration: 5000
+                });
             } else {
+                console.error("Download failed", err);
                 toast.error(msg);
             }
         }
@@ -473,16 +478,26 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             {/* Download Button */}
             <div className="w-full md:col-span-2 relative z-10 flex md:justify-center items-center mt-4 md:mt-0">
                 <button
-                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all shadow-lg ${status === 'live' ? 'bg-white/5 hover:bg-color-accent text-white hover:scale-110' : 'bg-white/5 text-color-support/40 hover:bg-white/10'}`}
-                    title={status === 'live' ? "Download Payload" : "Indexing... (Try download anyway)"}
+                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all shadow-lg ${
+                        status === 'live' 
+                            ? 'bg-white/5 hover:bg-color-accent text-white hover:scale-110' 
+                            : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed'
+                    }`}
+                    title={status === 'live' ? "Download Payload" : "File sedang dalam proses finalisasi..."}
                     onClick={(e) => {
                         e.stopPropagation();
-                        handleDownload();
+                        if (status === 'live') {
+                            handleDownload();
+                        } else {
+                            toast("File sedang dalam proses finalisasi di jaringan. Coba lagi dalam 30 detik.", {
+                                icon: '⏳'
+                            });
+                        }
                     }}
                 >
                     <Download size={18} />
                     <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">
-                        {status === 'live' ? 'Download File' : 'Syncing...'}
+                        {status === 'live' ? 'Download File' : 'Processing...'}
                     </span>
                 </button>
             </div>
