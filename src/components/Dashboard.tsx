@@ -209,7 +209,14 @@ export function Dashboard() {
                                         (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
                                     const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
                                     const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
-                                    const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(account?.address?.toString() || '')}/${encodeURIComponent(displayName)}`;
+                                    
+                                    // Robust extraction of identifier and name from indexer "@identifier/path" format
+                                    const nameStr = typeof asset.name === 'string' ? asset.name : '';
+                                    const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+                                    const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
+                                    const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr || asset.name);
+
+                                    const downloadUrl = `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(identifier)}/${encodeURIComponent(nameOnly)}`;
 
                                     const handleOpenPreview = () => {
                                         setSelectedAsset({
