@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient } from "@shelby-protocol/react";
@@ -24,6 +25,7 @@ export function Dashboard() {
         url: string;
         sizeStr: string;
         isImage: boolean;
+        hash: string;
     } | null>(null);
 
     const fetchBlobs = async () => {
@@ -162,7 +164,7 @@ export function Dashboard() {
                         <div className="col-span-6">Asset Name</div>
                         <div className="col-span-2">Capacity</div>
                         <div className="col-span-2 text-center">Download</div>
-                        <div className="col-span-2 text-right">Share</div>
+                        <div className="col-span-2 text-right">TX HASH</div>
                     </div>
 
                     {/* Asset Rows */}
@@ -230,7 +232,8 @@ export function Dashboard() {
                                             name: displayName,
                                             url: downloadUrl,
                                             sizeStr: sizeMB,
-                                            isImage: isImg
+                                            isImage: isImg,
+                                            hash: asset.blob_merkle_root || ''
                                         });
                                         setIsPreviewModalOpen(true);
                                     };
@@ -267,6 +270,7 @@ export function Dashboard() {
                 isOpen={isPreviewModalOpen}
                 onClose={() => setIsPreviewModalOpen(false)}
                 assetName={selectedAsset?.name || ''}
+                assetHash={selectedAsset?.hash || ''}
                 assetUrl={selectedAsset?.url || null}
                 assetSizeStr={selectedAsset?.sizeStr || '0'}
                 isImage={selectedAsset?.isImage || false}
@@ -458,12 +462,16 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                     className="w-full md:w-12 md:h-12 flex items-center justify-center gap-2 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 shadow-lg"
                     onClick={(e) => {
                         e.stopPropagation();
-                        navigator.clipboard.writeText(downloadUrl);
-                        alert("Secure link copied to clipboard");
+                        if (asset.blob_merkle_root) {
+                            navigator.clipboard.writeText(asset.blob_merkle_root);
+                            toast.success("TX HASH copied to clipboard");
+                        } else {
+                            toast.error("Hash not available");
+                        }
                     }}
                 >
                     <LinkIcon size={18} />
-                    <span className="md:hidden font-bold text-[10px] uppercase tracking-[0.2em]">Copy Share Link</span>
+                    <span className="md:hidden font-bold text-[10px] uppercase tracking-[0.2em]">Copy TX HASH</span>
                 </button>
             </div>
         </div>
