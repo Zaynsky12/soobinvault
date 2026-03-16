@@ -322,32 +322,25 @@ export function Dashboard() {
                             });
 
                             if (!response.ok) {
-                                const contentType = response.headers.get('content-type');
-                                let errorDetail = "";
-                                if (contentType && contentType.includes('application/json')) {
-                                    try {
-                                        const errorData = await response.json();
-                                        if (errorData.error && errorData.error.toLowerCase().includes('not yet been marked successfully written')) {
-                                            errorDetail = "This file is still being indexed on the Shelby network. Please wait a few moments and try again.";
-                                        } else {
-                                            errorDetail = errorData.message || errorData.error || response.statusText;
-                                        }
-                                    } catch (e) {
-                                        errorDetail = response.statusText;
-                                    }
-                                } else {
-                                    errorDetail = response.statusText;
+                                let errorInfo = "";
+                                try {
+                                    const errJson = await response.json();
+                                    errorInfo = errJson.message || errJson.error || response.statusText;
+                                } catch (e) {
+                                    errorInfo = response.statusText;
                                 }
-                                throw new Error(errorDetail || `Server returned ${response.status}`);
+                                console.log('[Debug] Modal Download Response:', response.status, errorInfo, selectedAsset.url);
+                                throw new Error(errorInfo || `Server returned ${response.status}`);
                             }
 
-                            const fileData = await response.blob();
-                            const downloadLink = document.createElement("a");
-                            const url = URL.createObjectURL(fileData);
-                            downloadLink.href = url;
-                            downloadLink.download = selectedAsset.name;
-                            downloadLink.click();
+                            const blob = await response.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = selectedAsset.name;
+                            a.click();
                             setTimeout(() => URL.revokeObjectURL(url), 100);
+                            toast.success("Download started!");
                         } catch (err) {
                             console.error("Download failed", err);
                             toast.error(err instanceof Error ? err.message : 'An unexpected error occurred during download');
@@ -404,6 +397,19 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
 
     const handleDownload = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
+        
+        // Pre-download validation
+        if (status !== 'live') {
+            toast("File sedang dalam proses indexing di Shelby network. Coba lagi dalam 30 detik.", {
+                icon: '⚠️'
+            });
+            return;
+        }
+
+        if (!downloadUrl) {
+            toast.error("Download URL is not available for this asset.");
+            return;
+        }
         const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
         try {
             const response = await fetch(downloadUrl, {
@@ -429,6 +435,14 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 } else {
                     errorDetail = response.statusText;
                 }
+                
+                // Detailed debug as requested
+                console.log('[Debug] Download Response:', response.status, errorDetail, {
+                    name: displayName,
+                    url: downloadUrl,
+                    status: status
+                });
+                
                 throw new Error(errorDetail || `Server returned ${response.status}`);
             }
 
