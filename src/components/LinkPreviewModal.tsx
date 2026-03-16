@@ -8,7 +8,6 @@ interface LinkPreviewModalProps {
     onClose: () => void;
     assetUrl: string | null;
     assetName: string;
-    assetHash: string;
     assetSizeStr: string;
     isImage: boolean;
     onDownload: () => void;
@@ -19,7 +18,6 @@ export function LinkPreviewModal({
     onClose,
     assetUrl,
     assetName,
-    assetHash,
     assetSizeStr,
     isImage,
     onDownload
@@ -127,8 +125,8 @@ export function LinkPreviewModal({
     }, [isOpen]);
 
     const handleCopy = () => {
-        if (assetHash) {
-            navigator.clipboard.writeText(assetHash);
+        if (assetUrl) {
+            navigator.clipboard.writeText(assetUrl);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         }
@@ -229,18 +227,18 @@ export function LinkPreviewModal({
                         </div>
                     </div>
 
-                    {/* Secure Hash Input & Actions */}
+                    {/* Secure Link Input & Actions */}
                     <div className="space-y-3">
                         <label className="text-xs font-semibold tracking-widest uppercase text-color-support/50">
-                            Secure Public Hash
+                            Secure Public Link
                         </label>
                         <div className="flex items-center gap-2">
                             <div className="flex-1 px-4 py-3 overflow-hidden border rounded-lg bg-black/80 border-white/10 text-color-support/80 font-mono text-sm whitespace-nowrap text-ellipsis">
-                                {assetHash || 'Generating secure hash...'}
+                                {assetUrl || 'Generating secure link...'}
                             </div>
                             <button
                                 onClick={handleCopy}
-                                disabled={!assetHash}
+                                disabled={!assetUrl}
                                 className="flex items-center justify-center px-4 py-3 transition-colors border rounded-lg bg-color-primary/10 border-color-primary/20 text-color-primary hover:bg-color-primary/20 disabled:opacity-50 min-w-[100px]"
                             >
                                 {copied ? (
