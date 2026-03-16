@@ -10,6 +10,11 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient } from "@shelby-protocol/react";
 import { LinkPreviewModal } from './LinkPreviewModal';
 
+// Register GSAP plugins
+if (typeof window !== 'undefined') {
+    gsap.registerPlugin(ScrollTrigger);
+}
+
 export function Dashboard() {
     const containerRef = useRef<HTMLDivElement>(null);
     const { account } = useWallet();
@@ -221,12 +226,18 @@ export function Dashboard() {
                                     
                                     // Use extracted identifier or fallback to account address
                                     const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
+                                    // Ensure the identifier has the 0x prefix if it appears to be a raw hex address
+                                    let finalIdentifier = identifier;
+                                    if (finalIdentifier && !finalIdentifier.startsWith('0x') && /^[0-9a-fA-F]{64}$/.test(finalIdentifier)) {
+                                        finalIdentifier = `0x${finalIdentifier}`;
+                                    }
+
                                     // Use extracted nameOnly or fallback to blobNameSuffix or raw name
                                     const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
 
                                     // Only construct a download URL if we have both an identifier and a name
-                                    const downloadUrl = (identifier && nameOnly) 
-                                        ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(identifier)}/${nameOnly}`
+                                    const downloadUrl = (finalIdentifier && nameOnly) 
+                                        ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(finalIdentifier)}/${nameOnly}`
                                         : null;
 
                                     const assetHash = asset.blob_merkle_root || 
@@ -359,6 +370,12 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         if (!downloadUrl) return;
         
         const checkStatus = async () => {
+            // Add a random delay to stagger requests and avoid 429 Rate Limit
+            const delay = Math.floor(Math.random() * 2000) + 100;
+            await new Promise(resolve => setTimeout(resolve, delay));
+
+            if (!downloadUrl) return;
+
             const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
             try {
                 // Check if the blob is available
@@ -372,6 +389,10 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
 
                 if (response.ok) {
                     setStatus('live');
+                } else if (response.status === 429) {
+                    // If rate limited, we'll try again much later or just stay in 'checking'
+                    console.warn(`[Shelby] Rate limited while checking ${displayName}`);
+                    setTimeout(checkStatus, 5000 + Math.random() * 5000);
                 } else if (response.status === 404 || response.status === 500) {
                     const contentType = response.headers.get('content-type');
                     if (contentType && contentType.includes('application/json')) {
@@ -393,7 +414,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         };
 
         checkStatus();
-    }, [downloadUrl]);
+    }, [downloadUrl, displayName]);
 
     const handleDownload = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
@@ -447,6 +468,12 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             }
 
             const fileData = await response.blob();
+            console.log(`[Debug] Downloaded blob for ${displayName}:`, {
+                type: fileData.type,
+                size: fileData.size,
+                name: displayName
+            });
+            
             const downloadLink = document.createElement("a");
             const url = URL.createObjectURL(fileData);
             downloadLink.href = url;
