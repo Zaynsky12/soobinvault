@@ -201,9 +201,10 @@ export function Dashboard() {
                         ) : (
                             assets
                                 .filter(asset => {
+                                    const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || asset.blob_id || asset.blobId || (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) || '';
                                     const name = asset.blobNameSuffix || (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
                                     return name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                           (asset.blob_merkle_root && asset.blob_merkle_root.toLowerCase().includes(searchQuery.toLowerCase()));
+                                           (assetHash && assetHash.toLowerCase().includes(searchQuery.toLowerCase()));
                                 })
                                 .map((asset, index) => {
                                     const displayName: string =
@@ -226,7 +227,20 @@ export function Dashboard() {
                                         ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(identifier)}/${encodeURIComponent(nameOnly)}`
                                         : null;
 
-                                    const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || '';
+                                    const assetHash = asset.blob_merkle_root || 
+                                                    asset.merkle_root || 
+                                                    asset.merkleRoot || 
+                                                    asset.hash || 
+                                                    asset.blob_hash || 
+                                                    asset.blob_id || 
+                                                    asset.blobId || 
+                                                    (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) ||
+                                                    '';
+                                    
+                                    // Debug log for identifying hash fields if none found
+                                    if (!assetHash && index === 0) {
+                                        console.log("Asset structure debug (missing hash):", asset);
+                                    }
                                     const handleOpenPreview = () => {
                                         if (!downloadUrl) return;
                                         setSelectedAsset({
