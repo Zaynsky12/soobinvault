@@ -606,8 +606,12 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 blobNames: [nameSuffix]
             });
 
-            toast.success(`${displayName} deleted successfully!`, { id: 'delete-blob' });
-            fetchBlobs();
+            toast.success(`${displayName} deleted successfully! List will refresh in 3 seconds.`, { id: 'delete-blob' });
+            
+            // Wait for 3 seconds before refreshing as requested
+            setTimeout(() => {
+                fetchBlobs();
+            }, 3000);
         } catch (err) {
             console.error("Deletion failed:", err);
             toast.error(err instanceof Error ? err.message : "Failed to delete asset", { id: 'delete-blob' });
@@ -652,47 +656,50 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 <span className="text-white/80 font-mono text-xs tracking-widest">{sizeMB} MB</span>
             </div>
 
-            {/* Download Button */}
-            <div className="w-full md:col-span-2 relative z-10 flex md:justify-center items-center mt-4 md:mt-0">
-                <button
-                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all duration-700 shadow-lg ${status === 'live'
-                            ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate'
-                            : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed border border-white/5'
-                        } ${status === 'live' && asset.isOptimistic ? 'animate-bounce-short' : ''}`}
-                    title={status === 'live' ? "Download Payload" : "File sedang dalam proses finalisasi..."}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (status === 'live') {
-                            handleDownload();
-                        } else {
-                            toast("File sedang dalam proses finalisasi di jaringan. Coba lagi dalam 30 detik.", {
-                                icon: '⏳'
-                            });
-                        }
-                    }}
-                >
-                    <Download size={18} />
-                    <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">
-                        {status === 'live' ? 'Download File' : 'Processing...'}
-                    </span>
-                </button>
-            </div>
+            {/* Actions & Download Row (Mobile optimized) */}
+            <div className="w-full grid grid-cols-2 gap-3 mt-6 md:mt-0 md:col-span-4 relative z-10">
+                {/* Download Button */}
+                <div className="flex justify-center items-center">
+                    <button
+                        className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all duration-700 shadow-lg ${status === 'live'
+                                ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate'
+                                : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed border border-white/5'
+                            } ${status === 'live' && asset.isOptimistic ? 'animate-bounce-short' : ''}`}
+                        title={status === 'live' ? "Download Payload" : "File sedang dalam proses finalisasi..."}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (status === 'live') {
+                                handleDownload();
+                            } else {
+                                toast("File sedang dalam proses finalisasi di jaringan. Coba lagi dalam 30 detik.", {
+                                    icon: '⏳'
+                                });
+                            }
+                        }}
+                    >
+                        <Download size={18} />
+                        <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">
+                            {status === 'live' ? 'Download' : 'Syncing'}
+                        </span>
+                    </button>
+                </div>
 
-            {/* Actions Button (Delete) */}
-            <div className="w-full md:col-span-2 relative z-10 flex md:justify-end items-center mb-2 md:mb-0">
-                <button
-                    className="w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-300 shadow-lg group/delete"
-                    onClick={handleDelete}
-                    title="Delete Asset"
-                    disabled={deleteBlobs.isPending}
-                >
-                    {deleteBlobs.isPending ? (
-                        <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                        <Trash2 size={18} />
-                    )}
-                    <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">Delete Asset</span>
-                </button>
+                {/* Actions Button (Delete) */}
+                <div className="flex justify-center items-center">
+                    <button
+                        className="w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-300 shadow-lg group/delete"
+                        onClick={handleDelete}
+                        title="Delete Asset"
+                        disabled={deleteBlobs.isPending}
+                    >
+                        {deleteBlobs.isPending ? (
+                            <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                            <Trash2 size={18} />
+                        )}
+                        <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">Delete</span>
+                    </button>
+                </div>
             </div>
         </div>
     );
