@@ -42,20 +42,20 @@ export function Dashboard() {
             const blobs = await shelbyClient.coordination.getAccountBlobs({
                 account: account.address.toString(),
             });
-            
+
             // Sort assets by descent order (latest first) based on official SDK field and indexer fields
             const sortedBlobs = (blobs || []).sort((a: any, b: any) => {
                 const timeA = a.creationMicros || a.timestamp || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
                 const timeB = b.creationMicros || b.timestamp || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
-                
+
                 // If we have timestamps, sort by them (descending: newest first)
                 if (timeA && timeB) return Number(timeB) - Number(timeA);
-                
+
                 // If only one has a timestamp, the other goes to the bottom
                 if (timeA && !timeB) return -1;
                 if (!timeA && timeB) return 1;
 
-                return 0; 
+                return 0;
             });
 
             // If no timestamps were found to sort by, and the list isn't empty, 
@@ -99,7 +99,7 @@ export function Dashboard() {
             }
             fetchBlobs();
         };
-        
+
         window.addEventListener('vault:uploadSuccess', handleUploadSuccess);
         return () => window.removeEventListener('vault:uploadSuccess', handleUploadSuccess);
     }, [account, shelbyClient]);
@@ -166,7 +166,7 @@ export function Dashboard() {
                         <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none text-center md:text-left">{connected ? 'My Vault' : 'Your Vault'}</h2>
                         <p className="text-color-support/60 text-base sm:text-lg font-normal max-w-md leading-relaxed text-center md:text-left mx-auto md:mx-0">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
                     </div>
-                    
+
                     <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch md:items-end gap-3 md:gap-4">
                         <div className="dash-stat flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start flex-1 md:flex-none md:min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
                             <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-primary/20 to-transparent" />
@@ -237,7 +237,7 @@ export function Dashboard() {
                                         // Match by txHash or name to identify duplicates
                                         const tx = asset.transaction_hash || asset.tx_hash || asset.upload_tx_hash;
                                         const name = asset.blobNameSuffix || asset.name;
-                                        
+
                                         return self.findIndex(a => {
                                             const aTx = a.transaction_hash || a.tx_hash || a.upload_tx_hash;
                                             const aName = a.blobNameSuffix || a.name;
@@ -252,106 +252,106 @@ export function Dashboard() {
 
                                 return combined
                                     .filter(asset => {
-                                    const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || asset.blob_id || asset.blobId || (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) || '';
-                                    const name = asset.blobNameSuffix || (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
-                                    return name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                           (assetHash && assetHash.toLowerCase().includes(searchQuery.toLowerCase()));
-                                })
-                                .map((asset, index) => {
-                                    const displayName: string =
-                                        asset.blobNameSuffix ||
-                                        (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
-                                    const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
-                                    const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
-                                    
-                                    // Robust extraction of identifier and name from indexer "@identifier/path" format
-                                    const nameStr = typeof asset.name === 'string' ? asset.name : '';
-                                    const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
-                                    
-                                    // Use extracted identifier or fallback to account address
-                                    const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
-                                    // Ensure the identifier has the 0x prefix if it appears to be a raw hex address
-                                    let finalIdentifier = identifier;
-                                    const isHex = /^[0-9a-fA-F]+$/.test(finalIdentifier);
-                                    if (finalIdentifier && !finalIdentifier.startsWith('0x') && isHex && finalIdentifier.length >= 60) {
-                                        finalIdentifier = `0x${finalIdentifier}`;
-                                    }
+                                        const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || asset.blob_id || asset.blobId || (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) || '';
+                                        const name = asset.blobNameSuffix || (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
+                                        return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                            (assetHash && assetHash.toLowerCase().includes(searchQuery.toLowerCase()));
+                                    })
+                                    .map((asset, index) => {
+                                        const displayName: string =
+                                            asset.blobNameSuffix ||
+                                            (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
+                                        const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
+                                        const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
 
-                                    // Use extracted nameOnly or fallback to blobNameSuffix or raw name
-                                    const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+                                        // Robust extraction of identifier and name from indexer "@identifier/path" format
+                                        const nameStr = typeof asset.name === 'string' ? asset.name : '';
+                                        const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
 
-                                    // Construct the download URL with strict encoding for both parts, but allowing slashes to remain literal for paths
-                                    const downloadUrl = (finalIdentifier && nameOnly) 
-                                        ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(finalIdentifier)}/${nameOnly.split('/').map((segment: string) => encodeURIComponent(segment)).join('/')}`
-                                        : null;
+                                        // Use extracted identifier or fallback to account address
+                                        const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
+                                        // Ensure the identifier has the 0x prefix if it appears to be a raw hex address
+                                        let finalIdentifier = identifier;
+                                        const isHex = /^[0-9a-fA-F]+$/.test(finalIdentifier);
+                                        if (finalIdentifier && !finalIdentifier.startsWith('0x') && isHex && finalIdentifier.length >= 60) {
+                                            finalIdentifier = `0x${finalIdentifier}`;
+                                        }
 
-                                    if (index === 0) {
-                                        console.log(`[Debug] URL Construction for ${displayName}:`, {
-                                            rawIdentifier: identifier,
-                                            finalIdentifier,
-                                            nameOnly,
-                                            downloadUrl
-                                        });
-                                    }
+                                        // Use extracted nameOnly or fallback to blobNameSuffix or raw name
+                                        const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
 
-                                    const assetHash = asset.blob_merkle_root || 
-                                                    asset.merkle_root || 
-                                                    asset.merkleRoot || 
-                                                    asset.hash || 
-                                                    asset.blob_hash || 
-                                                    asset.blob_id || 
-                                                    asset.blobId || 
-                                                    (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) ||
-                                                    '';
-                                    
-                                    // Extract transaction hash specifically for Explorer link
-                                    const txHash = asset.transaction_hash || 
-                                                  asset.tx_hash || 
-                                                  asset.upload_tx_hash || 
-                                                  asset.creation_tx_hash || 
-                                                  asset.transactionHash || 
-                                                  asset.blob_transaction_hash ||
-                                                  asset.txHash ||
-                                                  (asset.metadata && (
-                                                      asset.metadata.transaction_hash || 
-                                                      asset.metadata.tx_hash || 
-                                                      asset.metadata.upload_tx_hash ||
-                                                      asset.metadata.transactionHash
-                                                  )) ||
-                                                  '';
-                                    
-                                    // Debug log for identifying hash fields if none found
-                                    if (!assetHash && index === 0) {
-                                        console.log("Asset structure debug (missing hash):", asset);
-                                    }
-                                    const handleOpenPreview = () => {
-                                        if (!downloadUrl) return;
-                                        setSelectedAsset({
-                                            name: displayName,
-                                            url: downloadUrl,
-                                            sizeStr: sizeMB,
-                                            isImage: isImg,
-                                            hash: assetHash,
-                                            txHash: txHash
-                                        });
-                                        setIsPreviewModalOpen(true);
-                                    };
+                                        // Construct the download URL with strict encoding for both parts, but allowing slashes to remain literal for paths
+                                        const downloadUrl = (finalIdentifier && nameOnly)
+                                            ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(finalIdentifier)}/${nameOnly.split('/').map((segment: string) => encodeURIComponent(segment)).join('/')}`
+                                            : null;
 
-                                    return (
-                                        <AssetRow
-                                            key={assetHash || asset.blob_merkle_root || index}
-                                            asset={asset}
-                                            assetHash={assetHash}
-                                            txHash={txHash}
-                                            index={index}
-                                            displayName={displayName}
-                                            sizeMB={sizeMB}
-                                            isImg={isImg}
-                                            downloadUrl={downloadUrl}
-                                            handleOpenPreview={handleOpenPreview}
-                                        />
-                                    );
-                                })
+                                        if (index === 0) {
+                                            console.log(`[Debug] URL Construction for ${displayName}:`, {
+                                                rawIdentifier: identifier,
+                                                finalIdentifier,
+                                                nameOnly,
+                                                downloadUrl
+                                            });
+                                        }
+
+                                        const assetHash = asset.blob_merkle_root ||
+                                            asset.merkle_root ||
+                                            asset.merkleRoot ||
+                                            asset.hash ||
+                                            asset.blob_hash ||
+                                            asset.blob_id ||
+                                            asset.blobId ||
+                                            (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) ||
+                                            '';
+
+                                        // Extract transaction hash specifically for Explorer link
+                                        const txHash = asset.transaction_hash ||
+                                            asset.tx_hash ||
+                                            asset.upload_tx_hash ||
+                                            asset.creation_tx_hash ||
+                                            asset.transactionHash ||
+                                            asset.blob_transaction_hash ||
+                                            asset.txHash ||
+                                            (asset.metadata && (
+                                                asset.metadata.transaction_hash ||
+                                                asset.metadata.tx_hash ||
+                                                asset.metadata.upload_tx_hash ||
+                                                asset.metadata.transactionHash
+                                            )) ||
+                                            '';
+
+                                        // Debug log for identifying hash fields if none found
+                                        if (!assetHash && index === 0) {
+                                            console.log("Asset structure debug (missing hash):", asset);
+                                        }
+                                        const handleOpenPreview = () => {
+                                            if (!downloadUrl) return;
+                                            setSelectedAsset({
+                                                name: displayName,
+                                                url: downloadUrl,
+                                                sizeStr: sizeMB,
+                                                isImage: isImg,
+                                                hash: assetHash,
+                                                txHash: txHash
+                                            });
+                                            setIsPreviewModalOpen(true);
+                                        };
+
+                                        return (
+                                            <AssetRow
+                                                key={assetHash || asset.blob_merkle_root || index}
+                                                asset={asset}
+                                                assetHash={assetHash}
+                                                txHash={txHash}
+                                                index={index}
+                                                displayName={displayName}
+                                                sizeMB={sizeMB}
+                                                isImg={isImg}
+                                                downloadUrl={downloadUrl}
+                                                handleOpenPreview={handleOpenPreview}
+                                            />
+                                        );
+                                    })
                             })()
                         )}
                     </div>
@@ -379,7 +379,7 @@ export function Dashboard() {
                 isImage={selectedAsset?.isImage || false}
                 onDownload={async () => {
                     if (selectedAsset) {
-                        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMW6KNMWogb1qcygNFwS";
+                        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
                         try {
                             const response = await fetch(selectedAsset.url, {
                                 headers: {
@@ -423,14 +423,14 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
 
     useEffect(() => {
         if (!downloadUrl) return;
-        
+
         const checkStatus = async () => {
             if (!downloadUrl) {
-                setStatus('syncing'); 
+                setStatus('syncing');
                 return;
             }
 
-            const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
+            const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
             try {
                 const response = await fetch(downloadUrl, {
                     method: 'GET',
@@ -468,7 +468,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
 
     const handleDownload = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
-        
+
         // Pre-download validation
         if (status !== 'live') {
             toast("File sedang dalam proses indexing di Shelby network. Coba lagi dalam 30 detik.", {
@@ -481,7 +481,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             toast.error("Download URL is not available for this asset.");
             return;
         }
-        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
+        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
         try {
             const response = await fetch(downloadUrl, {
                 headers: {
@@ -506,14 +506,14 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 } else {
                     errorDetail = response.statusText;
                 }
-                
+
                 // Detailed debug as requested
                 console.log('[Debug] Download Response:', response.status, errorDetail, {
                     name: displayName,
                     url: downloadUrl,
                     status: status
                 });
-                
+
                 throw new Error(errorDetail || `Server returned ${response.status}`);
             }
 
@@ -523,7 +523,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 size: fileData.size,
                 name: displayName
             });
-            
+
             const downloadLink = document.createElement("a");
             const url = URL.createObjectURL(fileData);
             downloadLink.href = url;
@@ -533,7 +533,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             toast.success("Download started!");
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            
+
             // Tame specific indexing error with a user-friendly info toast
             if (msg.toLowerCase().includes('index') || msg.toLowerCase().includes('process')) {
                 toast("File sedang dalam proses finalisasi di jaringan. Coba lagi dalam 30 detik.", {
@@ -554,7 +554,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         >
             {/* Hover Background Artifact */}
             <div className="absolute inset-0 bg-gradient-to-r from-color-primary/[0.03] via-transparent to-color-accent/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-            
+
             {/* Asset Identity */}
             <div className="w-full col-span-12 md:col-span-6 flex items-center gap-4 relative z-10">
                 <div className="w-12 h-12 rounded-xl glass-panel bg-[#050505] flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
@@ -587,11 +587,10 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
             {/* Download Button */}
             <div className="w-full md:col-span-2 relative z-10 flex md:justify-center items-center mt-4 md:mt-0">
                 <button
-                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all duration-700 shadow-lg ${
-                        status === 'live' 
-                            ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate' 
+                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all duration-700 shadow-lg ${status === 'live'
+                            ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate'
                             : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed border border-white/5'
-                    } ${status === 'live' && asset.isOptimistic ? 'animate-bounce-short' : ''}`}
+                        } ${status === 'live' && asset.isOptimistic ? 'animate-bounce-short' : ''}`}
                     title={status === 'live' ? "Download Payload" : "File sedang dalam proses finalisasi..."}
                     onClick={(e) => {
                         e.stopPropagation();

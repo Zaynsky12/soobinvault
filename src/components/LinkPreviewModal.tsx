@@ -50,7 +50,7 @@ export function LinkPreviewModal({
         }
 
         try {
-            const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_hgdBXnSK14t_6GHbXm2irnCgggVW6KNMWogb1qcygNFwS";
+            const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
             const response = await fetch(assetUrl, {
                 headers: {
                     'Authorization': `Bearer ${apiKey.trim()}`
@@ -272,7 +272,7 @@ export function LinkPreviewModal({
                                                 <Copy size={16} />
                                             </button>
                                         </div>
-                                        <a 
+                                        <a
                                             href={`https://explorer.aptoslabs.com/txn/${txHash}?network=testnet`}
                                             target="_blank"
                                             rel="noopener noreferrer"
