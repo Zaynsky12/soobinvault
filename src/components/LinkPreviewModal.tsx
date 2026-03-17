@@ -12,6 +12,8 @@ interface LinkPreviewModalProps {
     txHash: string;
     assetSizeStr: string;
     isImage: boolean;
+    isVideo: boolean;
+    isText: boolean;
     onDownload: () => void;
     apiKey?: string;
     onFetch?: () => Promise<ReadableStream<Uint8Array> | null>;
@@ -26,6 +28,8 @@ export function LinkPreviewModal({
     txHash,
     assetSizeStr,
     isImage,
+    isVideo,
+    isText,
     onDownload,
     apiKey: propApiKey,
     onFetch
@@ -35,6 +39,7 @@ export function LinkPreviewModal({
     const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [textContent, setTextContent] = useState<string | null>(null);
 
     const modalRef = React.useRef<HTMLDivElement>(null);
     const overlayRef = React.useRef<HTMLDivElement>(null);
@@ -110,6 +115,12 @@ export function LinkPreviewModal({
                 rawBlob = await response.blob();
             }
 
+            if (isText) {
+                const text = await rawBlob.text();
+                setTextContent(text);
+                return;
+            }
+
             // Force correct MIME type for previewing
             let forcedMimeType = rawBlob.type;
             if (isPdf) {
@@ -121,6 +132,12 @@ export function LinkPreviewModal({
                 else if (ext === 'gif') forcedMimeType = 'image/gif';
                 else if (ext === 'webp') forcedMimeType = 'image/webp';
                 else if (ext === 'svg') forcedMimeType = 'image/svg+xml';
+            } else if (isVideo) {
+                const ext = assetName.split('.').pop()?.toLowerCase();
+                if (ext === 'mp4') forcedMimeType = 'video/mp4';
+                else if (ext === 'webm') forcedMimeType = 'video/webm';
+                else if (ext === 'ogg') forcedMimeType = 'video/ogg';
+                else forcedMimeType = 'video/mp4'; // fallback
             }
             const typedBlob = new Blob([rawBlob], { type: forcedMimeType });
             const url = URL.createObjectURL(typedBlob);
@@ -162,6 +179,15 @@ export function LinkPreviewModal({
             const tl = gsap.timeline();
             tl.to(modalRef.current, { y: 20, opacity: 0, scale: 0.95, duration: 0.2, ease: 'power2.in' })
                 .to(overlayRef.current, { opacity: 0, duration: 0.2, ease: 'power2.in', display: 'none' });
+            
+            // Cleanup
+            if (blobUrl) {
+                URL.revokeObjectURL(blobUrl);
+                setBlobUrl(null);
+            }
+            setTextContent(null);
+            setIsProcessing(false);
+            setFetchError(null);
         }
     }, [isOpen]);
 
@@ -246,6 +272,16 @@ export function LinkPreviewModal({
                                             className="w-full h-full border-none"
                                             title="PDF Preview"
                                         />
+                                    ) : isVideo ? (
+                                        <video
+                                            src={blobUrl}
+                                            controls
+                                            className="w-full h-full object-contain"
+                                        />
+                                    ) : isText ? (
+                                        <div className="w-full h-full p-4 overflow-auto bg-[#0a0a0a] text-color-support/80 font-mono text-xs leading-relaxed whitespace-pre">
+                                            {textContent || "Loading content..."}
+                                        </div>
                                     ) : (
                                         <div className="flex flex-col items-center gap-4 text-color-support/40">
                                             <FileText size={80} strokeWidth={1} />

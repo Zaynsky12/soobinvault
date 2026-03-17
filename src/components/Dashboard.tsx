@@ -31,6 +31,8 @@ export function Dashboard() {
         url: string;
         sizeStr: string;
         isImage: boolean;
+        isVideo: boolean;
+        isText: boolean;
         hash: string;
         txHash: string;
         blobAccount: string;
@@ -335,6 +337,10 @@ export function Dashboard() {
                                         if (!assetHash && index === 0) {
                                             console.log("Asset structure debug (missing hash):", asset);
                                         }
+                                        const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg)$/);
+                                        const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov)$/);
+                                        const isTxt = !!displayName.toLowerCase().match(/\.(txt|md|json|js|ts|tsx|html|css|py|go|rust|c|cpp|rs)$/);
+
                                         const handleOpenPreview = () => {
                                             // blobName must match exactly what was passed during upload: droppedFile.name (just filename)
                                             // displayName is already the clean filename (blobNameSuffix or stripped name)
@@ -345,10 +351,12 @@ export function Dashboard() {
                                                 url: downloadUrl || '',
                                                 sizeStr: sizeMB,
                                                 isImage: isImg,
+                                                isVideo: isVid,
+                                                isText: isTxt,
                                                 hash: assetHash,
                                                 txHash: txHash,
                                                 blobAccount: resolvedAccount,
-                                                blobName: displayName,
+                                                blobName: displayName
                                             });
                                             setIsPreviewModalOpen(true);
                                         };
@@ -363,6 +371,8 @@ export function Dashboard() {
                                                 displayName={displayName}
                                                 sizeMB={sizeMB}
                                                 isImg={isImg}
+                                                isVid={isVid}
+                                                isTxt={isTxt}
                                                 downloadUrl={downloadUrl}
                                                 handleOpenPreview={handleOpenPreview}
                                                 deleteBlobs={deleteBlobs}
@@ -398,6 +408,8 @@ export function Dashboard() {
                 assetUrl={selectedAsset?.url || null}
                 assetSizeStr={selectedAsset?.sizeStr || '0'}
                 isImage={selectedAsset?.isImage || false}
+                isVideo={selectedAsset?.isVideo || false}
+                isText={selectedAsset?.isText || false}
                 apiKey={shelbyClient.rpc.apiKey}
                 onFetch={selectedAsset?.blobAccount && selectedAsset?.blobName ? async () => {
                     try {
@@ -451,7 +463,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, account, shelbyClient }: any): React.ReactNode {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
 
     useEffect(() => {
@@ -629,8 +641,12 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 <div className="w-12 h-12 rounded-xl glass-panel bg-[#050505] flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
                     {isImg ? (
                         <ImageIcon className="text-color-accent group-hover:text-white transition-colors" size={20} />
+                    ) : isVid ? (
+                        <PackageOpen className="text-color-primary group-hover:text-white transition-colors" size={20} />
+                    ) : isTxt ? (
+                        <FileText className="text-color-support group-hover:text-white transition-colors" size={20} />
                     ) : (
-                        <FileText className="text-color-support/60 group-hover:text-white transition-colors" size={20} />
+                        <Database className="text-color-support/40 group-hover:text-white transition-colors" size={20} />
                     )}
                 </div>
                 <div className="flex flex-col min-w-0">
