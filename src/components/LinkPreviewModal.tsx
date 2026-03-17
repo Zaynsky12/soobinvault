@@ -14,6 +14,7 @@ interface LinkPreviewModalProps {
     isImage: boolean;
     onDownload: () => void;
     apiKey?: string;
+    onFetch?: () => Promise<ReadableStream<Uint8Array> | null>;
 }
 
 export function LinkPreviewModal({
@@ -26,7 +27,8 @@ export function LinkPreviewModal({
     assetSizeStr,
     isImage,
     onDownload,
-    apiKey: propApiKey
+    apiKey: propApiKey,
+    onFetch
 }: LinkPreviewModalProps) {
     const [copied, setCopied] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
@@ -40,7 +42,7 @@ export function LinkPreviewModal({
     const isPdf = assetName.toLowerCase().endsWith('.pdf');
 
     const fetchAsset = async () => {
-        if (!assetUrl) return;
+        if (!assetUrl && !onFetch) return;
 
         setIsFetching(true);
         setFetchError(null);
@@ -52,59 +54,85 @@ export function LinkPreviewModal({
         }
 
         try {
-            const apiKey = propApiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
-            console.log(`[LinkPreviewModal] Fetching with key prefix: ${apiKey.substring(0, 10)}...`);
-            const response = await fetch(assetUrl, {
-                headers: {
-                    'Authorization': `Bearer ${apiKey.trim()}`
-                }
-            });
-            const contentType = response.headers.get('content-type');
+            let rawBlob: Blob;
 
-            if (contentType && contentType.includes('application/json')) {
-                const data = await response.json();
-                if (data.error && data.error.toLowerCase().includes('not yet been marked successfully written')) {
+            if (onFetch) {
+                // Use SDK method via callback - handles auth internally
+                const stream = await onFetch();
+                if (!stream) {
                     setIsProcessing(true);
-                } else {
-                    setFetchError(data.message || data.error || 'Failed to fetch asset');
+                    return;
                 }
-            } else if (response.ok) {
-                const blob = await response.blob();
-
-                // Force correct MIME type for previewing
-                let forcedMimeType = blob.type;
-                if (isPdf) {
-                    forcedMimeType = 'application/pdf';
-                } else if (isImage) {
-                    const ext = assetName.split('.').pop()?.toLowerCase();
-                    if (ext === 'jpg' || ext === 'jpeg') forcedMimeType = 'image/jpeg';
-                    else if (ext === 'png') forcedMimeType = 'image/png';
-                    else if (ext === 'gif') forcedMimeType = 'image/gif';
-                    else if (ext === 'webp') forcedMimeType = 'image/webp';
-                    else if (ext === 'svg') forcedMimeType = 'image/svg+xml';
+                const reader = stream.getReader();
+                const chunks: Uint8Array[] = [];
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    if (value) chunks.push(value);
                 }
-
-                const typedBlob = new Blob([blob], { type: forcedMimeType });
-                const url = URL.createObjectURL(typedBlob);
-                setBlobUrl(url);
+                const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+                const merged = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.length; }
+                rawBlob = new Blob([merged]);
             } else {
-                let errorMessage = `Server returned ${response.status}`;
-                try {
-                    const text = await response.text();
-                    try {
-                        const errorData = JSON.parse(text);
-                        errorMessage += `: ${errorData.message || errorData.error || response.statusText}`;
-                    } catch (e) {
-                        errorMessage += `: ${text || response.statusText}`;
+                const apiKey = propApiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+                console.log(`[LinkPreviewModal] Fetching with key prefix: ${apiKey.substring(0, 10)}...`);
+                const response = await fetch(assetUrl!, {
+                    headers: { 'Authorization': `Bearer ${apiKey.trim()}` }
+                });
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    if (data.error && data.error.toLowerCase().includes('not yet been marked successfully written')) {
+                        setIsProcessing(true);
+                    } else {
+                        setFetchError(data.message || data.error || 'Failed to fetch asset');
                     }
-                } catch (e) {
-                    errorMessage += `: ${response.statusText}`;
+                    return;
+                } else if (!response.ok) {
+                    let errorMessage = `Server returned ${response.status}`;
+                    try {
+                        const text = await response.text();
+                        try {
+                            const errorData = JSON.parse(text);
+                            errorMessage += `: ${errorData.message || errorData.error || response.statusText}`;
+                        } catch (e) {
+                            errorMessage += `: ${text || response.statusText}`;
+                        }
+                    } catch (e) {
+                        errorMessage += `: ${response.statusText}`;
+                    }
+                    console.error(`[LinkPreviewModal] Preview fetch failed:`, errorMessage, assetUrl);
+                    setFetchError(errorMessage);
+                    return;
                 }
-                console.error(`[LinkPreviewModal] Preview fetch failed:`, errorMessage, assetUrl);
-                setFetchError(errorMessage);
+                rawBlob = await response.blob();
             }
-        } catch (error) {
-            setFetchError(error instanceof Error ? error.message : 'An unexpected error occurred');
+
+            // Force correct MIME type for previewing
+            let forcedMimeType = rawBlob.type;
+            if (isPdf) {
+                forcedMimeType = 'application/pdf';
+            } else if (isImage) {
+                const ext = assetName.split('.').pop()?.toLowerCase();
+                if (ext === 'jpg' || ext === 'jpeg') forcedMimeType = 'image/jpeg';
+                else if (ext === 'png') forcedMimeType = 'image/png';
+                else if (ext === 'gif') forcedMimeType = 'image/gif';
+                else if (ext === 'webp') forcedMimeType = 'image/webp';
+                else if (ext === 'svg') forcedMimeType = 'image/svg+xml';
+            }
+            const typedBlob = new Blob([rawBlob], { type: forcedMimeType });
+            const url = URL.createObjectURL(typedBlob);
+            setBlobUrl(url);
+        } catch (error: any) {
+            console.error('[LinkPreviewModal] Fetch error:', error);
+            // If 401/not-found style errors from SDK
+            if (error?.message?.includes('not yet been marked')) {
+                setIsProcessing(true);
+            } else {
+                setFetchError(error instanceof Error ? error.message : 'An unexpected error occurred');
+            }
         } finally {
             setIsFetching(false);
         }

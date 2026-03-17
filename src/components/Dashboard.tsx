@@ -33,6 +33,8 @@ export function Dashboard() {
         isImage: boolean;
         hash: string;
         txHash: string;
+        blobAccount: string;
+        blobName: string;
     } | null>(null);
     
     // Deletion Hook
@@ -335,14 +337,15 @@ export function Dashboard() {
                                             console.log("Asset structure debug (missing hash):", asset);
                                         }
                                         const handleOpenPreview = () => {
-                                            if (!downloadUrl) return;
                                             setSelectedAsset({
                                                 name: displayName,
-                                                url: downloadUrl,
+                                                url: downloadUrl || '',
                                                 sizeStr: sizeMB,
                                                 isImage: isImg,
                                                 hash: assetHash,
-                                                txHash: txHash
+                                                txHash: txHash,
+                                                blobAccount: finalIdentifier,
+                                                blobName: nameOnly,
                                             });
                                             setIsPreviewModalOpen(true);
                                         };
@@ -393,40 +396,51 @@ export function Dashboard() {
                 assetSizeStr={selectedAsset?.sizeStr || '0'}
                 isImage={selectedAsset?.isImage || false}
                 apiKey={shelbyClient.rpc.apiKey}
+                onFetch={selectedAsset?.blobAccount && selectedAsset?.blobName ? async () => {
+                    try {
+                        const shelbyBlob = await shelbyClient.download({
+                            account: selectedAsset.blobAccount,
+                            blobName: selectedAsset.blobName,
+                        });
+                        return shelbyBlob.readable;
+                    } catch (err: any) {
+                        if (err?.message?.includes('not yet been marked')) return null;
+                        throw err;
+                    }
+                } : undefined}
                 onDownload={async () => {
-                    if (selectedAsset) {
-                        const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+                    if (selectedAsset && selectedAsset.blobAccount && selectedAsset.blobName) {
                         try {
-                            const response = await fetch(selectedAsset.url, {
-                                headers: {
-                                    'Authorization': `Bearer ${apiKey.trim()}`
-                                }
+                            toast.loading('Preparing download...', { id: 'dl' });
+                            const shelbyBlob = await shelbyClient.download({
+                                account: selectedAsset.blobAccount,
+                                blobName: selectedAsset.blobName,
                             });
-
-                            if (!response.ok) {
-                                let errorInfo = "";
-                                try {
-                                    const errJson = await response.json();
-                                    errorInfo = errJson.message || errJson.error || response.statusText;
-                                } catch (e) {
-                                    errorInfo = response.statusText;
-                                }
-                                console.log('[Debug] Modal Download Response:', response.status, errorInfo, selectedAsset.url);
-                                throw new Error(errorInfo || `Server returned ${response.status}`);
+                            const reader = shelbyBlob.readable.getReader();
+                            const chunks: Uint8Array[] = [];
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                if (value) chunks.push(value);
                             }
-
-                            const blob = await response.blob();
+                            const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+                            const merged = new Uint8Array(totalLength);
+                            let offset = 0;
+                            for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.length; }
+                            const blob = new Blob([merged]);
+                            const downloadLink = document.createElement('a');
                             const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = selectedAsset.name;
-                            a.click();
+                            downloadLink.href = url;
+                            downloadLink.download = selectedAsset.name;
+                            downloadLink.click();
                             setTimeout(() => URL.revokeObjectURL(url), 100);
-                            toast.success("Download started!");
+                            toast.success('Download started!', { id: 'dl' });
                         } catch (err) {
-                            console.error("Download failed", err);
-                            toast.error(err instanceof Error ? err.message : 'An unexpected error occurred during download');
+                            console.error('[Dashboard] Download via SDK failed:', err);
+                            toast.error(`Download failed: ${err instanceof Error ? err.message : String(err)}`, { id: 'dl' });
                         }
+                    } else {
+                        toast.error('Cannot download: asset details missing.');
                     }
                 }}
             />
