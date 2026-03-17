@@ -273,7 +273,9 @@ export function Dashboard() {
                                             asset.blobNameSuffix ||
                                             (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
                                         const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
-                                        const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+                                        const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg)$/);
+                                        const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov)$/);
+                                        const isTxt = !!displayName.toLowerCase().match(/\.(txt|md|json|js|ts|tsx|html|css|py|go|rust|c|cpp|rs)$/);
 
                                         // Robust extraction of identifier and name from indexer "@identifier/path" format
                                         const nameStr = typeof asset.name === 'string' ? asset.name : '';
@@ -337,10 +339,6 @@ export function Dashboard() {
                                         if (!assetHash && index === 0) {
                                             console.log("Asset structure debug (missing hash):", asset);
                                         }
-                                        const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg)$/);
-                                        const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov)$/);
-                                        const isTxt = !!displayName.toLowerCase().match(/\.(txt|md|json|js|ts|tsx|html|css|py|go|rust|c|cpp|rs)$/);
-
                                         const handleOpenPreview = () => {
                                             // blobName must match exactly what was passed during upload: droppedFile.name (just filename)
                                             // displayName is already the clean filename (blobNameSuffix or stripped name)
