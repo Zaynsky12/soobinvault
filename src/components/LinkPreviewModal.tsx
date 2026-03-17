@@ -240,81 +240,22 @@ export function LinkPreviewModal({
                             </div>
                         </div>
 
-                        {/* Secure Hash & Explorer Actions */}
-                        <div className="space-y-4">
-                            {/* Content ID / Merkle Root */}
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold tracking-[0.2em] uppercase text-color-support/40">
-                                    Content ID (Merkle Root)
-                                </label>
-                                <div className="flex items-center gap-2">
-                                    <div className="flex-1 px-4 py-2.5 overflow-hidden border rounded-lg bg-black/40 border-white/5 text-color-support/60 font-mono text-[11px] whitespace-nowrap text-ellipsis">
-                                        {assetHash || 'Processing...'}
-                                    </div>
-                                    <button
-                                        onClick={() => handleCopy(assetHash)}
-                                        disabled={!assetHash}
-                                        className="p-2.5 transition-colors border rounded-lg bg-white/5 border-white/10 text-color-support hover:text-white hover:bg-white/10 disabled:opacity-30"
-                                        title="Copy Hash"
-                                    >
-                                        {copied ? <CheckCircle size={16} className="text-green-400" /> : <Copy size={16} />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Transaction Detail */}
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold tracking-[0.2em] uppercase text-color-support/40">
-                                    Blockchain Footprint
-                                </label>
-                                {txHash ? (
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex-1 px-4 py-2.5 overflow-hidden border rounded-lg bg-color-primary/5 border-color-primary/20 text-color-primary/80 font-mono text-[11px] whitespace-nowrap text-ellipsis">
-                                                {txHash}
-                                            </div>
-                                            <button
-                                                onClick={() => handleCopy(txHash)}
-                                                className="p-2.5 transition-colors border rounded-lg bg-white/5 border-white/10 text-color-support hover:text-white"
-                                                title="Copy Transaction Hash"
-                                            >
-                                                <Copy size={16} />
-                                            </button>
-                                        </div>
-                                        <a
-                                            href={`https://explorer.aptoslabs.com/txn/${txHash}?network=testnet`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-color-primary/10 to-color-accent/10 border border-color-primary/20 text-color-primary hover:from-color-primary/20 hover:to-color-accent/20 transition-all text-xs font-bold uppercase tracking-wider group"
-                                        >
-                                            <LinkIcon size={14} className="group-hover:rotate-45 transition-transform" />
-                                            View in Aptos Explorer
-                                        </a>
-                                    </div>
-                                ) : (
-                                    <div className="px-4 py-3 rounded-xl bg-white/5 border border-white/5 flex items-center gap-3 italic text-color-support/30 text-xs">
-                                        <Loader2 size={12} className="animate-spin" />
-                                        Waiting for transaction finality...
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 pt-4 border-t border-white/5">
-                                <button
-                                    onClick={onClose}
-                                    className="order-2 sm:order-1 flex items-center justify-center px-6 py-2.5 text-sm font-medium transition-all rounded-xl text-color-support/60 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5"
-                                >
-                                    Close
-                                </button>
-                                <button
-                                    onClick={onDownload}
-                                    disabled={!assetUrl}
-                                    className="order-1 sm:order-2 flex items-center justify-center px-6 py-2.5 text-sm font-bold transition-all rounded-xl text-white bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.03] active:scale-[0.97] shadow-lg shadow-color-primary/20 disabled:opacity-50 disabled:hover:scale-100"
-                                >
-                                    <Download size={18} className="mr-2" />
-                                    Download Asset
-                                </button>
-                            </div>
+                        {/* Actions */}
+                        <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 pt-4 border-t border-white/5">
+                            <button
+                                onClick={onClose}
+                                className="order-2 sm:order-1 flex items-center justify-center px-6 py-2.5 text-sm font-medium transition-all rounded-xl text-color-support/60 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5"
+                            >
+                                Close
+                            </button>
+                            <button
+                                onClick={onDownload}
+                                disabled={!assetUrl}
+                                className="order-1 sm:order-2 flex items-center justify-center px-6 py-2.5 text-sm font-bold transition-all rounded-xl text-white bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.03] active:scale-[0.97] shadow-lg shadow-color-primary/20 disabled:opacity-50 disabled:hover:scale-100"
+                            >
+                                <Download size={18} className="mr-2" />
+                                Download Asset
+                            </button>
                         </div>
                     </div>
                 </GlassCard>
