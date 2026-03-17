@@ -87,11 +87,17 @@ export function LinkPreviewModal({
             } else {
                 let errorMessage = `Server returned ${response.status}`;
                 try {
-                    const errorData = await response.json();
-                    errorMessage += `: ${errorData.message || errorData.error || response.statusText}`;
+                    const text = await response.text();
+                    try {
+                        const errorData = JSON.parse(text);
+                        errorMessage += `: ${errorData.message || errorData.error || response.statusText}`;
+                    } catch (e) {
+                        errorMessage += `: ${text || response.statusText}`;
+                    }
                 } catch (e) {
                     errorMessage += `: ${response.statusText}`;
                 }
+                console.error(`[LinkPreviewModal] Preview fetch failed:`, errorMessage, assetUrl);
                 setFetchError(errorMessage);
             }
         } catch (error) {

@@ -3,11 +3,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search } from 'lucide-react';
+import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { useShelbyClient } from "@shelby-protocol/react";
+import { useShelbyClient, useDeleteBlobs } from "@shelby-protocol/react";
 import { LinkPreviewModal } from './LinkPreviewModal';
 
 // Register GSAP plugins
@@ -17,7 +17,7 @@ if (typeof window !== 'undefined') {
 
 export function Dashboard() {
     const containerRef = useRef<HTMLDivElement>(null);
-    const { account, connected } = useWallet();
+    const { account, connected, signAndSubmitTransaction } = useWallet();
     const shelbyClient = useShelbyClient();
     const [assets, setAssets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +34,15 @@ export function Dashboard() {
         hash: string;
         txHash: string;
     } | null>(null);
+    
+    // Deletion Hook
+    const deleteBlobs = useDeleteBlobs({
+        client: shelbyClient,
+        onSuccess: () => {
+            fetchBlobs();
+        }
+    });
+
 
     const fetchBlobs = async () => {
         if (!account) return;
@@ -195,7 +204,7 @@ export function Dashboard() {
                         <div className="col-span-6">Asset Name</div>
                         <div className="col-span-2">Capacity</div>
                         <div className="col-span-2 text-center">Download</div>
-                        <div className="col-span-2 text-right">Explorer</div>
+                        <div className="col-span-2 text-right">Manage</div>
                     </div>
 
                     {/* Asset Rows */}
@@ -281,8 +290,9 @@ export function Dashboard() {
                                         const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
 
                                         // Construct the download URL with strict encoding for both parts, but allowing slashes to remain literal for paths
+                                        const rpcBaseUrl = shelbyClient.baseUrl;
                                         const downloadUrl = (finalIdentifier && nameOnly)
-                                            ? `https://api.testnet.shelby.xyz/shelby/v1/blobs/${encodeURIComponent(finalIdentifier)}/${nameOnly.split('/').map((segment: string) => encodeURIComponent(segment)).join('/')}`
+                                            ? `${rpcBaseUrl}/v1/blobs/${encodeURIComponent(finalIdentifier)}/${nameOnly.split('/').map((segment: string) => encodeURIComponent(segment)).join('/')}`
                                             : null;
 
                                         if (index === 0) {
@@ -349,6 +359,10 @@ export function Dashboard() {
                                                 isImg={isImg}
                                                 downloadUrl={downloadUrl}
                                                 handleOpenPreview={handleOpenPreview}
+                                                deleteBlobs={deleteBlobs}
+                                                fetchBlobs={fetchBlobs}
+                                                signAndSubmitTransaction={signAndSubmitTransaction}
+                                                account={account}
                                             />
                                         );
                                     })
@@ -418,7 +432,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview, assetHash, txHash }: any) {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, account }: any): React.ReactNode {
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
 
     useEffect(() => {
@@ -442,16 +456,17 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
 
                 if (response.ok) {
                     setStatus('live');
-                } else if (response.status === 429) {
-                    console.warn(`[Shelby] Rate limited checking ${displayName}`);
-                    setTimeout(checkStatus, 15000); // Wait longer on rate limit
-                } else if (response.status === 404 || response.status === 500) {
-                    setStatus('syncing');
-                    // Faster polling for fresh/syncing files as requested (3-5s)
-                    setTimeout(checkStatus, 3000 + Math.random() * 2000);
                 } else {
-                    setStatus('checking');
-                    setTimeout(checkStatus, 5000);
+                    console.log(`[Shelby] Status check for ${displayName}: ${response.status} ${response.statusText}`);
+                    if (response.status === 429) {
+                        setTimeout(checkStatus, 15000);
+                    } else if (response.status === 404 || response.status === 500) {
+                        setStatus('syncing');
+                        setTimeout(checkStatus, 3000 + Math.random() * 2000);
+                    } else {
+                        setStatus('checking');
+                        setTimeout(checkStatus, 5000);
+                    }
                 }
             } catch (e) {
                 console.error(`[Shelby] Status check failed for ${displayName}`, e);
@@ -547,6 +562,38 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         }
     };
 
+    const handleDelete = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        
+        const confirmDelete = window.confirm(`Are you sure you want to delete ${displayName}? This action is permanent and will remove the file's metadata from the blockchain.`);
+        
+        if (!confirmDelete) return;
+
+        // Extract the original name suffix (without the @address/ prefix)
+        const nameStr = typeof asset.name === 'string' ? asset.name : '';
+        const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+        const nameSuffix = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+
+        try {
+            toast.loading(`Deleting ${displayName}...`, { id: 'delete-blob' });
+            
+            await deleteBlobs.mutateAsync({
+                signer: {
+                    account: account?.address, 
+                    signAndSubmitTransaction: (tx: any) => signAndSubmitTransaction(tx),
+                } as any,
+                blobNames: [nameSuffix]
+            });
+
+            toast.success(`${displayName} deleted successfully!`, { id: 'delete-blob' });
+            fetchBlobs();
+        } catch (err) {
+            console.error("Deletion failed:", err);
+            toast.error(err instanceof Error ? err.message : "Failed to delete asset", { id: 'delete-blob' });
+        }
+    };
+
+
     return (
         <div
             className={`asset-row flex flex-col md:grid md:grid-cols-12 gap-4 p-5 md:p-6 items-center transition-all duration-500 relative overflow-hidden border-b border-white/5 last:border-0 ${status === 'live' ? 'hover:bg-white/[0.03] cursor-pointer group' : 'opacity-60 cursor-not-allowed'}`}
@@ -610,26 +657,21 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 </button>
             </div>
 
-            {/* Explorer Button */}
+            {/* Actions Button (Delete) */}
             <div className="w-full md:col-span-2 relative z-10 flex md:justify-end items-center mb-2 md:mb-0">
-                {txHash ? (
-                    <a
-                        href={`https://explorer.aptoslabs.com/txn/${txHash}?network=testnet`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-color-primary/10 hover:bg-color-primary text-color-primary hover:text-white transition-all duration-300 shadow-lg group/link"
-                        onClick={(e) => e.stopPropagation()}
-                        title="View in Explorer"
-                    >
-                        <LinkIcon size={18} />
-                        <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">View in Explorer</span>
-                    </a>
-                ) : (
-                    <div className="w-full md:w-auto px-4 py-2 rounded-lg bg-white/5 border border-white/10 flex items-center gap-2 group/pending">
-                        <Loader2 size={14} className="animate-spin text-color-support/40" />
-                        <span className="text-[10px] text-color-support/40 font-bold uppercase tracking-wider whitespace-nowrap">Indexing...</span>
-                    </div>
-                )}
+                <button
+                    className="w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-300 shadow-lg group/delete"
+                    onClick={handleDelete}
+                    title="Delete Asset"
+                    disabled={deleteBlobs.isPending}
+                >
+                    {deleteBlobs.isPending ? (
+                        <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                        <Trash2 size={18} />
+                    )}
+                    <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">Delete Asset</span>
+                </button>
             </div>
         </div>
     );
