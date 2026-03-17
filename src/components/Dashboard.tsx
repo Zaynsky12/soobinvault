@@ -242,10 +242,16 @@ export function Dashboard() {
                             </div>
                         ) : (
                             (() => {
-                                // Combine real assets with optimistic ones, prefer real ones (at the front)
-                                const combined = [...assets, ...optimisticAssets]
+                                const sortedReal = [...assets].sort((a, b) => {
+                                        const timeA = a.timestamp || a.creationMicros || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
+                                        const timeB = b.timestamp || b.creationMicros || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
+                                        if (timeA && timeB) return Number(timeB) - Number(timeA);
+                                        return 0;
+                                    });
+
+                                // Optimistic assets (just uploaded) always go to the top
+                                const combined = [...optimisticAssets, ...sortedReal]
                                     .filter((asset, index, self) => {
-                                        // Match by txHash or name to identify duplicates
                                         const tx = asset.transaction_hash || asset.tx_hash || asset.upload_tx_hash;
                                         const name = asset.blobNameSuffix || asset.name;
 
@@ -254,11 +260,6 @@ export function Dashboard() {
                                             const aName = a.blobNameSuffix || a.name;
                                             return (tx && aTx && tx === aTx) || (name && aName && name === aName);
                                         }) === index;
-                                    })
-                                    .sort((a, b) => {
-                                        const timeA = a.timestamp || a.creationMicros || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
-                                        const timeB = b.timestamp || b.creationMicros || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
-                                        return Number(timeB) - Number(timeA);
                                     });
 
                                 return combined
