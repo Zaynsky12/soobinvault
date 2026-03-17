@@ -278,6 +278,7 @@ export function Dashboard() {
                                         // Robust extraction of identifier and name from indexer "@identifier/path" format
                                         const nameStr = typeof asset.name === 'string' ? asset.name : '';
                                         const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+                                        if (index === 0) console.log('[Debug] Asset structure:', JSON.stringify(asset, null, 2));
 
                                         // Use extracted identifier or fallback to account address
                                         const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
@@ -337,10 +338,10 @@ export function Dashboard() {
                                             console.log("Asset structure debug (missing hash):", asset);
                                         }
                                         const handleOpenPreview = () => {
-                                            // The SDK requires: account = wallet address, blobName = file path after the address
-                                            // Always use the connected account address - users can only access their own files
+                                            // blobName must match exactly what was passed during upload: droppedFile.name (just filename)
+                                            // displayName is already the clean filename (blobNameSuffix or stripped name)
                                             const resolvedAccount = account?.address?.toString() || '';
-                                            console.log('[Debug] Opening preview:', { resolvedAccount, nameOnly, finalIdentifier, nameStr, nameMatch });
+                                            console.log('[Debug] Opening preview:', { resolvedAccount, blobName: displayName, nameOnly, nameStr, blobNameSuffix: asset.blobNameSuffix });
                                             setSelectedAsset({
                                                 name: displayName,
                                                 url: downloadUrl || '',
@@ -349,7 +350,7 @@ export function Dashboard() {
                                                 hash: assetHash,
                                                 txHash: txHash,
                                                 blobAccount: resolvedAccount,
-                                                blobName: nameOnly,
+                                                blobName: displayName,
                                             });
                                             setIsPreviewModalOpen(true);
                                         };
