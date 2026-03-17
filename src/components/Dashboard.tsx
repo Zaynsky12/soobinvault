@@ -23,6 +23,7 @@ export function Dashboard() {
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [optimisticAssets, setOptimisticAssets] = useState<any[]>([]);
+    const [optimisticDeletions, setOptimisticDeletions] = useState<string[]>([]);
 
     // Modal State
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -242,6 +243,7 @@ export function Dashboard() {
                             </div>
                         ) : (
                             (() => {
+                                // Combine real assets with optimistic ones, prefer real ones (at the front)
                                 const sortedReal = [...assets].sort((a, b) => {
                                         const timeA = a.timestamp || a.creationMicros || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
                                         const timeB = b.timestamp || b.creationMicros || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
@@ -254,6 +256,20 @@ export function Dashboard() {
                                     .filter((asset, index, self) => {
                                         const tx = asset.transaction_hash || asset.tx_hash || asset.upload_tx_hash;
                                         const name = asset.blobNameSuffix || asset.name;
+                                        
+                                        // Extraction for filtering below
+                                        const assetHash = asset.blob_merkle_root ||
+                                             asset.merkle_root ||
+                                             asset.merkleRoot ||
+                                             asset.hash ||
+                                             asset.blob_hash ||
+                                             asset.blob_id ||
+                                             asset.blobId ||
+                                             (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) ||
+                                             '';
+
+                                        // Filter out optimistic deletions
+                                        if (assetHash && optimisticDeletions.includes(assetHash)) return false;
 
                                         return self.findIndex(a => {
                                             const aTx = a.transaction_hash || a.tx_hash || a.upload_tx_hash;
@@ -373,6 +389,7 @@ export function Dashboard() {
                                                 signAndSubmitTransaction={signAndSubmitTransaction}
                                                 account={account}
                                                 shelbyClient={shelbyClient}
+                                                setOptimisticDeletions={setOptimisticDeletions}
                                             />
                                         );
                                     })
@@ -454,7 +471,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, account, shelbyClient }: any): React.ReactNode {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
 
     useEffect(() => {
@@ -606,8 +623,22 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 blobNames: [nameSuffix]
             });
 
-            toast.success(`${displayName} deleted successfully!`, { id: 'delete-blob' });
-            fetchBlobs();
+            toast.success(`${displayName} deleted successfully! Refreshing list in 5 seconds...`, { id: 'delete-blob' });
+            
+            // OPTIMISTIC DELETE: Add to list of deleted hashes so it disappears immediately
+            if (assetHash) {
+                setOptimisticDeletions((prev: string[]) => [...prev, assetHash]);
+            }
+            
+            // Wait for 5 seconds before refreshing as requested to ensure indexer catches up
+            setTimeout(() => {
+                fetchBlobs().then(() => {
+                    // Cleanup optimistic deletion after real fetch
+                    if (assetHash) {
+                        setOptimisticDeletions((prev: string[]) => prev.filter((id: string) => id !== assetHash));
+                    }
+                });
+            }, 5000);
         } catch (err) {
             console.error("Deletion failed:", err);
             toast.error(err instanceof Error ? err.message : "Failed to delete asset", { id: 'delete-blob' });
