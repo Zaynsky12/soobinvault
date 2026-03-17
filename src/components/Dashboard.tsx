@@ -40,9 +40,6 @@ export function Dashboard() {
     // Deletion Hook
     const deleteBlobs = useDeleteBlobs({
         client: shelbyClient,
-        onSuccess: () => {
-            fetchBlobs();
-        }
     });
 
 
