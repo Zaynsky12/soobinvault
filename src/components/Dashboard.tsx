@@ -205,7 +205,7 @@ export function Dashboard() {
                         <div className="col-span-6">Asset Name</div>
                         <div className="col-span-2">Capacity</div>
                         <div className="col-span-2 text-center">Download</div>
-                        <div className="col-span-2 text-right">Manage</div>
+                        <div className="col-span-2 text-right">DELETE</div>
                     </div>
 
                     {/* Asset Rows */}
