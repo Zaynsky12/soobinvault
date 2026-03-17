@@ -606,12 +606,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 blobNames: [nameSuffix]
             });
 
-            toast.success(`${displayName} deleted successfully! Refreshing list in 3 seconds...`, { id: 'delete-blob' });
-            
-            // Wait for 3 seconds before refreshing as requested
-            setTimeout(() => {
-                fetchBlobs();
-            }, 3000);
+            toast.success(`${displayName} deleted successfully!`, { id: 'delete-blob' });
+            fetchBlobs();
         } catch (err) {
             console.error("Deletion failed:", err);
             toast.error(err instanceof Error ? err.message : "Failed to delete asset", { id: 'delete-blob' });
