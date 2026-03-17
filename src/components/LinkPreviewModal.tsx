@@ -13,6 +13,7 @@ interface LinkPreviewModalProps {
     assetSizeStr: string;
     isImage: boolean;
     onDownload: () => void;
+    apiKey?: string;
 }
 
 export function LinkPreviewModal({
@@ -24,7 +25,8 @@ export function LinkPreviewModal({
     txHash,
     assetSizeStr,
     isImage,
-    onDownload
+    onDownload,
+    apiKey: propApiKey
 }: LinkPreviewModalProps) {
     const [copied, setCopied] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
@@ -50,7 +52,8 @@ export function LinkPreviewModal({
         }
 
         try {
-            const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+            const apiKey = propApiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+            console.log(`[LinkPreviewModal] Fetching with key prefix: ${apiKey.substring(0, 10)}...`);
             const response = await fetch(assetUrl, {
                 headers: {
                     'Authorization': `Bearer ${apiKey.trim()}`

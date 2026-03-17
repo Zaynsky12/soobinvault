@@ -363,6 +363,7 @@ export function Dashboard() {
                                                 fetchBlobs={fetchBlobs}
                                                 signAndSubmitTransaction={signAndSubmitTransaction}
                                                 account={account}
+                                                shelbyClient={shelbyClient}
                                             />
                                         );
                                     })
@@ -391,9 +392,10 @@ export function Dashboard() {
                 assetUrl={selectedAsset?.url || null}
                 assetSizeStr={selectedAsset?.sizeStr || '0'}
                 isImage={selectedAsset?.isImage || false}
+                apiKey={shelbyClient.config.apiKey}
                 onDownload={async () => {
                     if (selectedAsset) {
-                        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+                        const apiKey = shelbyClient.config.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
                         try {
                             const response = await fetch(selectedAsset.url, {
                                 headers: {
@@ -432,7 +434,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, account }: any): React.ReactNode {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, account, shelbyClient }: any): React.ReactNode {
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
 
     useEffect(() => {
@@ -444,7 +446,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 return;
             }
 
-            const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+            const apiKey = shelbyClient.config.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
             try {
                 const response = await fetch(downloadUrl, {
                     method: 'GET',
@@ -493,10 +495,9 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         }
 
         if (!downloadUrl) {
-            toast.error("Download URL is not available for this asset.");
             return;
         }
-        const apiKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+        const apiKey = shelbyClient.config.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
         try {
             const response = await fetch(downloadUrl, {
                 headers: {
