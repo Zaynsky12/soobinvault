@@ -24,6 +24,10 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
         return new ShelbyClient({
             network: Network.TESTNET,
             apiKey: apiKey,
+            rpc: {
+                baseUrl: "https://api.testnet.shelby.xyz/shelby",
+                apiKey: apiKey,
+            },
             aptos: {
                 clientConfig: {
                     API_KEY: apiKey,
