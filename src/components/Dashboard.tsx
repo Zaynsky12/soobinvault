@@ -337,6 +337,10 @@ export function Dashboard() {
                                             console.log("Asset structure debug (missing hash):", asset);
                                         }
                                         const handleOpenPreview = () => {
+                                            // The SDK requires: account = wallet address, blobName = file path after the address
+                                            // Always use the connected account address - users can only access their own files
+                                            const resolvedAccount = account?.address?.toString() || '';
+                                            console.log('[Debug] Opening preview:', { resolvedAccount, nameOnly, finalIdentifier, nameStr, nameMatch });
                                             setSelectedAsset({
                                                 name: displayName,
                                                 url: downloadUrl || '',
@@ -344,7 +348,7 @@ export function Dashboard() {
                                                 isImage: isImg,
                                                 hash: assetHash,
                                                 txHash: txHash,
-                                                blobAccount: finalIdentifier,
+                                                blobAccount: resolvedAccount,
                                                 blobName: nameOnly,
                                             });
                                             setIsPreviewModalOpen(true);
