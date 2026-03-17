@@ -650,11 +650,6 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                 <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-2">
                         <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
-                        {asset.isOptimistic && (
-                            <span className="px-2 py-0.5 rounded-md bg-color-primary/10 border border-color-primary/20 text-[8px] font-bold text-color-primary uppercase tracking-tighter animate-pulse">
-                                Processing
-                            </span>
-                        )}
                     </div>
                     <span className="md:hidden text-color-support/40 text-[10px] font-mono tracking-widest uppercase mt-1">
                         {sizeMB} MB • SECURED
