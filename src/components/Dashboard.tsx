@@ -392,10 +392,10 @@ export function Dashboard() {
                 assetUrl={selectedAsset?.url || null}
                 assetSizeStr={selectedAsset?.sizeStr || '0'}
                 isImage={selectedAsset?.isImage || false}
-                apiKey={shelbyClient.config.apiKey}
+                apiKey={shelbyClient.rpc.apiKey}
                 onDownload={async () => {
                     if (selectedAsset) {
-                        const apiKey = shelbyClient.config.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+                        const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
                         try {
                             const response = await fetch(selectedAsset.url, {
                                 headers: {
@@ -446,7 +446,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
                 return;
             }
 
-            const apiKey = shelbyClient.config.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
             try {
                 const response = await fetch(downloadUrl, {
                     method: 'GET',
@@ -497,7 +497,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, downloadUrl, handl
         if (!downloadUrl) {
             return;
         }
-        const apiKey = shelbyClient.config.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+        const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
         try {
             const response = await fetch(downloadUrl, {
                 headers: {
