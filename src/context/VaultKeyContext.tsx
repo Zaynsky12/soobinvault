@@ -39,6 +39,9 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                     );
                     setEncryptionKey(key);
                     console.log("[Vault] Key restored from local persistence.");
+                    
+                    // Remind user to backup key if they haven't been reminded this session
+                    toast("Welcome back! Remember to backup your Master Key in Settings.", { icon: '🛡️', duration: 5000 });
                 } catch (e) {
                     console.error("Failed to restore persisted key");
                 }
@@ -122,6 +125,15 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             console.log(`[Vault] Session key derived. Fingerprint: ${fingerprint}`);
             
             toast.success(`Vault unlocked! (Key: ${fingerprint})`, { id: toastId });
+            
+            // Add a slight delay for the backup reminder so it doesn't overlap too much
+            setTimeout(() => {
+                toast("Security Priority: Backup your Master Key in Settings for session recovery.", { 
+                    icon: '🔑', 
+                    duration: 6000 
+                });
+            }, 1000);
+            
             return key;
         } catch (error: any) {
             console.error("Failed to unlock vault (Full Error):", error);
