@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, FileText, Download, Loader2, RefreshCw, Music } from 'lucide-react';
+import { X, FileText, Download, Loader2, RefreshCw, Music, File, Archive, FileSpreadsheet, Presentation } from 'lucide-react';
 import gsap from 'gsap';
 import { GlassCard } from './ui/GlassCard';
 
@@ -15,6 +15,7 @@ interface LinkPreviewModalProps {
     isVideo: boolean;
     isText: boolean;
     isAudio: boolean;
+    isDocument: boolean;
     onDownload: () => void;
     apiKey?: string;
     onFetch?: () => Promise<ReadableStream<Uint8Array> | null>;
@@ -32,6 +33,7 @@ export function LinkPreviewModal({
     isVideo,
     isText,
     isAudio,
+    isDocument,
     onDownload,
     apiKey: propApiKey,
     onFetch
@@ -304,6 +306,38 @@ export function LinkPreviewModal({
                                             <audio controls className="w-full rounded-xl" src={blobUrl ?? undefined}>
                                                 Your browser does not support audio playback.
                                             </audio>
+                                        </div>
+                                    ) : isDocument ? (
+                                        <div className="flex flex-col items-center gap-5 px-8 py-6 w-full text-center">
+                                            {(() => {
+                                                const ext = assetName.split('.').pop()?.toLowerCase() || 'file';
+                                                const isSpreadsheet = ['xls', 'xlsx', 'ods', 'numbers', 'csv'].includes(ext);
+                                                const isPresentation = ['ppt', 'pptx', 'odp', 'key'].includes(ext);
+                                                const isArchive = ['zip', 'rar', '7z', 'gz', 'tar'].includes(ext);
+                                                const Icon = isSpreadsheet ? FileSpreadsheet : isPresentation ? Presentation : isArchive ? Archive : File;
+                                                const colors = isSpreadsheet
+                                                    ? 'from-green-500/30 to-emerald-500/30 text-green-400'
+                                                    : isPresentation
+                                                    ? 'from-orange-500/30 to-amber-500/30 text-orange-400'
+                                                    : isArchive
+                                                    ? 'from-yellow-500/30 to-amber-500/30 text-yellow-400'
+                                                    : 'from-blue-500/30 to-indigo-500/30 text-blue-400';
+                                                return (
+                                                    <>
+                                                        <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${colors.split(' ')[0]} ${colors.split(' ')[1]} flex items-center justify-center border border-white/10 shadow-xl`}>
+                                                            <Icon size={44} className={colors.split(' ')[2]} />
+                                                        </div>
+                                                        <div>
+                                                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border mb-3 ${isSpreadsheet ? 'bg-green-500/10 border-green-500/20 text-green-400' : isPresentation ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : isArchive ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>.{ext}</span>
+                                                            <p className="text-sm font-semibold text-white/70">{assetName}</p>
+                                                        </div>
+                                                        <div className="text-center text-white/30 text-xs leading-relaxed max-w-[240px]">
+                                                            <p>Browser preview isn&apos;t supported for this format.</p>
+                                                            <p className="mt-1">Download the file to open it with the appropriate application.</p>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center gap-3 text-color-support/40 px-6 text-center">

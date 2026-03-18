@@ -34,6 +34,7 @@ export function Dashboard() {
         isVideo: boolean;
         isText: boolean;
         isAudio: boolean;
+        isDocument: boolean;
         hash: string;
         txHash: string;
         blobAccount: string;
@@ -278,6 +279,7 @@ export function Dashboard() {
                                         const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/);
                                         const isTxt = !!displayName.toLowerCase().match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/);
                                         const isAudio = !!displayName.toLowerCase().match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/);
+                                        const isDocument = !!displayName.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/);
 
                                         // Robust extraction of identifier and name from indexer "@identifier/path" format
                                         const nameStr = typeof asset.name === 'string' ? asset.name : '';
@@ -354,6 +356,7 @@ export function Dashboard() {
                                                 isVideo: isVid,
                                                 isText: isTxt,
                                                 isAudio: isAudio,
+                                                isDocument: isDocument,
                                                 hash: assetHash,
                                                 txHash: txHash,
                                                 blobAccount: resolvedAccount,
@@ -412,6 +415,7 @@ export function Dashboard() {
                 isVideo={selectedAsset?.isVideo || false}
                 isText={selectedAsset?.isText || false}
                 isAudio={selectedAsset?.isAudio || false}
+                isDocument={selectedAsset?.isDocument || false}
                 apiKey={shelbyClient.rpc.apiKey}
                 onFetch={selectedAsset?.blobAccount && selectedAsset?.blobName ? async () => {
                     try {
