@@ -222,17 +222,34 @@ export function Dashboard() {
                                 Vault Protocol {connected ? 'Active' : 'Inactive'}
                             </span>
                         </div>
-                        {connected && !encryptionKey && (
-                            <button
-                                onClick={() => {
-                                    const key = prompt("Paste your Master Key here to unlock:");
-                                    if (key) importKeyManual(key);
-                                }}
-                                className="text-[10px] text-color-primary/60 hover:text-color-primary uppercase tracking-[0.1em] font-bold mb-4 transition-colors"
-                            >
-                                [ Manual Sync ]
-                            </button>
-                        )}
+                        <div className="flex flex-wrap gap-2 mb-6">
+                            {!encryptionKey && connected && (
+                                <button
+                                    onClick={() => {
+                                        const key = prompt("Paste your Master Key here to unlock:");
+                                        if (key) importKeyManual(key);
+                                    }}
+                                    className="px-4 py-2 bg-white/5 border border-white/10 text-white/60 rounded-xl hover:bg-white/10 hover:text-color-primary transition-all duration-300 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2"
+                                >
+                                    <Key size={12} />
+                                    Manual Sync
+                                </button>
+                            )}
+                            {encryptionKey && (
+                                <button
+                                    onClick={async () => {
+                                        const keyBuffer = await window.crypto.subtle.exportKey('raw', encryptionKey);
+                                        const base64 = btoa(String.fromCharCode(...new Uint8Array(keyBuffer)));
+                                        await navigator.clipboard.writeText(base64);
+                                        toast.success("Master Key copied to clipboard!");
+                                    }}
+                                    className="px-4 py-2 bg-color-primary/10 border border-color-primary/20 text-color-primary rounded-xl hover:bg-color-primary/20 transition-all duration-300 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2"
+                                >
+                                    <LinkIcon size={12} />
+                                    Backup Master Key
+                                </button>
+                            )}
+                        </div>
                         <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none text-center md:text-left">{connected ? 'My Vault' : 'Your Vault'}</h2>
                         <p className="text-color-support/60 text-base sm:text-lg font-normal max-w-md leading-relaxed text-center md:text-left mx-auto md:mx-0">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
                     </div>
@@ -255,20 +272,6 @@ export function Dashboard() {
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full bg-[#0A0A0A]/60 border border-white/10 rounded-2xl py-4 pl-14 pr-6 text-white text-sm outline-none focus:border-color-primary/40 focus:bg-[#0A0A0A]/80 transition-all glass-panel placeholder:text-color-support/20 font-medium"
                             />
-                            {encryptionKey && (
-                                <button 
-                                    onClick={async () => {
-                                        const keyBuffer = await window.crypto.subtle.exportKey('raw', encryptionKey);
-                                        const base64 = btoa(String.fromCharCode(...new Uint8Array(keyBuffer)));
-                                        await navigator.clipboard.writeText(base64);
-                                        toast.success("Master Key copied! Paste it in your other browser.");
-                                    }}
-                                    className="absolute right-5 top-1/2 -translate-y-1/2 text-color-support/30 hover:text-color-primary transition-colors cursor-pointer p-1"
-                                    title="Copy Master Key for Sync"
-                                >
-                                    <Key size={16} />
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>
