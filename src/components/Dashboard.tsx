@@ -592,6 +592,11 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
 
     const handleDelete = async (e: React.MouseEvent) => {
         e.stopPropagation();
+
+        if (!account || !signAndSubmitTransaction) {
+            toast.error("Wallet not connected. Please connect your wallet to delete assets.");
+            return;
+        }
         
         const confirmDelete = window.confirm(`Are you sure you want to delete ${displayName}? This action is permanent and will remove the file's metadata from the blockchain.`);
         
@@ -621,7 +626,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
             }, 3000);
         } catch (err) {
             console.error("Deletion failed:", err);
-            toast.error(err instanceof Error ? err.message : "Failed to delete asset", { id: 'delete-blob' });
+            toast.error(err instanceof Error ? err.message : "Failed to delete", { id: 'delete-blob' });
         }
     };
 
@@ -683,7 +688,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                 >
                     <Download size={18} />
                     <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">
-                        {status === 'live' ? 'Download File' : 'Processing...'}
+                        {status === 'live' ? 'Download' : 'Processing...'}
                     </span>
                 </button>
             </div>
@@ -693,7 +698,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                 <button
                     className="w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-300 shadow-lg group/delete"
                     onClick={handleDelete}
-                    title="Delete Asset"
+                    title="Delete"
                     disabled={deleteBlobs.isPending}
                 >
                     {deleteBlobs.isPending ? (
@@ -701,7 +706,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                     ) : (
                         <Trash2 size={18} />
                     )}
-                    <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">Delete Asset</span>
+                    <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">Delete</span>
                 </button>
             </div>
         </div>

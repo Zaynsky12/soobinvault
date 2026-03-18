@@ -165,19 +165,29 @@ export function LinkPreviewModal({
         if (isOpen) {
             setCopied(false);
             document.body.style.overflow = 'hidden';
+            document.body.classList.add('preview-open');
 
+            const isMobile = window.innerWidth < 640;
             const tl = gsap.timeline();
             tl.to(overlayRef.current, { opacity: 1, duration: 0.3, ease: 'power2.out', display: 'flex' })
                 .fromTo(modalRef.current,
-                    { y: 50, opacity: 0, scale: 0.95 },
-                    { y: 0, opacity: 1, scale: 1, duration: 0.4, ease: 'back.out(1.5)' },
+                    { y: isMobile ? 100 : 50, opacity: 0, scale: isMobile ? 1 : 0.95 },
+                    { y: 0, opacity: 1, scale: 1, duration: 0.4, ease: isMobile ? 'power2.out' : 'back.out(1.5)' },
                     "-=0.1"
                 );
         } else {
             document.body.style.overflow = 'auto';
+            document.body.classList.remove('preview-open');
 
+            const isMobile = window.innerWidth < 640;
             const tl = gsap.timeline();
-            tl.to(modalRef.current, { y: 20, opacity: 0, scale: 0.95, duration: 0.2, ease: 'power2.in' })
+            tl.to(modalRef.current, { 
+                y: isMobile ? 100 : 20, 
+                opacity: 0, 
+                scale: isMobile ? 1 : 0.95, 
+                duration: 0.2, 
+                ease: 'power2.in' 
+            })
                 .to(overlayRef.current, { opacity: 0, duration: 0.2, ease: 'power2.in', display: 'none' });
             
             // Cleanup
@@ -204,15 +214,15 @@ export function LinkPreviewModal({
     return (
         <div
             ref={overlayRef}
-            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm opacity-0 hidden"
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm opacity-0 hidden"
             style={{ display: isOpen ? 'flex' : 'none' }}
             onClick={(e) => {
                 if (e.target === overlayRef.current) onClose();
             }}
         >
-            <div ref={modalRef} className="w-full max-w-lg max-h-[95vh] flex">
+            <div ref={modalRef} className="w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex">
                 <GlassCard
-                    className="w-full p-0 overflow-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col"
+                    className="w-full p-0 overflow-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col rounded-t-[2rem] sm:rounded-[2rem]"
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
@@ -318,7 +328,7 @@ export function LinkPreviewModal({
                                 className="order-1 sm:order-2 flex items-center justify-center px-6 py-2.5 text-sm font-bold transition-all rounded-xl text-white bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.03] active:scale-[0.97] shadow-lg shadow-color-primary/20 disabled:opacity-50 disabled:hover:scale-100"
                             >
                                 <Download size={18} className="mr-2" />
-                                Download Asset
+                                Download
                             </button>
                         </div>
                     </div>

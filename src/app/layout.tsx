@@ -21,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${outfit.variable} ${urbanist.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${inter.variable} ${outfit.variable} ${urbanist.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       <body className="antialiased font-sans text-color-clean bg-color-deep min-h-screen relative flex flex-col">
         {/* Animated Cyberpunk Mesh Background */}
         <div className="mesh-bg" />
