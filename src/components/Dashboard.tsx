@@ -9,7 +9,7 @@ import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient, useDeleteBlobs } from "@shelby-protocol/react";
 import { LinkPreviewModal } from './LinkPreviewModal';
-import { decryptFile } from '../utils/crypto';
+import { decryptFile, decryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 
 // Register GSAP plugins
@@ -43,6 +43,9 @@ export function Dashboard() {
         blobAccount: string;
         blobName: string;
     } | null>(null);
+
+    const { encryptionKey } = useVaultKey();
+    const [decryptedNames, setDecryptedNames] = useState<Record<string, string>>({});
 
     // Deletion Hook
     const deleteBlobs = useDeleteBlobs({
@@ -147,6 +150,39 @@ export function Dashboard() {
 
         return () => ctx.revert();
     }, []);
+
+    // Background decryption of filenames
+    useEffect(() => {
+        if (!encryptionKey || assets.length === 0) return;
+
+        const decryptAll = async () => {
+            const newNames: Record<string, string> = { ...decryptedNames };
+            let changed = false;
+
+            for (const asset of assets) {
+                const nameStr = typeof asset.name === 'string' ? asset.name : '';
+                const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+                const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+
+                if (nameOnly && nameOnly.endsWith('.vault') && !newNames[nameOnly]) {
+                    try {
+                        const base64 = nameOnly.replace(/\.vault$/, '').replace(/_/g, '/').replace(/-/g, '+');
+                        const decrypted = await decryptText(base64, encryptionKey);
+                        newNames[nameOnly] = decrypted;
+                        changed = true;
+                    } catch (e) {
+                        // Not a new-style encrypted name, skip
+                    }
+                }
+            }
+
+            if (changed) {
+                setDecryptedNames(newNames);
+            }
+        };
+
+        decryptAll();
+    }, [assets, encryptionKey]);
 
     useEffect(() => {
         if (!assets || assets.length === 0) return;
@@ -278,14 +314,23 @@ export function Dashboard() {
                                 return combined
                                     .filter(asset => {
                                         const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || asset.blob_id || asset.blobId || (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) || '';
-                                        const name = asset.blobNameSuffix || (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
-                                        return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                        const nameStr = typeof asset.name === 'string' ? asset.name : '';
+                                        const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+                                        const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+                                        
+                                        const decryptedName = decryptedNames[nameOnly];
+                                        const nameToSearch = decryptedName || nameOnly;
+
+                                        return nameToSearch.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                             (assetHash && assetHash.toLowerCase().includes(searchQuery.toLowerCase()));
                                     })
                                     .map((asset, index) => {
-                                        const displayName: string =
-                                            asset.blobNameSuffix ||
-                                            (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
+                                        const nameStr = typeof asset.name === 'string' ? asset.name : '';
+                                        const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+                                        const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+                                        
+                                        const decryptedName = decryptedNames[nameOnly];
+                                        const displayName: string = decryptedName || nameOnly;
                                         const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
                                         const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/);
                                         const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/);
@@ -294,8 +339,6 @@ export function Dashboard() {
                                         const isDocument = !!displayName.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/);
 
                                         // Robust extraction of identifier and name from indexer "@identifier/path" format
-                                        const nameStr = typeof asset.name === 'string' ? asset.name : '';
-                                        const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
                                         if (index === 0) console.log('[Debug] Asset structure:', JSON.stringify(asset, null, 2));
 
                                         // Use extracted identifier or fallback to account address
@@ -306,9 +349,6 @@ export function Dashboard() {
                                         if (finalIdentifier && !finalIdentifier.startsWith('0x') && isHex && finalIdentifier.length >= 60) {
                                             finalIdentifier = `0x${finalIdentifier}`;
                                         }
-
-                                        // Use extracted nameOnly or fallback to blobNameSuffix or raw name
-                                        const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
 
                                         // Construct the download URL with strict encoding for both parts, but allowing slashes to remain literal for paths
                                         const rpcBaseUrl = shelbyClient.baseUrl;

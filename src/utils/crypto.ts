@@ -77,28 +77,85 @@ export async function encryptFile(file: File, key: CryptoKey): Promise<Uint8Arra
  * Decrypts a buffer and extracts the original file and metadata.
  */
 export async function decryptFile(
-    encryptedBuffer: ArrayBuffer,
+    encryptedData: ArrayBuffer | Uint8Array,
     key: CryptoKey
 ): Promise<{ blob: Blob; metadata: FileMetadata }> {
-    const iv = encryptedBuffer.slice(0, 12);
-    const ciphertext = encryptedBuffer.slice(12);
+    // Handle both ArrayBuffer and Uint8Array/other views
+    const data = encryptedData instanceof Uint8Array 
+        ? encryptedData 
+        : new Uint8Array(encryptedData);
 
-    // Decrypt
-    const decryptedBuffer = await window.crypto.subtle.decrypt(
-        { name: ALGORITHM, iv: new Uint8Array(iv) },
+    if (data.byteLength < 12 + 16) { // IV (12) + Tag (at least 16)
+        throw new Error(`Invalid encrypted data: buffer too small (${data.byteLength} bytes)`);
+    }
+
+    const iv = data.slice(0, 12);
+    const ciphertext = data.slice(12);
+
+    try {
+        // Decrypt
+        const decryptedBuffer = await window.crypto.subtle.decrypt(
+            { name: ALGORITHM, iv },
+            key,
+            ciphertext
+        );
+
+        // Parse Header
+        const view = new DataView(decryptedBuffer);
+        const headerSize = view.getUint32(0);
+        const metadataBuffer = decryptedBuffer.slice(4, 4 + headerSize);
+        const fileData = decryptedBuffer.slice(4 + headerSize);
+
+        const metadataStr = new TextDecoder().decode(metadataBuffer);
+        const metadata: FileMetadata = JSON.parse(metadataStr);
+
+        const blob = new Blob([fileData], { type: metadata.type });
+        return { blob, metadata };
+    } catch (err) {
+        console.error("Decryption operation failed:", err);
+        throw new Error("Gagal mendekripsi file. Pastikan data tidak korup dan session key valid.");
+    }
+}
+
+/**
+ * Encrypts a small string (e.g. filename) for metadata storage.
+ */
+export async function encryptText(text: string, key: CryptoKey): Promise<string> {
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(text);
+    
+    const ciphertext = await window.crypto.subtle.encrypt(
+        { name: ALGORITHM, iv },
+        key,
+        encoded
+    );
+
+    // Combine IV + Ciphertext and convert to Base64 for metadata storage
+    const combined = new Uint8Array(iv.byteLength + ciphertext.byteLength);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(ciphertext), iv.byteLength);
+    
+    return btoa(String.fromCharCode(...combined));
+}
+
+/**
+ * Decrypts a base64 encoded encrypted string.
+ */
+export async function decryptText(encryptedBase64: string, key: CryptoKey): Promise<string> {
+    const combined = new Uint8Array(
+        atob(encryptedBase64).split("").map(c => c.charCodeAt(0))
+    );
+    
+    if (combined.byteLength < 12 + 16) throw new Error("Invalid encrypted text");
+    
+    const iv = combined.slice(0, 12);
+    const ciphertext = combined.slice(12);
+    
+    const decrypted = await window.crypto.subtle.decrypt(
+        { name: ALGORITHM, iv },
         key,
         ciphertext
     );
-
-    // Parse Header
-    const view = new DataView(decryptedBuffer);
-    const headerSize = view.getUint32(0);
-    const metadataBuffer = decryptedBuffer.slice(4, 4 + headerSize);
-    const fileData = decryptedBuffer.slice(4 + headerSize);
-
-    const metadataStr = new TextDecoder().decode(metadataBuffer);
-    const metadata: FileMetadata = JSON.parse(metadataStr);
-
-    const blob = new Blob([fileData], { type: metadata.type });
-    return { blob, metadata };
+    
+    return new TextDecoder().decode(decrypted);
 }

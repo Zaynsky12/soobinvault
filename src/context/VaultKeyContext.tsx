@@ -41,11 +41,25 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             });
 
             // Extract signature - response.signature can be string or object depending on wallet
-            const signature = typeof response.signature === 'string' 
-                ? response.signature 
-                : (response.signature as any).toString();
+            let signature: string;
 
-            if (!signature) throw new Error("Signature failed");
+            if (typeof response.signature === 'string') {
+                signature = response.signature;
+            } else if (response.signature && (response.signature as any).data) {
+                // Handle Uint8Array signature in object
+                const data = (response.signature as any).data;
+                if (data instanceof Uint8Array) {
+                    signature = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join('');
+                } else {
+                    signature = JSON.stringify(response.signature);
+                }
+            } else {
+                signature = String(response.signature || "");
+            }
+
+            if (!signature || signature === "[object Object]") {
+                 throw new Error("Signature extraction failed. Unsupported wallet signature format.");
+            }
 
             // Derive 32-byte key from signature
             const key = await deriveKeyFromSignature(signature);

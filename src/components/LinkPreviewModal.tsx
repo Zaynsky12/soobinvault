@@ -107,7 +107,9 @@ export function LinkPreviewModal({
                 if (!cryptoKey) {
                     throw new Error("Signature required for decryption.");
                 }
-                const { blob, metadata } = await decryptFile(encryptedBuffer.buffer, cryptoKey);
+                
+                // Pass the Uint8Array directly to decryptFile for better compatibility
+                const { blob, metadata } = await decryptFile(encryptedBuffer, cryptoKey);
 
                 const url = URL.createObjectURL(blob);
                 const name = metadata.name.toLowerCase();

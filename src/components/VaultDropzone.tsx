@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { UploadCloud, File as FileIcon, CheckCircle, Image as ImageIcon, Link as LinkIcon, Lock, ShieldCheck, Key } from 'lucide-react';
-import { encryptFile } from '../utils/crypto';
+import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
 import toast from 'react-hot-toast';
@@ -97,12 +97,15 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 return;
             }
             
+            // Encrypt and distribute
             setUploadStatusText("Performing AES-256-GCM encryption...");
             const encryptedData = await encryptFile(droppedFile, cryptoKey);
             
-            // Random UUID for privacy
-            const randomId = crypto.randomUUID();
-            const encryptedBlobName = `${randomId}.vault`;
+            // Encrypt filename for zero-knowledge search in Dashboard
+            const encryptedNameBase64 = await encryptText(droppedFile.name, cryptoKey);
+            // Replace unsafe Base64 chars to make it a valid blob name
+            const safeEncryptedName = encryptedNameBase64.replace(/\//g, '_').replace(/\+/g, '-');
+            const encryptedBlobName = `${safeEncryptedName}.vault`;
 
             setUploadStatusText("Distributing encrypted fragments to nodes...");
 
@@ -124,7 +127,10 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             return response;
                         },
                     },
-                    blobs: [{ blobName: encryptedBlobName, blobData: encryptedData }],
+                    blobs: [{ 
+                        blobName: encryptedBlobName, 
+                        blobData: encryptedData 
+                    }],
                     expirationMicros: Date.now() * 1000 + 86400000000 * 30, // 30 days
                 });
             } catch (sdkError) {
