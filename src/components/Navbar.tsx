@@ -2,17 +2,22 @@
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Shield, Menu, X } from 'lucide-react';
+import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown } from 'lucide-react';
 import gsap from 'gsap';
 import Link from 'next/link';
 import { MagneticButton } from './ui/MagneticButton';
 import { WalletSelector } from './WalletSelector';
+import { useVaultKey } from '../context/VaultKeyContext';
+import toast from 'react-hot-toast';
 
 export default function Navbar(): React.ReactNode {
     const { disconnect, connected, account, isLoading } = useWallet();
+    const { encryptionKey, lockVault, ensureKey } = useVaultKey();
     const [isScrolled, setIsScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [keyFingerprint, setKeyFingerprint] = useState<string | null>(null);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -26,6 +31,25 @@ export default function Navbar(): React.ReactNode {
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    // Generate fingerprint when key changes
+    useEffect(() => {
+        const genFingerprint = async () => {
+            if (encryptionKey) {
+                try {
+                    const keyBuffer = await window.crypto.subtle.exportKey('raw', encryptionKey);
+                    const keyHash = await window.crypto.subtle.digest('SHA-256', keyBuffer);
+                    const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
+                    setKeyFingerprint(fingerprint);
+                } catch (e) {
+                    console.error("Fingerprint failed");
+                }
+            } else {
+                setKeyFingerprint(null);
+            }
+        };
+        genFingerprint();
+    }, [encryptionKey]);
 
     // Entrance animation
     useEffect(() => {
@@ -88,8 +112,106 @@ export default function Navbar(): React.ReactNode {
                         </nav>
 
                         {/* Wallet CTA & Mobile Toggle */}
+                        {/* Wallet CTA & Mobile Toggle */}
                         <div className="flex items-center gap-4">
-                            <div className="hidden md:block">
+                            <div className="hidden md:flex items-center gap-3">
+                                {connected && (
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                            className={`p-2.5 rounded-xl border transition-all duration-300 ${isSettingsOpen ? 'bg-white/10 border-white/20 text-white' : 'bg-white/5 border-white/5 text-white/40 hover:text-white hover:border-white/10'}`}
+                                        >
+                                            <Settings size={20} className={isSettingsOpen ? 'rotate-90' : ''} />
+                                        </button>
+
+                                        {/* Settings Dropdown */}
+                                        {isSettingsOpen && (
+                                            <div className="absolute right-0 mt-4 w-72 bg-[#0B1121]/90 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden py-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                <div className="px-4 py-3 border-b border-white/5">
+                                                    <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">Session Protocol</p>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-medium text-white/80">Vault Status</span>
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${encryptionKey ? 'bg-green-500/20 text-green-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                                                            {encryptionKey ? 'UNLOCKED' : 'LOCKED'}
+                                                        </span>
+                                                    </div>
+                                                    {keyFingerprint && (
+                                                        <div className="flex items-center justify-between mt-2">
+                                                            <span className="text-xs font-medium text-white/80">Key Hash</span>
+                                                            <code className="text-[10px] text-color-primary font-mono bg-color-primary/10 px-1.5 py-0.5 rounded uppercase tracking-wider">{keyFingerprint}</code>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="py-2">
+                                                    <button 
+                                                        onClick={() => {
+                                                            ensureKey();
+                                                            setIsSettingsOpen(false);
+                                                        }}
+                                                        className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                                                    >
+                                                        <Key size={16} />
+                                                        {encryptionKey ? "Refresh Key" : "Unlock Vault"}
+                                                    </button>
+                                                    
+                                                    {encryptionKey && (
+                                                        <button 
+                                                            onClick={async () => {
+                                                                const keyBuffer = await window.crypto.subtle.exportKey('raw', encryptionKey);
+                                                                const base64 = btoa(String.fromCharCode(...new Uint8Array(keyBuffer)));
+                                                                await navigator.clipboard.writeText(base64);
+                                                                toast.success("Master Key copied!");
+                                                                setIsSettingsOpen(false);
+                                                            }}
+                                                            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-color-primary hover:bg-white/5 transition-colors"
+                                                        >
+                                                            <Shield size={16} />
+                                                            Backup Master Key
+                                                        </button>
+                                                    )}
+
+                                                    <a 
+                                                        href={`https://explorer.aptoslabs.com/account/${account?.address}?network=mainnet`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                                                    >
+                                                        <Globe size={16} />
+                                                        View on Explorer
+                                                    </a>
+                                                </div>
+
+                                                <div className="border-t border-white/5 pt-2 mt-2">
+                                                    {encryptionKey && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                lockVault();
+                                                                setIsSettingsOpen(false);
+                                                            }}
+                                                            className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+                                                        >
+                                                            <LogOut size={16} />
+                                                            Lock Vault
+                                                        </button>
+                                                    )}
+                                                    <button 
+                                                        onClick={() => {
+                                                            disconnect();
+                                                            setIsSettingsOpen(false);
+                                                            lockVault();
+                                                        }}
+                                                        className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-white/40 hover:text-white hover:bg-white/5 transition-colors"
+                                                    >
+                                                        <X size={16} />
+                                                        Disconnect Wallet
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 <MagneticButton
                                     className="bg-color-primary/10 border border-color-primary/30 text-color-primary hover:bg-color-primary hover:border-color-primary hover:text-[#1A0D12] text-sm px-6 py-2.5 shadow-[0_0_20px_rgba(251,179,204,0.15)] hover:shadow-[0_0_30px_rgba(251,179,204,0.4)]"
                                     onClick={handleWalletClick}
@@ -122,7 +244,29 @@ export default function Navbar(): React.ReactNode {
                                     {link.name}
                                 </Link>
                             ))}
-                            <div className="pt-6 border-t border-white/10">
+                            <div className="pt-6 border-t border-white/10 flex flex-col gap-4">
+                                {connected && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button 
+                                            onClick={() => {
+                                                lockVault();
+                                                setMobileMenuOpen(false);
+                                            }}
+                                            className="px-4 py-3 bg-white/5 border border-white/10 text-white text-sm rounded-xl font-medium"
+                                        >
+                                            Lock Vault
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                ensureKey();
+                                                setMobileMenuOpen(false);
+                                            }}
+                                            className="px-4 py-3 bg-color-primary/20 border border-color-primary/30 text-color-primary text-sm rounded-xl font-medium"
+                                        >
+                                            {encryptionKey ? 'Key Active' : 'Unlock'}
+                                        </button>
+                                    </div>
+                                )}
                                 <button
                                     className="w-full bg-gradient-to-r from-color-primary to-color-accent text-white rounded-full py-4 font-bold shadow-[0_0_30px_rgba(232,58,118,0.3)]"
                                     onClick={() => {
@@ -130,7 +274,7 @@ export default function Navbar(): React.ReactNode {
                                         setMobileMenuOpen(false);
                                     }}
                                 >
-                                    {isLoading ? "Connecting..." : connected && account ? "Disconnect" : "Connect Wallet"}
+                                    {isLoading ? "Connecting..." : connected && account ? "Disconnect Wallet" : "Connect Wallet"}
                                 </button>
                             </div>
                         </div>
