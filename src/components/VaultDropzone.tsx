@@ -278,13 +278,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     onClick={() => fileInputRef.current?.click()}
                                     className="mt-4 px-10 py-4 rounded-full bg-color-accent/20 border border-color-accent/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate"
                                 >
-                                    Select File
+                                    Browse
                                 </button>
 
-                                <div className="mt-8 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-color-primary/10 border border-color-primary/20 w-auto mx-auto shadow-[0_0_20px_rgba(232,58,118,0.05)]">
-                                    <ShieldCheck size={16} className="text-color-primary" />
-                                    <span className="text-[10px] text-color-primary/80 uppercase tracking-[0.2em] font-mono font-bold">Protocol: Zero-Knowledge</span>
-                                </div>
                             </div>
                         )}
 
@@ -301,7 +297,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     </div>
                                 )}
                                 <h3 className="text-2xl font-medium mb-2 w-full text-center text-white break-all">{file.name}</h3>
-                                <p className="text-color-support text-base mb-8 truncate w-full">{uploadStatusText}</p>
+                                <p className="text-color-support text-base mb-8 text-center w-full">{uploadStatusText}</p>
 
                                 <div className="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/10">
                                     <div ref={progressRef} className="h-full w-0 bg-gradient-to-r from-color-primary to-color-accent shadow-[0_0_10px_rgba(232,58,118,0.8)]" />
@@ -342,9 +338,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     {/* Ambient drag glow */}
                     <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-color-primary/30 blur-[120px] rounded-full pointer-events-none transition-opacity duration-500 ${isDragging ? 'opacity-100' : 'opacity-0'}`} />
                     
-                    <div className="absolute bottom-4 right-4 text-[10px] font-mono text-white/30 tracking-widest pointer-events-none">
-                        Connection mode: {process.env.NEXT_PUBLIC_SHELBY_API_KEY ? 'Secure' : 'Public/Limited'}
-                    </div>
                 </GlassCard>
             </div>
         </section>

@@ -9,8 +9,8 @@ export function Footer() {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[1px] bg-gradient-to-r from-transparent via-color-primary to-transparent opacity-50" />
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-color-primary/10 rounded-full blur-[100px] pointer-events-none -translate-y-1/2" />
 
-            <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-18 mb-12 md:mb-16 relative z-10">
-                <div className="col-span-1 md:col-span-1 flex flex-col items-center md:items-start text-center md:text-left">
+            <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-18 mb-12 md:mb-16 relative z-10 justify-items-start">
+                <div className="col-span-1 md:col-span-1 flex flex-col items-start text-left w-full">
                     <div className="flex items-center gap-3 cursor-pointer group">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.4)] group-hover:shadow-[0_0_30px_rgba(251,179,204,0.6)] transition-all duration-300">
                             <Image

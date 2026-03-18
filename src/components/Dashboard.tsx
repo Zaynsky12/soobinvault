@@ -43,7 +43,7 @@ export function Dashboard() {
         blobAccount: string;
         blobName: string;
     } | null>(null);
-    
+
     // Deletion Hook
     const deleteBlobs = useDeleteBlobs({
         client: shelbyClient,
@@ -81,8 +81,17 @@ export function Dashboard() {
             } else {
                 setAssets(sortedBlobs);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to fetch blobs", error);
+            const msg = (error?.message || String(error)).toLowerCase();
+
+            if (msg.includes('monthlycredit cap') || msg.includes('credit refresh')) {
+                toast.error("Limit kredit bulanan Shelby Protocol tercapai. Silakan cek billing di geomi.dev.", { duration: 6000 });
+            } else if (msg.includes('401') || msg.includes('unauthorized')) {
+                toast.error("Sesi tidak valid/API Key bermasalah. Silakan login ulang.");
+            } else {
+                toast.error("Gagal sinkronisasi dengan Vault (Network Error).");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -205,7 +214,7 @@ export function Dashboard() {
                 </div>
 
                 <GlassCard className="assets-container p-0 overflow-hidden border-white/5 bg-[#050505]/90 backdrop-blur-3xl rounded-3xl">
-                {/* Table Header */}
+                    {/* Table Header */}
                     <div className="hidden md:grid grid-cols-12 gap-4 p-5 border-b border-white/5 text-color-support/40 text-[10px] font-bold uppercase tracking-[0.2em] bg-[#0A0A0A]">
                         <div className="col-span-6">Asset Name</div>
                         <div className="col-span-2">Capacity</div>
@@ -247,11 +256,11 @@ export function Dashboard() {
                         ) : (
                             (() => {
                                 const sortedReal = [...assets].sort((a, b) => {
-                                        const timeA = a.timestamp || a.creationMicros || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
-                                        const timeB = b.timestamp || b.creationMicros || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
-                                        if (timeA && timeB) return Number(timeB) - Number(timeA);
-                                        return 0;
-                                    });
+                                    const timeA = a.timestamp || a.creationMicros || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
+                                    const timeB = b.timestamp || b.creationMicros || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
+                                    if (timeA && timeB) return Number(timeB) - Number(timeA);
+                                    return 0;
+                                });
 
                                 // Optimistic assets (just uploaded) always go to the top
                                 const combined = [...optimisticAssets, ...sortedReal]
@@ -349,7 +358,7 @@ export function Dashboard() {
                                         const handleOpenPreview = () => {
                                             setSelectedAsset({
                                                 name: displayName,
-                                                url: '', 
+                                                url: '',
                                                 sizeStr: sizeMB,
                                                 isImage: isImg,
                                                 isVideo: isVid,
@@ -363,7 +372,7 @@ export function Dashboard() {
                                             });
                                             setIsPreviewModalOpen(true);
                                         };
-    
+
 
                                         return (
                                             <AssetRow
@@ -395,9 +404,6 @@ export function Dashboard() {
                     {/* Pagination / Footer */}
                     <div className="p-6 border-t border-white/5 flex justify-between items-center bg-black/30">
                         <span className="text-sm text-color-support/50 font-medium">Viewing secure assets on the decentralized network.</span>
-                        <span className="text-xs font-mono text-white/30 tracking-widest">
-                            Connection mode: {process.env.NEXT_PUBLIC_SHELBY_API_KEY ? 'Secure' : 'Public/Limited'}
-                        </span>
                     </div>
                 </GlassCard>
 
@@ -439,7 +445,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
         if (!downloadUrl) return;
 
         const checkStatus = async () => {
-            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
             try {
                 const response = await fetch(downloadUrl!, {
                     method: 'GET',
@@ -484,7 +490,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
         const downloadToastId = toast.loading(`Decrypting ${displayName}...`);
 
         try {
-            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
             const response = await fetch(downloadUrl!, {
                 headers: { 'Authorization': `Bearer ${apiKey.trim()}` }
             });
@@ -523,9 +529,9 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
             toast.error("Wallet not connected. Please connect your wallet to delete assets.");
             return;
         }
-        
+
         const confirmDelete = window.confirm(`Are you sure you want to delete ${displayName}? This action is permanent and will remove the file's metadata from the blockchain.`);
-        
+
         if (!confirmDelete) return;
 
         // Extract the original name suffix (without the @address/ prefix)
@@ -535,17 +541,17 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
 
         try {
             toast.loading(`Deleting ${displayName}...`, { id: 'delete-blob' });
-            
+
             await deleteBlobs.mutateAsync({
                 signer: {
-                    account: account?.address, 
+                    account: account?.address,
                     signAndSubmitTransaction: (tx: any) => signAndSubmitTransaction(tx),
                 } as any,
                 blobNames: [nameSuffix]
             });
 
             toast.success(`${displayName} deleted successfully! Refreshing list in 3 seconds...`, { id: 'delete-blob' });
-            
+
             // Wait for 3 seconds before refreshing to ensure the network has finalized the state
             setTimeout(() => {
                 fetchBlobs();
@@ -597,8 +603,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
             <div className="w-full md:col-span-2 relative z-10 flex md:justify-center items-center mt-4 md:mt-0">
                 <button
                     className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all duration-700 shadow-lg ${status === 'live'
-                            ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate'
-                            : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed border border-white/5'
+                        ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate'
+                        : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed border border-white/5'
                         } ${status === 'live' && asset.isOptimistic ? 'animate-bounce-short' : ''}`}
                     title={status === 'live' ? "Download Payload" : "File sedang dalam proses finalisasi..."}
                     onClick={(e) => {

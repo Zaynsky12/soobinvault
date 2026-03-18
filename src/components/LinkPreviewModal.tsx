@@ -77,7 +77,7 @@ export function LinkPreviewModal({
             return;
         }
 
-        const runDecryption = async () => {
+        const runDecryptionWithRetry = async (retryCount = 0) => {
             setIsProcessing(true);
             setFetchError(null);
             try {
@@ -86,10 +86,10 @@ export function LinkPreviewModal({
                     account: blobAccount,
                     blobName: blobName
                 });
-                
+
                 const reader = shelbyBlob.readable.getReader();
                 const chunks: Uint8Array[] = [];
-                while(true) {
+                while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
                     chunks.push(value);
@@ -108,7 +108,7 @@ export function LinkPreviewModal({
                     throw new Error("Signature required for decryption.");
                 }
                 const { blob, metadata } = await decryptFile(encryptedBuffer.buffer, cryptoKey);
-                
+
                 const url = URL.createObjectURL(blob);
                 const name = metadata.name.toLowerCase();
 
@@ -122,15 +122,28 @@ export function LinkPreviewModal({
                     isAudio: !!name.match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
                     isDocument: !!name.match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
                 });
+                setIsProcessing(false);
             } catch (err) {
-                console.error('Decryption failed:', err);
-                setFetchError(err instanceof Error ? err.message : 'Gagal mendekripsi file. Pastikan Anda menyetujui tanda tangan wallet.');
-            } finally {
+                console.error(`Decryption attempt ${retryCount + 1} failed:`, err);
+
+                const errorMessage = err instanceof Error ? err.message : String(err);
+                const is404 = errorMessage.includes('404') || errorMessage.toLowerCase().includes('not found');
+
+                if (is404 && retryCount < 3) {
+                    const delay = 3000 * (retryCount + 1);
+                    console.log(`Retrying decryption in ${delay}ms... (Attempt ${retryCount + 1})`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return runDecryptionWithRetry(retryCount + 1);
+                }
+
+                setFetchError(is404
+                    ? 'File belum tersedia di jaringan (Indexing). Silakan tunggu beberapa saat dan coba lagi.'
+                    : (err instanceof Error ? err.message : 'Gagal mendekripsi file. Pastikan Anda menyetujui tanda tangan wallet.'));
                 setIsProcessing(false);
             }
         };
 
-        runDecryption();
+        runDecryptionWithRetry();
     }, [isOpen, blobName, blobAccount, accountAddress]);
 
     // Clean up URLs
@@ -177,7 +190,7 @@ export function LinkPreviewModal({
                 for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.length; }
                 rawBlob = new Blob([merged]);
             } else {
-                const apiKey = propApiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+                const apiKey = propApiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
                 console.log(`[LinkPreviewModal] Fetching with key prefix: ${apiKey.substring(0, 10)}...`);
                 const response = await fetch(assetUrl!, {
                     headers: { 'Authorization': `Bearer ${apiKey.trim()}` }
@@ -278,15 +291,15 @@ export function LinkPreviewModal({
 
             const isMobile = window.innerWidth < 640;
             const tl = gsap.timeline();
-            tl.to(modalRef.current, { 
-                y: isMobile ? 100 : 20, 
-                opacity: 0, 
-                scale: isMobile ? 1 : 0.95, 
-                duration: 0.2, 
-                ease: 'power2.in' 
+            tl.to(modalRef.current, {
+                y: isMobile ? 100 : 20,
+                opacity: 0,
+                scale: isMobile ? 1 : 0.95,
+                duration: 0.2,
+                ease: 'power2.in'
             })
                 .to(overlayRef.current, { opacity: 0, duration: 0.2, ease: 'power2.in', display: 'none' });
-            
+
             // Cleanup
             if (blobUrl) {
                 URL.revokeObjectURL(blobUrl);
@@ -392,7 +405,6 @@ export function LinkPreviewModal({
                             ) : (
                                 <div className="flex flex-col items-center gap-4 opacity-20">
                                     <File size={64} />
-                                    <span className="text-xs uppercase tracking-widest font-mono">Waiting for Payload</span>
                                 </div>
                             )}
                         </div>
@@ -449,7 +461,7 @@ function DocumentPreviewCard({ name, extension }: { name: string; extension: str
     const isPresentation = ['ppt', 'pptx', 'odp', 'key'].includes(extension.toLowerCase());
     const isArchive = ['zip', 'rar', '7z', 'gz', 'tar'].includes(extension.toLowerCase());
     const Icon = isSpreadsheet ? FileSpreadsheet : isPresentation ? Presentation : isArchive ? Archive : File;
-    
+
     return (
         <div className="flex flex-col items-center gap-6 p-12 text-center">
             <div className="w-28 h-28 rounded-[2rem] bg-gradient-to-br from-white/[0.03] to-white/[0.08] flex items-center justify-center border border-white/10 shadow-2xl group-hover/preview:scale-110 group-hover/preview:border-color-primary/30 transition-all duration-500">
