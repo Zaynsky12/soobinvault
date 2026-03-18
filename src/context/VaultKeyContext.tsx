@@ -13,7 +13,7 @@ interface VaultKeyContextType {
 
 const VaultKeyContext = createContext<VaultKeyContextType | undefined>(undefined);
 
-const SIGN_MESSAGE = "Sign this message to unlock your SoobinVault session. This key will securely encrypt and decrypt your files locally. Your password stays in your wallet.";
+const SIGN_MESSAGE = "Unlock SoobinVault Session. Nonce: soobinvault-v1";
 
 export function VaultKeyProvider({ children }: { children: ReactNode }) {
     const { signMessage, account, connected } = useWallet();
@@ -36,8 +36,7 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
         try {
             // Request signature for deterministic key derivation
             const response = await signMessage({
-                message: SIGN_MESSAGE,
-                nonce: "soobinvault-v1" // Constant nonce for determinism
+                message: SIGN_MESSAGE
             });
 
             // Extract signature - response.signature can be string or object depending on wallet
@@ -72,7 +71,13 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             const key = await deriveKeyFromSignature(canonicalSignature, salt);
             setEncryptionKey(key);
             
-            toast.success("Vault unlocked! Session key derived.", { id: toastId });
+            // Log key fingerprint (sharing first 4 chars of hash is safe for debugging)
+            const keyBuffer = await window.crypto.subtle.exportKey('raw', key);
+            const keyHash = await window.crypto.subtle.digest('SHA-256', keyBuffer);
+            const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
+            console.log(`[Vault] Session key derived. Fingerprint: ${fingerprint}`);
+            
+            toast.success(`Vault unlocked! (Key: ${fingerprint})`, { id: toastId });
             return key;
         } catch (error) {
             console.error("Failed to unlock vault:", error);
