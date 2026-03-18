@@ -271,10 +271,9 @@ export function Dashboard() {
                                             (assetHash && assetHash.toLowerCase().includes(searchQuery.toLowerCase()));
                                     })
                                     .map((asset, index) => {
-                                        const rawName: string =
+                                        const displayName: string =
                                             asset.blobNameSuffix ||
                                             (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
-                                        const displayName = rawName.endsWith('.vault') ? rawName.slice(0, -6) : rawName;
                                         const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
                                         const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/);
                                         const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/);
@@ -348,7 +347,7 @@ export function Dashboard() {
                                             // blobName must match exactly what was passed during upload: droppedFile.name (just filename)
                                             // displayName is already the clean filename (blobNameSuffix or stripped name)
                                             const resolvedAccount = account?.address?.toString() || '';
-                                            console.log('[Debug] Opening preview:', { resolvedAccount, blobName: nameOnly, displayName, nameOnly, nameStr, blobNameSuffix: asset.blobNameSuffix });
+                                            console.log('[Debug] Opening preview:', { resolvedAccount, blobName: displayName, nameOnly, nameStr, blobNameSuffix: asset.blobNameSuffix });
                                             setSelectedAsset({
                                                 name: displayName,
                                                 url: downloadUrl || '',
@@ -361,7 +360,7 @@ export function Dashboard() {
                                                 hash: assetHash,
                                                 txHash: txHash,
                                                 blobAccount: resolvedAccount,
-                                                blobName: nameOnly
+                                                blobName: displayName
                                             });
                                             setIsPreviewModalOpen(true);
                                         };
