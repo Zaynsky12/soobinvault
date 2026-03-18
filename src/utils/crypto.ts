@@ -1,0 +1,104 @@
+/**
+ * SoobinVault Crypto Utilities
+ * Implements client-side AES-256-GCM encryption for zero-knowledge storage.
+ */
+
+const ITERATIONS = 100000;
+const KEY_LEN = 256;
+const ALGORITHM = 'AES-GCM';
+
+interface FileMetadata {
+    name: string;
+    type: string;
+    size: number;
+}
+
+/**
+ * Derives a 256-bit AES key from a wallet signature using SHA-256.
+ */
+export async function deriveKeyFromSignature(signature: string): Promise<CryptoKey> {
+    const encoder = new TextEncoder();
+    const signatureBytes = encoder.encode(signature);
+    
+    // Hash the signature to get a deterministic 256-bit (32-byte) key
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', signatureBytes);
+    
+    // Import the hash as a raw key for AES-GCM
+    return window.crypto.subtle.importKey(
+        'raw',
+        hashBuffer,
+        { name: ALGORITHM, length: KEY_LEN },
+        false,
+        ['encrypt', 'decrypt']
+    );
+}
+
+/**
+ * Encrypts a file's content and embeds metadata.
+ * Format: IV (12 bytes) + Encrypted(Metadata_Size (4) + Metadata_JSON + File_Data)
+ */
+export async function encryptFile(file: File, key: CryptoKey): Promise<Uint8Array> {
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const fileBuffer = await file.arrayBuffer();
+
+    // Create Metadata Header
+    const metadata: FileMetadata = {
+        name: file.name,
+        type: file.type,
+        size: file.size
+    };
+    const metadataStr = JSON.stringify(metadata);
+    const metadataBuffer = new TextEncoder().encode(metadataStr);
+    const headerSize = new DataView(new ArrayBuffer(4));
+    headerSize.setUint32(0, metadataBuffer.byteLength);
+
+    // Combine Header + Original Data
+    const combinedBuffer = new Uint8Array(4 + metadataBuffer.byteLength + fileBuffer.byteLength);
+    combinedBuffer.set(new Uint8Array(headerSize.buffer), 0);
+    combinedBuffer.set(metadataBuffer, 4);
+    combinedBuffer.set(new Uint8Array(fileBuffer), 4 + metadataBuffer.byteLength);
+
+    // Encrypt
+    const ciphertext = await window.crypto.subtle.encrypt(
+        { name: ALGORITHM, iv },
+        key,
+        combinedBuffer
+    );
+
+    // Final Payload: IV + Ciphertext
+    const payload = new Uint8Array(iv.byteLength + ciphertext.byteLength);
+    payload.set(iv, 0);
+    payload.set(new Uint8Array(ciphertext), iv.byteLength);
+
+    return payload;
+}
+
+/**
+ * Decrypts a buffer and extracts the original file and metadata.
+ */
+export async function decryptFile(
+    encryptedBuffer: ArrayBuffer,
+    key: CryptoKey
+): Promise<{ blob: Blob; metadata: FileMetadata }> {
+    const iv = encryptedBuffer.slice(0, 12);
+    const ciphertext = encryptedBuffer.slice(12);
+
+    // Decrypt
+    const decryptedBuffer = await window.crypto.subtle.decrypt(
+        { name: ALGORITHM, iv: new Uint8Array(iv) },
+        key,
+        ciphertext
+    );
+
+    // Parse Header
+    const view = new DataView(decryptedBuffer);
+    const headerSize = view.getUint32(0);
+    const metadataBuffer = decryptedBuffer.slice(4, 4 + headerSize);
+    const fileData = decryptedBuffer.slice(4 + headerSize);
+
+    const metadataStr = new TextDecoder().decode(metadataBuffer);
+    const metadata: FileMetadata = JSON.parse(metadataStr);
+
+    const blob = new Blob([fileData], { type: metadata.type });
+    return { blob, metadata };
+}

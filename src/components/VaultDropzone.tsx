@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, File as FileIcon, CheckCircle, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
+import { UploadCloud, File as FileIcon, CheckCircle, Image as ImageIcon, Link as LinkIcon, Lock, ShieldCheck, Key } from 'lucide-react';
+import { encryptFile } from '../utils/crypto';
+import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
@@ -14,6 +16,7 @@ interface VaultDropzoneProps {
 
 export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const { account, signAndSubmitTransaction } = useWallet();
+    const { ensureKey } = useVaultKey();
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -87,14 +90,23 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
         try {
             setUploadState('uploading');
-            setUploadStatusText("Encrypting and distributing to nodes...");
+            setUploadStatusText("Awaiting wallet signature...");
+            const cryptoKey = await ensureKey();
+            if (!cryptoKey) {
+                setUploadState('idle');
+                return;
+            }
+            
+            setUploadStatusText("Performing AES-256-GCM encryption...");
+            const encryptedData = await encryptFile(droppedFile, cryptoKey);
+            
+            // Random UUID for privacy
+            const randomId = crypto.randomUUID();
+            const encryptedBlobName = `${randomId}.vault`;
 
-            const arrayBuffer = await droppedFile.arrayBuffer();
-            const fileData = new Uint8Array(arrayBuffer);
+            setUploadStatusText("Distributing encrypted fragments to nodes...");
 
             // Wrap mutateAsync in an inner try-catch so SDK-level errors
-            // (e.g. waitForTransaction failures on testnet) don't surface as
-            // false negatives — the blob may already be stored at this point.
             let txHash: string | undefined;
 
             try {
@@ -112,7 +124,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             return response;
                         },
                     },
-                    blobs: [{ blobName: droppedFile.name, blobData: fileData }],
+                    blobs: [{ blobName: encryptedBlobName, blobData: encryptedData }],
                     expirationMicros: Date.now() * 1000 + 86400000000 * 30, // 30 days
                 });
             } catch (sdkError) {
@@ -244,7 +256,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className="w-full h-96 flex flex-col items-center justify-center p-8 border-2 border-dashed border-transparent relative z-10 transition-colors"
+                        className="w-full min-h-[450px] flex flex-col items-center justify-center p-12 border-2 border-dashed border-transparent relative z-10 transition-colors"
                         style={{ borderColor: isDragging ? 'rgba(251, 179, 204, 0.5)' : 'rgba(255, 255, 255, 0.15)' }}
                     >
                         <input
@@ -264,10 +276,15 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="px-8 py-4 rounded-full bg-color-accent hover:bg-[#FBB3CC] hover:text-[#1A0D12] text-white transition-colors font-medium shadow-lg hover:shadow-[0_0_20px_rgba(232,58,118,0.5)]"
+                                    className="mt-4 px-10 py-4 rounded-full bg-color-accent/20 border border-color-accent/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate"
                                 >
                                     Select File
                                 </button>
+
+                                <div className="mt-8 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-color-primary/10 border border-color-primary/20 w-auto mx-auto shadow-[0_0_20px_rgba(232,58,118,0.05)]">
+                                    <ShieldCheck size={16} className="text-color-primary" />
+                                    <span className="text-[10px] text-color-primary/80 uppercase tracking-[0.2em] font-mono font-bold">Protocol: Zero-Knowledge</span>
+                                </div>
                             </div>
                         )}
 
@@ -284,7 +301,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     </div>
                                 )}
                                 <h3 className="text-2xl font-medium mb-2 w-full text-center text-white break-all">{file.name}</h3>
-                                <p className="text-color-support text-base mb-8">Encrypting and distributing to nodes...</p>
+                                <p className="text-color-support text-base mb-8 truncate w-full">{uploadStatusText}</p>
 
                                 <div className="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/10">
                                     <div ref={progressRef} className="h-full w-0 bg-gradient-to-r from-color-primary to-color-accent shadow-[0_0_10px_rgba(232,58,118,0.8)]" />

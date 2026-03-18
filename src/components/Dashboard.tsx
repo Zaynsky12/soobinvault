@@ -9,6 +9,8 @@ import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient, useDeleteBlobs } from "@shelby-protocol/react";
 import { LinkPreviewModal } from './LinkPreviewModal';
+import { decryptFile } from '../utils/crypto';
+import { useVaultKey } from '../context/VaultKeyContext';
 
 // Register GSAP plugins
 if (typeof window !== 'undefined') {
@@ -23,6 +25,7 @@ export function Dashboard() {
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [optimisticAssets, setOptimisticAssets] = useState<any[]>([]);
+    const { ensureKey } = useVaultKey();
 
     // Modal State
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -179,14 +182,14 @@ export function Dashboard() {
                         <p className="text-color-support/60 text-base sm:text-lg font-normal max-w-md leading-relaxed text-center md:text-left mx-auto md:mx-0">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
                     </div>
 
-                    <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch md:items-end gap-3 md:gap-4">
-                        <div className="dash-stat flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start flex-1 md:flex-none md:min-w-[140px] px-6 py-5 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
+                    <div className="w-full md:w-auto flex flex-col sm:flex-row items-center md:items-end gap-3 md:gap-4 mt-6 md:mt-0">
+                        <div className="dash-stat flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start w-full sm:w-auto md:min-w-[140px] px-6 py-4 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
                             <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-primary/20 to-transparent" />
-                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block md:mb-3">Total Assets</span>
-                            <span className="text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
+                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block md:mb-2">Total Assets</span>
+                            <span className="text-2xl md:text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
                         </div>
 
-                        <div className="dash-stat flex-1 md:min-w-[300px] relative group/search">
+                        <div className="dash-stat w-full md:min-w-[320px] relative group/search">
                             <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-color-support/30 group-focus-within/search:text-color-primary transition-colors">
                                 <Search size={18} />
                             </div>
@@ -195,14 +198,14 @@ export function Dashboard() {
                                 placeholder="Search Vault..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-[#0A0A0A]/40 border border-white/5 rounded-2xl py-5 pl-14 pr-6 text-white text-sm outline-none focus:border-color-primary/40 focus:bg-[#0A0A0A]/60 transition-all glass-panel placeholder:text-color-support/20 font-medium"
+                                className="w-full bg-[#0A0A0A]/60 border border-white/10 rounded-2xl py-4 pl-14 pr-6 text-white text-sm outline-none focus:border-color-primary/40 focus:bg-[#0A0A0A]/80 transition-all glass-panel placeholder:text-color-support/20 font-medium"
                             />
                         </div>
                     </div>
                 </div>
 
                 <GlassCard className="assets-container p-0 overflow-hidden border-white/5 bg-[#050505]/90 backdrop-blur-3xl rounded-3xl">
-                    {/* Table Header */}
+                {/* Table Header */}
                     <div className="hidden md:grid grid-cols-12 gap-4 p-5 border-b border-white/5 text-color-support/40 text-[10px] font-bold uppercase tracking-[0.2em] bg-[#0A0A0A]">
                         <div className="col-span-6">Asset Name</div>
                         <div className="col-span-2">Capacity</div>
@@ -344,33 +347,28 @@ export function Dashboard() {
                                             console.log("Asset structure debug (missing hash):", asset);
                                         }
                                         const handleOpenPreview = () => {
-                                            // blobName must match exactly what was passed during upload: droppedFile.name (just filename)
-                                            // displayName is already the clean filename (blobNameSuffix or stripped name)
-                                            const resolvedAccount = account?.address?.toString() || '';
-                                            console.log('[Debug] Opening preview:', { resolvedAccount, blobName: displayName, nameOnly, nameStr, blobNameSuffix: asset.blobNameSuffix });
                                             setSelectedAsset({
                                                 name: displayName,
-                                                url: downloadUrl || '',
+                                                url: '', 
                                                 sizeStr: sizeMB,
                                                 isImage: isImg,
                                                 isVideo: isVid,
                                                 isText: isTxt,
-                                                isAudio: isAudio,
-                                                isDocument: isDocument,
+                                                isAudio: !!displayName.toLowerCase().match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
+                                                isDocument: !!displayName.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
                                                 hash: assetHash,
                                                 txHash: txHash,
-                                                blobAccount: resolvedAccount,
-                                                blobName: displayName
+                                                blobAccount: finalIdentifier,
+                                                blobName: nameOnly
                                             });
                                             setIsPreviewModalOpen(true);
                                         };
+    
 
                                         return (
                                             <AssetRow
-                                                key={assetHash || asset.blob_merkle_root || index}
+                                                key={`${asset.blob_merkle_root}-${index}`}
                                                 asset={asset}
-                                                assetHash={assetHash}
-                                                txHash={txHash}
                                                 index={index}
                                                 displayName={displayName}
                                                 sizeMB={sizeMB}
@@ -379,11 +377,14 @@ export function Dashboard() {
                                                 isTxt={isTxt}
                                                 downloadUrl={downloadUrl}
                                                 handleOpenPreview={handleOpenPreview}
+                                                assetHash={assetHash}
+                                                txHash={txHash}
                                                 deleteBlobs={deleteBlobs}
                                                 fetchBlobs={fetchBlobs}
                                                 signAndSubmitTransaction={signAndSubmitTransaction}
                                                 account={account}
                                                 shelbyClient={shelbyClient}
+                                                setOptimisticDeletions={setOptimisticAssets}
                                             />
                                         );
                                     })
@@ -417,73 +418,30 @@ export function Dashboard() {
                 isAudio={selectedAsset?.isAudio || false}
                 isDocument={selectedAsset?.isDocument || false}
                 apiKey={shelbyClient.rpc.apiKey}
-                onFetch={selectedAsset?.blobAccount && selectedAsset?.blobName ? async () => {
-                    try {
-                        const shelbyBlob = await shelbyClient.download({
-                            account: selectedAsset.blobAccount,
-                            blobName: selectedAsset.blobName,
-                        });
-                        return shelbyBlob.readable;
-                    } catch (err: any) {
-                        if (err?.message?.includes('not yet been marked')) return null;
-                        throw err;
-                    }
-                } : undefined}
-                onDownload={async () => {
-                    if (selectedAsset && selectedAsset.blobAccount && selectedAsset.blobName) {
-                        try {
-                            toast.loading('Preparing download...', { id: 'dl' });
-                            const shelbyBlob = await shelbyClient.download({
-                                account: selectedAsset.blobAccount,
-                                blobName: selectedAsset.blobName,
-                            });
-                            const reader = shelbyBlob.readable.getReader();
-                            const chunks: Uint8Array[] = [];
-                            while (true) {
-                                const { done, value } = await reader.read();
-                                if (done) break;
-                                if (value) chunks.push(value);
-                            }
-                            const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
-                            const merged = new Uint8Array(totalLength);
-                            let offset = 0;
-                            for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.length; }
-                            const blob = new Blob([merged]);
-                            const downloadLink = document.createElement('a');
-                            const url = URL.createObjectURL(blob);
-                            downloadLink.href = url;
-                            downloadLink.download = selectedAsset.name;
-                            downloadLink.click();
-                            setTimeout(() => URL.revokeObjectURL(url), 100);
-                            toast.success('Download started!', { id: 'dl' });
-                        } catch (err) {
-                            console.error('[Dashboard] Download via SDK failed:', err);
-                            toast.error(`Download failed: ${err instanceof Error ? err.message : String(err)}`, { id: 'dl' });
-                        }
-                    } else {
-                        toast.error('Cannot download: asset details missing.');
-                    }
+                onDownload={() => {
+                    // This is handled by a direct link in the modal now
+                    console.log('Download triggered from modal');
                 }}
+                blobAccount={selectedAsset?.blobAccount}
+                blobName={selectedAsset?.blobName}
+                shelbyClient={shelbyClient}
+                accountAddress={account?.address.toString()}
             />
         </section>
     );
 }
 
 function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
+    const { ensureKey } = useVaultKey();
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
 
     useEffect(() => {
         if (!downloadUrl) return;
 
         const checkStatus = async () => {
-            if (!downloadUrl) {
-                setStatus('syncing');
-                return;
-            }
-
             const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
             try {
-                const response = await fetch(downloadUrl, {
+                const response = await fetch(downloadUrl!, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${apiKey.trim()}`,
@@ -494,107 +452,67 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                 if (response.ok) {
                     setStatus('live');
                 } else {
-                    console.log(`[Shelby] Status check for ${displayName}: ${response.status} ${response.statusText}`);
                     if (response.status === 429) {
                         setTimeout(checkStatus, 15000);
-                    } else if (response.status === 404 || response.status === 500) {
-                        setStatus('syncing');
-                        setTimeout(checkStatus, 3000 + Math.random() * 2000);
                     } else {
-                        setStatus('checking');
-                        setTimeout(checkStatus, 5000);
+                        setStatus('syncing');
+                        setTimeout(checkStatus, 5000 + Math.random() * 2000);
                     }
                 }
             } catch (e) {
-                console.error(`[Shelby] Status check failed for ${displayName}`, e);
                 setStatus('checking');
-                setTimeout(checkStatus, 15000);
+                setTimeout(checkStatus, 10000);
             }
         };
 
-        // If not live yet, check status
-        if (status !== 'live') {
-            checkStatus();
-        }
-    }, [downloadUrl, displayName]); // Remove status from deps to avoid loop, use internal logic
+        if (status !== 'live') checkStatus();
+    }, [downloadUrl, status]);
 
     const handleDownload = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
 
-        // Pre-download validation
         if (status !== 'live') {
-            toast("File sedang dalam proses indexing di Shelby network. Coba lagi dalam 30 detik.", {
-                icon: '⚠️'
-            });
+            toast("File sedang dalam proses indexing. Coba lagi sebentar lagi.", { icon: '⏳' });
             return;
         }
 
-        if (!downloadUrl) {
+        if (!account) {
+            toast.error("Wallet not connected");
             return;
         }
-        const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+
+        const downloadToastId = toast.loading(`Decrypting ${displayName}...`);
+
         try {
-            const response = await fetch(downloadUrl, {
-                headers: {
-                    'Authorization': `Bearer ${apiKey.trim()}`
-                }
+            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8TvZJ1y8YXj_QKYMB9C3GLUmcEMbvtXVscowf3xfwjTTW";
+            const response = await fetch(downloadUrl!, {
+                headers: { 'Authorization': `Bearer ${apiKey.trim()}` }
             });
 
-            if (!response.ok) {
-                const contentType = response.headers.get('content-type');
-                let errorDetail = "";
-                if (contentType && contentType.includes('application/json')) {
-                    try {
-                        const errorData = await response.json();
-                        if (errorData.error && errorData.error.toLowerCase().includes('not yet been marked successfully written')) {
-                            errorDetail = "This file is still being indexed on the Shelby network. Please wait a few moments and try again.";
-                        } else {
-                            errorDetail = errorData.message || errorData.error || response.statusText;
-                        }
-                    } catch (e) {
-                        errorDetail = response.statusText;
-                    }
-                } else {
-                    errorDetail = response.statusText;
-                }
+            if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+            const encryptedBuffer = await response.arrayBuffer();
 
-                // Detailed debug as requested
-                console.log('[Debug] Download Response:', response.status, errorDetail, {
-                    name: displayName,
-                    url: downloadUrl,
-                    status: status
-                });
-
-                throw new Error(errorDetail || `Server returned ${response.status}`);
+            const cryptoKey = await ensureKey();
+            if (!cryptoKey) {
+                toast.error("Decryption key required for download.", { id: downloadToastId });
+                return;
             }
 
-            const fileData = await response.blob();
-            console.log(`[Debug] Downloaded blob for ${displayName}:`, {
-                type: fileData.type,
-                size: fileData.size,
-                name: displayName
-            });
+            const { blob, metadata } = await decryptFile(encryptedBuffer, cryptoKey);
 
-            const downloadLink = document.createElement("a");
-            const url = URL.createObjectURL(fileData);
-            downloadLink.href = url;
-            downloadLink.download = displayName;
-            downloadLink.click();
-            setTimeout(() => URL.revokeObjectURL(url), 100);
-            toast.success("Download started!");
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = metadata.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            toast.success('Downloaded!', { id: downloadToastId });
         } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-
-            // Tame specific indexing error with a user-friendly info toast
-            if (msg.toLowerCase().includes('index') || msg.toLowerCase().includes('process')) {
-                toast("File sedang dalam proses finalisasi di jaringan. Coba lagi dalam 30 detik.", {
-                    icon: '⏳',
-                    duration: 5000
-                });
-            } else {
-                console.error("Download failed", err);
-                toast.error(msg);
-            }
+            console.error('Download failed:', err);
+            toast.error('Failed to decrypt and download.', { id: downloadToastId });
         }
     };
 

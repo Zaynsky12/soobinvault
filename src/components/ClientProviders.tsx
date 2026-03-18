@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import React from "react";
 import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 import { ShelbyClientProvider } from "@shelby-protocol/react";
+import { VaultKeyProvider } from "@/context/VaultKeyContext";
 import { Network } from "@aptos-labs/ts-sdk";
 import { Toaster } from "react-hot-toast";
 
@@ -49,29 +50,31 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
         <WalletProvider>
             {shelbyClient && (
                 <ShelbyClientProvider client={shelbyClient}>
-                    <Toaster
-                        position="bottom-right"
-                        toastOptions={{
-                            style: {
-                                background: '#1a0d12',
-                                color: '#fff',
-                                border: '1px solid rgba(232,58,118,0.3)',
-                                borderRadius: '12px',
-                                fontSize: '14px',
-                            },
-                            success: {
-                                iconTheme: { primary: '#10b981', secondary: '#1a0d12' },
-                            },
-                            error: {
-                                iconTheme: { primary: '#ef4444', secondary: '#1a0d12' },
-                            },
-                        }}
-                    />
-                    <Navbar />
-                    <main className="flex-grow">
-                        {children}
-                    </main>
-                    <Footer />
+                    <VaultKeyProvider>
+                        <Toaster
+                            position="bottom-right"
+                            toastOptions={{
+                                style: {
+                                    background: '#1a0d12',
+                                    color: '#fff',
+                                    border: '1px solid rgba(232,58,118,0.3)',
+                                    borderRadius: '12px',
+                                    fontSize: '14px',
+                                },
+                                success: {
+                                    iconTheme: { primary: '#10b981', secondary: '#1a0d12' },
+                                },
+                                error: {
+                                    iconTheme: { primary: '#ef4444', secondary: '#1a0d12' },
+                                },
+                            }}
+                        />
+                        <Navbar />
+                        <main className="flex-grow">
+                            {children}
+                        </main>
+                        <Footer />
+                    </VaultKeyProvider>
                 </ShelbyClientProvider>
             )}
             {!shelbyClient && (

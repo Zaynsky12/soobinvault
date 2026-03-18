@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { X, FileText, Download, Loader2, RefreshCw, Music, File, Archive, FileSpreadsheet, Presentation } from 'lucide-react';
+import { X, FileText, Download, Loader2, RefreshCw, Music, File, Archive, FileSpreadsheet, Presentation, Lock, Unlock } from 'lucide-react';
+import { decryptFile } from '../utils/crypto';
+import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
 import { GlassCard } from './ui/GlassCard';
 
@@ -19,6 +21,10 @@ interface LinkPreviewModalProps {
     onDownload: () => void;
     apiKey?: string;
     onFetch?: () => Promise<ReadableStream<Uint8Array> | null>;
+    blobAccount?: string;
+    blobName?: string;
+    shelbyClient?: any;
+    accountAddress?: string;
 }
 
 export function LinkPreviewModal({
@@ -36,7 +42,11 @@ export function LinkPreviewModal({
     isDocument,
     onDownload,
     apiKey: propApiKey,
-    onFetch
+    onFetch,
+    blobAccount,
+    blobName,
+    shelbyClient,
+    accountAddress
 }: LinkPreviewModalProps) {
     const [copied, setCopied] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
@@ -47,6 +57,88 @@ export function LinkPreviewModal({
 
     const modalRef = React.useRef<HTMLDivElement>(null);
     const overlayRef = React.useRef<HTMLDivElement>(null);
+
+    const { ensureKey } = useVaultKey();
+
+    const [decryptedData, setDecryptedData] = useState<{
+        url: string;
+        name: string;
+        type: string;
+        isImage: boolean;
+        isVideo: boolean;
+        isText: boolean;
+        isAudio: boolean;
+        isDocument: boolean;
+    } | null>(null);
+
+    useEffect(() => {
+        if (!isOpen || !blobName || !blobAccount || !shelbyClient || !accountAddress) {
+            setDecryptedData(null);
+            return;
+        }
+
+        const runDecryption = async () => {
+            setIsProcessing(true);
+            setFetchError(null);
+            try {
+                // 1. Fetch
+                const shelbyBlob = await shelbyClient.download({
+                    account: blobAccount,
+                    blobName: blobName
+                });
+                
+                const reader = shelbyBlob.readable.getReader();
+                const chunks: Uint8Array[] = [];
+                while(true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                }
+                const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
+                const encryptedBuffer = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of chunks) {
+                    encryptedBuffer.set(chunk, offset);
+                    offset += chunk.length;
+                }
+
+                // 2. Decrypt
+                const cryptoKey = await ensureKey();
+                if (!cryptoKey) {
+                    throw new Error("Signature required for decryption.");
+                }
+                const { blob, metadata } = await decryptFile(encryptedBuffer.buffer, cryptoKey);
+                
+                const url = URL.createObjectURL(blob);
+                const name = metadata.name.toLowerCase();
+
+                setDecryptedData({
+                    url,
+                    name: metadata.name,
+                    type: metadata.type,
+                    isImage: !!name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/),
+                    isVideo: !!name.match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/),
+                    isText: !!name.match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/),
+                    isAudio: !!name.match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
+                    isDocument: !!name.match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
+                });
+            } catch (err) {
+                console.error('Decryption failed:', err);
+                setFetchError(err instanceof Error ? err.message : 'Gagal mendekripsi file. Pastikan Anda menyetujui tanda tangan wallet.');
+            } finally {
+                setIsProcessing(false);
+            }
+        };
+
+        runDecryption();
+    }, [isOpen, blobName, blobAccount, accountAddress]);
+
+    // Clean up URLs
+    useEffect(() => {
+        return () => {
+            if (decryptedData?.url) URL.revokeObjectURL(decryptedData.url);
+        };
+    }, [decryptedData]);
 
     const isPdf = assetName.toLowerCase().endsWith('.pdf');
 
@@ -219,165 +311,157 @@ export function LinkPreviewModal({
     return (
         <div
             ref={overlayRef}
-            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm opacity-0 hidden"
-            style={{ display: isOpen ? 'flex' : 'none' }}
+            className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm transition-all duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
             onClick={(e) => {
                 if (e.target === overlayRef.current) onClose();
             }}
         >
-            <div ref={modalRef} className="w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex">
-                <GlassCard
-                    className="w-full p-0 overflow-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col rounded-t-[2rem] sm:rounded-[2rem]"
-                >
-                    {/* Header */}
-                    <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
-                        <h3 className="text-lg font-semibold text-white">Asset Preview</h3>
-                        <button
-                            onClick={onClose}
-                            className="p-2 transition-colors rounded-lg text-color-support hover:text-white hover:bg-white/10"
-                        >
-                            <X size={20} />
-                        </button>
-                    </div>
-
-                    {/* Content */}
-                    <div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar">
-                        {/* Preview Area */}
-                        <div className="flex flex-col items-center justify-center w-full mb-6 overflow-hidden border border-dashed rounded-xl h-64 sm:h-80 border-white/20 bg-black/50 relative">
-                            {isFetching ? (
-                                <div className="flex flex-col items-center gap-3 text-color-support/60">
-                                    <Loader2 size={48} className="animate-spin text-color-primary" />
-                                    <p className="text-sm font-medium">Fetching secure content...</p>
+            <div ref={modalRef} className="w-full max-w-2xl max-h-[92vh] sm:max-h-[85vh] flex">
+                <GlassCard className="w-full p-0 overflow-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col rounded-t-[2rem] sm:rounded-3xl">
+                    <div className="p-4 md:p-8 flex flex-col h-full relative z-10">
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-4 overflow-hidden">
+                                <div className="w-12 h-12 rounded-xl bg-color-primary/10 flex items-center justify-center border border-color-primary/20 shrink-0">
+                                    {decryptedData ? <Unlock className="text-color-primary" size={24} /> : <Lock className="text-color-support/40" size={24} />}
                                 </div>
-                            ) : isProcessing ? (
-                                <div className="flex flex-col items-center text-center px-10">
-                                    <RefreshCw size={48} className="text-color-accent mb-4 animate-spin-slow" />
-                                    <h4 className="text-lg font-semibold text-white mb-2">Processing on Network</h4>
-                                    <p className="text-sm text-color-support/70 mb-6">This asset has been submitted but is still being indexed by the network nodes. Please wait a moment.</p>
-                                    <button
-                                        onClick={fetchAsset}
-                                        className="px-6 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white text-sm transition-all"
-                                    >
-                                        Check Status Again
-                                    </button>
+                                <div className="flex flex-col min-w-0">
+                                    <h2 className="text-xl font-bold text-white truncate leading-tight">
+                                        {isProcessing ? "Mendekripsi..." : (decryptedData ? decryptedData.name : "Vault Asset")}
+                                    </h2>
+                                    <p className="text-xs text-color-support/60 uppercase tracking-widest mt-1">
+                                        {assetSizeStr} MB • {decryptedData ? "SECURED WITH AES-256-GCM" : "ENCRYPTED PAYLOAD"}
+                                    </p>
+                                </div>
+                            </div>
+                            <button onClick={onClose} className="p-3 rounded-xl hover:bg-white/10 text-color-support transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Preview Content */}
+                        <div className="flex-1 bg-black/40 rounded-3xl border border-white/5 overflow-hidden flex items-center justify-center relative min-h-[400px]">
+                            {isProcessing ? (
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="relative">
+                                        <div className="w-16 h-16 rounded-full border-4 border-color-primary/20 border-t-color-primary animate-spin" />
+                                        <Lock size={20} className="absolute inset-0 m-auto text-color-primary animate-pulse" />
+                                    </div>
+                                    <span className="text-color-primary font-mono text-xs tracking-[0.2em] uppercase animate-pulse">Decrypting...</span>
                                 </div>
                             ) : fetchError ? (
-                                <div className="flex flex-col items-center text-center px-10">
-                                    <FileText size={48} className="text-red-400/50 mb-4" />
-                                    <h4 className="text-lg font-semibold text-white mb-2">Preview Unavailable</h4>
-                                    <p className="text-sm text-red-400/80 mb-6">{fetchError}</p>
-                                    <button
-                                        onClick={fetchAsset}
-                                        className="px-6 py-2 rounded-full bg-color-primary/10 hover:bg-color-primary/20 border border-color-primary/20 text-color-primary text-sm transition-all"
-                                    >
-                                        Retry Fetch
-                                    </button>
+                                <div className="flex flex-col items-center gap-4 text-center px-10">
+                                    <Lock size={48} className="text-red-500/50 mb-2" />
+                                    <h3 className="text-white font-bold text-lg">Decryption Failed</h3>
+                                    <p className="text-color-support/60 text-sm max-w-xs">{fetchError}</p>
                                 </div>
-                            ) : blobUrl ? (
+                            ) : decryptedData ? (
                                 <>
-                                    {isImage ? (
-                                        <img
-                                            src={blobUrl}
-                                            alt={assetName}
-                                            className="object-contain w-full h-full p-2"
-                                        />
-                                    ) : isPdf ? (
-                                        <iframe
-                                            src={`${blobUrl}#toolbar=0`}
-                                            className="w-full h-full border-none"
-                                            title="PDF Preview"
-                                        />
-                                    ) : isVideo ? (
-                                        <video
-                                            src={blobUrl}
-                                            controls
-                                            className="w-full h-full object-contain"
-                                        />
-                                    ) : isText ? (
-                                        <div className="w-full h-full p-4 overflow-auto bg-[#0a0a0a] text-color-support/80 font-mono text-xs leading-relaxed whitespace-pre">
-                                            {textContent || "Loading content..."}
-                                        </div>
-                                    ) : isAudio ? (
-                                        <div className="flex flex-col items-center gap-6 px-8 py-4 w-full">
-                                            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-color-primary/30 to-color-accent/30 flex items-center justify-center border border-white/10 shadow-[0_0_30px_rgba(232,58,118,0.2)]">
+                                    {decryptedData.isImage && (
+                                        <img src={decryptedData.url} alt={decryptedData.name} className="max-w-full max-h-full object-contain" />
+                                    )}
+                                    {decryptedData.isVideo && (
+                                        <video src={decryptedData.url} controls className="max-w-full max-h-full" autoPlay />
+                                    )}
+                                    {decryptedData.isAudio && (
+                                        <div className="flex flex-col items-center gap-6 p-12 glass-panel rounded-3xl border-white/10">
+                                            <div className="w-24 h-24 rounded-full bg-color-primary/20 flex items-center justify-center">
                                                 <Music size={48} className="text-color-primary" />
                                             </div>
-                                            <p className="text-sm text-white/60 font-medium truncate max-w-full">{assetName}</p>
-                                            <audio controls className="w-full rounded-xl" src={blobUrl ?? undefined}>
-                                                Your browser does not support audio playback.
-                                            </audio>
+                                            <audio src={decryptedData.url} controls className="w-full max-w-sm h-10 filter invert brightness-125" />
                                         </div>
-                                    ) : isDocument ? (
-                                        <div className="flex flex-col items-center gap-5 px-8 py-6 w-full text-center">
-                                            {(() => {
-                                                const ext = assetName.split('.').pop()?.toLowerCase() || 'file';
-                                                const isSpreadsheet = ['xls', 'xlsx', 'ods', 'numbers', 'csv'].includes(ext);
-                                                const isPresentation = ['ppt', 'pptx', 'odp', 'key'].includes(ext);
-                                                const isArchive = ['zip', 'rar', '7z', 'gz', 'tar'].includes(ext);
-                                                const Icon = isSpreadsheet ? FileSpreadsheet : isPresentation ? Presentation : isArchive ? Archive : File;
-                                                const colors = isSpreadsheet
-                                                    ? 'from-green-500/30 to-emerald-500/30 text-green-400'
-                                                    : isPresentation
-                                                    ? 'from-orange-500/30 to-amber-500/30 text-orange-400'
-                                                    : isArchive
-                                                    ? 'from-yellow-500/30 to-amber-500/30 text-yellow-400'
-                                                    : 'from-blue-500/30 to-indigo-500/30 text-blue-400';
-                                                return (
-                                                    <>
-                                                        <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${colors.split(' ')[0]} ${colors.split(' ')[1]} flex items-center justify-center border border-white/10 shadow-xl`}>
-                                                            <Icon size={44} className={colors.split(' ')[2]} />
-                                                        </div>
-                                                        <div>
-                                                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border mb-3 ${isSpreadsheet ? 'bg-green-500/10 border-green-500/20 text-green-400' : isPresentation ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : isArchive ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>.{ext}</span>
-                                                            <p className="text-sm font-semibold text-white/70">{assetName}</p>
-                                                        </div>
-
-                                                    </>
-                                                );
-                                            })()}
+                                    )}
+                                    {decryptedData.isText && (
+                                        <div className="w-full h-full p-8 overflow-auto CustomScroll">
+                                            <TextPreview url={decryptedData.url} />
                                         </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center gap-3 text-color-support/40 px-6 text-center">
-                                            <FileText size={64} strokeWidth={1} />
-                                            <p className="text-sm font-semibold text-white/60">No inline preview available</p>
-                                            <p className="text-xs text-white/30">Download the file to open it locally.</p>
+                                    )}
+                                    {decryptedData.isDocument && (
+                                        <DocumentPreviewCard name={decryptedData.name} extension={decryptedData.name.split('.').pop() || ''} />
+                                    )}
+                                    {!decryptedData.isImage && !decryptedData.isVideo && !decryptedData.isAudio && !decryptedData.isText && !decryptedData.isDocument && (
+                                        <div className="flex flex-col items-center gap-6 p-12 text-center">
+                                            <File size={64} className="text-color-support/20" />
+                                            <div>
+                                                <h3 className="text-xl font-bold text-white mb-2">Decrypted File</h3>
+                                                <p className="text-color-support/60 text-sm">Preview not available for this format.</p>
+                                            </div>
                                         </div>
                                     )}
                                 </>
                             ) : (
-                                <div className="flex items-center justify-center w-full h-full text-color-primary/40">
-                                    <FileText size={64} className="opacity-50" />
+                                <div className="flex flex-col items-center gap-4 opacity-20">
+                                    <File size={64} />
+                                    <span className="text-xs uppercase tracking-widest font-mono">Waiting for Payload</span>
                                 </div>
                             )}
                         </div>
 
-                        {/* Asset Info */}
-                        <div className="mb-6">
-                            <h4 className="text-xl font-medium text-white truncate" title={assetName}>{assetName}</h4>
-                            <div className="flex gap-4 mt-2 text-sm text-color-support/60 font-mono">
-                                <span>Size: {assetSizeStr} MB</span>
-                            </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 pt-4 border-t border-white/5">
-                            <button
-                                onClick={onClose}
-                                className="order-2 sm:order-1 flex items-center justify-center px-6 py-2.5 text-sm font-medium transition-all rounded-xl text-color-support/60 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5"
-                            >
+                        {/* Footer / Actions */}
+                        <div className="mt-8 flex flex-col sm:flex-row items-center justify-end gap-4 border-t border-white/5 pt-8">
+                            <button onClick={onClose} className="w-full sm:w-auto px-8 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-color-support font-medium transition-all">
                                 Close
                             </button>
                             <button
-                                onClick={onDownload}
-                                disabled={!assetUrl}
-                                className="order-1 sm:order-2 flex items-center justify-center px-6 py-2.5 text-sm font-bold transition-all rounded-xl text-white bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.03] active:scale-[0.97] shadow-lg shadow-color-primary/20 disabled:opacity-50 disabled:hover:scale-100"
+                                onClick={() => {
+                                    if (!decryptedData) return;
+                                    const a = document.createElement('a');
+                                    a.href = decryptedData.url;
+                                    a.download = decryptedData.name;
+                                    a.click();
+                                }}
+                                disabled={!decryptedData}
+                                className="w-full sm:w-auto px-10 py-3 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.02] active:scale-[0.98] text-white font-bold transition-all shadow-lg shadow-color-primary/20 disabled:opacity-50"
                             >
-                                <Download size={18} className="mr-2" />
-                                Download
+                                <Download size={20} className="inline-block mr-2" />
+                                Download Original
                             </button>
                         </div>
                     </div>
                 </GlassCard>
+            </div>
+        </div>
+    );
+}
+
+function TextPreview({ url }: { url: string }) {
+    const [text, setText] = useState<string>('Loading content...');
+
+    useEffect(() => {
+        fetch(url)
+            .then(res => res.text())
+            .then(setText)
+            .catch(err => {
+                console.error('Failed to load text:', err);
+                setText('Gagal memuat konten teks.');
+            });
+    }, [url]);
+
+    return (
+        <pre className="text-color-support/80 font-mono text-sm leading-relaxed whitespace-pre-wrap break-all">
+            {text}
+        </pre>
+    );
+}
+
+function DocumentPreviewCard({ name, extension }: { name: string; extension: string }) {
+    const isSpreadsheet = ['xls', 'xlsx', 'ods', 'numbers', 'csv'].includes(extension.toLowerCase());
+    const isPresentation = ['ppt', 'pptx', 'odp', 'key'].includes(extension.toLowerCase());
+    const isArchive = ['zip', 'rar', '7z', 'gz', 'tar'].includes(extension.toLowerCase());
+    const Icon = isSpreadsheet ? FileSpreadsheet : isPresentation ? Presentation : isArchive ? Archive : File;
+    
+    return (
+        <div className="flex flex-col items-center gap-6 p-12 text-center">
+            <div className="w-28 h-28 rounded-[2rem] bg-gradient-to-br from-white/[0.03] to-white/[0.08] flex items-center justify-center border border-white/10 shadow-2xl group-hover/preview:scale-110 group-hover/preview:border-color-primary/30 transition-all duration-500">
+                <Icon size={56} className="text-color-primary/50" />
+            </div>
+            <div className="space-y-2">
+                <h3 className="text-xl font-bold text-white max-w-xs truncate">{name}</h3>
+                <div className="flex justify-center">
+                    <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] uppercase tracking-widest text-color-support/40">
+                        .{extension} Document
+                    </span>
+                </div>
             </div>
         </div>
     );
