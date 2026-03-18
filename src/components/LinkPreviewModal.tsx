@@ -71,82 +71,85 @@ export function LinkPreviewModal({
         isDocument: boolean;
     } | null>(null);
 
-    useEffect(() => {
-        if (!isOpen || !blobName || !blobAccount || !shelbyClient || !accountAddress) {
-            setDecryptedData(null);
-            return;
-        }
+    const runDecryptionWithRetry = React.useCallback(async (retryCount = 0) => {
+        if (!blobName || !blobAccount || !shelbyClient || !accountAddress) return;
+        
+        setIsProcessing(true);
+        setFetchError(null);
+        try {
+            // 1. Fetch
+            const shelbyBlob = await shelbyClient.download({
+                account: blobAccount,
+                blobName: blobName
+            });
 
-        const runDecryptionWithRetry = async (retryCount = 0) => {
-            setIsProcessing(true);
-            setFetchError(null);
-            try {
-                // 1. Fetch
-                const shelbyBlob = await shelbyClient.download({
-                    account: blobAccount,
-                    blobName: blobName
-                });
-
-                const reader = shelbyBlob.readable.getReader();
-                const chunks: Uint8Array[] = [];
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    chunks.push(value);
-                }
-                const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-                const encryptedBuffer = new Uint8Array(totalLength);
-                let offset = 0;
-                for (const chunk of chunks) {
-                    encryptedBuffer.set(chunk, offset);
-                    offset += chunk.length;
-                }
-
-                // 2. Decrypt
-                const cryptoKey = await ensureKey();
-                if (!cryptoKey) {
-                    throw new Error("Signature required for decryption.");
-                }
-                
-                // Pass the Uint8Array directly to decryptFile for better compatibility
-                const { blob, metadata } = await decryptFile(encryptedBuffer, cryptoKey);
-
-                const url = URL.createObjectURL(blob);
-                const name = metadata.name.toLowerCase();
-
-                setDecryptedData({
-                    url,
-                    name: metadata.name,
-                    type: metadata.type,
-                    isImage: !!name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/),
-                    isVideo: !!name.match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/),
-                    isText: !!name.match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/),
-                    isAudio: !!name.match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
-                    isDocument: !!name.match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
-                });
-                setIsProcessing(false);
-            } catch (err) {
-                console.error(`Decryption attempt ${retryCount + 1} failed:`, err);
-
-                const errorMessage = err instanceof Error ? err.message : String(err);
-                const is404 = errorMessage.includes('404') || errorMessage.toLowerCase().includes('not found');
-
-                if (is404 && retryCount < 3) {
-                    const delay = 3000 * (retryCount + 1);
-                    console.log(`Retrying decryption in ${delay}ms... (Attempt ${retryCount + 1})`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return runDecryptionWithRetry(retryCount + 1);
-                }
-
-                setFetchError(is404
-                    ? 'File belum tersedia di jaringan (Indexing). Silakan tunggu beberapa saat dan coba lagi.'
-                    : (err instanceof Error ? err.message : 'Gagal mendekripsi file. Pastikan Anda menyetujui tanda tangan wallet.'));
-                setIsProcessing(false);
+            const reader = shelbyBlob.readable.getReader();
+            const chunks: Uint8Array[] = [];
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
             }
-        };
+            const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
+            const encryptedBuffer = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of chunks) {
+                encryptedBuffer.set(chunk, offset);
+                offset += chunk.length;
+            }
 
-        runDecryptionWithRetry();
-    }, [isOpen, blobName, blobAccount, accountAddress]);
+            // 2. Decrypt
+            const cryptoKey = await ensureKey();
+            if (!cryptoKey) {
+                throw new Error("Signature required for decryption.");
+            }
+            
+            const { blob, metadata } = await decryptFile(encryptedBuffer, cryptoKey);
+
+            const url = URL.createObjectURL(blob);
+            const name = metadata.name.toLowerCase();
+
+            setDecryptedData({
+                url,
+                name: metadata.name,
+                type: metadata.type,
+                isImage: !!name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/),
+                isVideo: !!name.match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/),
+                isText: !!name.match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/),
+                isAudio: !!name.match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
+                isDocument: !!name.match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
+            });
+            setIsProcessing(false);
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            const is404 = errorMsg.includes('404') || errorMsg.toLowerCase().includes('not found');
+            const isDecryptionError = errorMsg.toLowerCase().includes('decrypt') || errorMsg.toLowerCase().includes('session key');
+
+            if (is404 && retryCount < 3) {
+                const delay = 2000 * (retryCount + 1);
+                console.log(`Retrying decryption in ${delay}ms... (Attempt ${retryCount + 2})`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return runDecryptionWithRetry(retryCount + 1);
+            }
+
+            if (isDecryptionError) {
+                setFetchError('DECRYPTION_FAILED');
+            } else if (is404) {
+                setFetchError('INDEXING');
+            } else {
+                setFetchError(errorMsg);
+            }
+            setIsProcessing(false);
+        }
+    }, [blobName, blobAccount, shelbyClient, accountAddress, ensureKey]);
+
+    useEffect(() => {
+        if (isOpen) {
+            runDecryptionWithRetry();
+        } else {
+            setDecryptedData(null);
+        }
+    }, [isOpen, runDecryptionWithRetry]);
 
     // Clean up URLs
     useEffect(() => {
@@ -364,11 +367,54 @@ export function LinkPreviewModal({
                                     </div>
                                     <span className="text-color-primary font-mono text-xs tracking-[0.2em] uppercase animate-pulse">Decrypting...</span>
                                 </div>
+                            ) : fetchError === 'DECRYPTION_FAILED' ? (
+                                <div className="flex flex-col items-center gap-8 text-center px-8 md:px-12 py-10 max-w-lg">
+                                    <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 relative">
+                                        <Lock size={40} className="text-red-500/60" />
+                                        <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white border-4 border-[#0A0A0A]">
+                                            <X size={16} strokeWidth={3} />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-4">
+                                        <h3 className="text-2xl font-bold text-white tracking-tight">Decryption Error</h3>
+                                        <p className="text-color-support/60 text-sm leading-relaxed">
+                                            Kunci enkripsi Anda tidak cocok dengan asset ini. Hal ini biasanya terjadi jika Anda membuka vault di **browser atau perangkat berbeda**.
+                                        </p>
+                                        
+                                        <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-left space-y-3">
+                                            <p className="text-[10px] uppercase tracking-widest font-bold text-color-primary">Cara Mengatasi:</p>
+                                            <ul className="text-xs text-color-support/80 space-y-2 list-disc pl-4">
+                                                <li>Gunakan menu **Settings** lalu klik **"Re-Unlock Vault"** untuk sinkronisasi ulang tanda tangan wallet.</li>
+                                                <li>Atau gunakan **"Import Master Key"** jika Anda memiliki backup kunci dari perangkat sebelumnya.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => runDecryptionWithRetry(0)}
+                                        className="inline-flex items-center gap-2 text-color-primary hover:text-white transition-colors text-xs font-bold uppercase tracking-widest group"
+                                    >
+                                        <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" />
+                                        Coba Lagi
+                                    </button>
+                                </div>
+                            ) : fetchError === 'INDEXING' ? (
+                                <div className="flex flex-col items-center gap-6 text-center px-10">
+                                    <div className="w-16 h-16 rounded-full border-4 border-color-primary/10 border-t-color-primary animate-spin" />
+                                    <div className="space-y-2">
+                                        <h3 className="text-white font-bold text-lg">Indexing Asset...</h3>
+                                        <p className="text-color-support/60 text-sm max-w-xs">File sedang diproses oleh jaringan desentralisasi. Silakan tunggu 1-2 menit.</p>
+                                    </div>
+                                </div>
                             ) : fetchError ? (
                                 <div className="flex flex-col items-center gap-4 text-center px-10">
-                                    <Lock size={48} className="text-red-500/50 mb-2" />
-                                    <h3 className="text-white font-bold text-lg">Decryption Failed</h3>
-                                    <p className="text-color-support/60 text-sm max-w-xs">{fetchError}</p>
+                                    <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-2">
+                                        <X size={32} className="text-red-500" />
+                                    </div>
+                                    <h3 className="text-white font-bold text-lg">Network Error</h3>
+                                    <p className="text-color-support/60 text-sm max-w-xs font-mono text-[10px] break-all">{fetchError}</p>
+                                    <button onClick={() => runDecryptionWithRetry(0)} className="mt-4 px-6 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold uppercase">Retry</button>
                                 </div>
                             ) : decryptedData ? (
                                 <>
