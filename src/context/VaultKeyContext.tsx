@@ -20,9 +20,37 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
     const { signMessage, account, connected } = useWallet();
     const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
 
+    // Load key from localStorage on mount or account change
+    React.useEffect(() => {
+        const loadPersistedKey = async () => {
+            if (!account || typeof window === 'undefined') return;
+            const savedKey = localStorage.getItem(`soobin_vault_key_${account.address}`);
+            if (savedKey) {
+                try {
+                    const bytes = new Uint8Array(
+                        atob(savedKey).split("").map(c => c.charCodeAt(0))
+                    );
+                    const key = await window.crypto.subtle.importKey(
+                        'raw',
+                        bytes,
+                        { name: 'AES-GCM', length: 256 },
+                        true,
+                        ['encrypt', 'decrypt']
+                    );
+                    setEncryptionKey(key);
+                    console.log("[Vault] Key restored from local persistence.");
+                } catch (e) {
+                    console.error("Failed to restore persisted key");
+                }
+            }
+        };
+        loadPersistedKey();
+    }, [account]);
+
     const lockVault = () => {
         setEncryptionKey(null);
-        toast.success("Vault locked. Memory cleared.");
+        if (account) localStorage.removeItem(`soobin_vault_key_${account.address}`);
+        toast.success("Vault locked and persistence cleared.");
     };
 
     const ensureKey = async (): Promise<CryptoKey | null> => {
@@ -81,9 +109,13 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             const key = await deriveKeyFromSignature(canonicalSignature, canonicalSalt);
             setEncryptionKey(key);
             
+            // Persist the key for automatic unlock next time
+            const rawKey = await window.crypto.subtle.exportKey('raw', key);
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
+            localStorage.setItem(`soobin_vault_key_${account.address}`, base64);
+            
             // Log key fingerprint (sharing first 4 chars of hash is safe for debugging)
-            const keyBuffer = await window.crypto.subtle.exportKey('raw', key);
-            const keyHash = await window.crypto.subtle.digest('SHA-256', keyBuffer);
+            const keyHash = await window.crypto.subtle.digest('SHA-256', rawKey);
             const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
             console.log(`[Vault] Session key derived. Fingerprint: ${fingerprint}`);
             
@@ -111,6 +143,9 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             );
             
             setEncryptionKey(key);
+            
+            // Persist for future sessions on this device
+            localStorage.setItem(`soobin_vault_key_${account?.address}`, base64);
             
             // Log fingerprint for consistency check
             const keyHash = await window.crypto.subtle.digest('SHA-256', bytes);
