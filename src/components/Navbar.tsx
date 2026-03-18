@@ -151,7 +151,7 @@ export default function Navbar(): React.ReactNode {
                             lockVault();
                             setIsSettingsOpen(false);
                         }}
-                        className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-red-400 hover:text-red-500 hover:bg-red-500/5 active:bg-red-500/10 rounded-xl transition-all"
+                        className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-red-500/60 hover:text-red-500 hover:bg-red-500/5 rounded-xl transition-all"
                     >
                         <LogOut size={18} />
                         Lock Session
@@ -163,10 +163,17 @@ export default function Navbar(): React.ReactNode {
                         setIsSettingsOpen(false);
                         lockVault();
                     }}
-                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/30 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
+                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/30 hover:text-red-400 hover:bg-red-500/5 rounded-xl transition-all"
+                >
+                    <LogOut size={18} />
+                    Disconnect Wallet
+                </button>
+                <button 
+                    onClick={() => setIsSettingsOpen(false)}
+                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/20 hover:text-white hover:bg-white/5 rounded-xl transition-all"
                 >
                     <X size={18} />
-                    Close
+                    Close Menu
                 </button>
             </div>
         </div>
