@@ -166,7 +166,7 @@ export default function Navbar(): React.ReactNode {
                     className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/30 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
                 >
                     <X size={18} />
-                    Disconnect Wallet
+                    Close
                 </button>
             </div>
         </div>
