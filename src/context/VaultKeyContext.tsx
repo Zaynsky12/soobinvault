@@ -44,15 +44,8 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                 }
             }
         };
-
-        if (connected && account) {
-            loadPersistedKey();
-        } else if (!connected && encryptionKey) {
-            // Auto-lock when wallet is manually disconnected or extension log out
-            setEncryptionKey(null);
-            console.log("[Vault] Wallet disconnected. Session auto-locked.");
-        }
-    }, [account, connected, encryptionKey]);
+        loadPersistedKey();
+    }, [account]);
 
     const lockVault = () => {
         setEncryptionKey(null);
