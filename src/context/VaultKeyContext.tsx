@@ -36,7 +36,8 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
         try {
             // Request signature for deterministic key derivation
             const response = await signMessage({
-                message: SIGN_MESSAGE
+                message: SIGN_MESSAGE,
+                nonce: "soobinvault-v1"
             });
 
             // Extract signature - response.signature can be string or object depending on wallet
