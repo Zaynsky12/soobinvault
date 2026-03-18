@@ -111,9 +111,8 @@ export default function Navbar(): React.ReactNode {
                             ))}
                         </nav>
 
-                        {/* Wallet CTA & Mobile Toggle */}
-                        {/* Wallet CTA & Mobile Toggle */}
                         <div className="flex items-center gap-4">
+                            {/* Desktop Actions */}
                             <div className="hidden md:flex items-center gap-3">
                                 {connected && (
                                     <div className="relative">
@@ -216,17 +215,66 @@ export default function Navbar(): React.ReactNode {
                                     className="bg-color-primary/10 border border-color-primary/30 text-color-primary hover:bg-color-primary hover:border-color-primary hover:text-[#1A0D12] text-sm px-6 py-2.5 shadow-[0_0_20px_rgba(251,179,204,0.15)] hover:shadow-[0_0_30px_rgba(251,179,204,0.4)]"
                                     onClick={handleWalletClick}
                                 >
-                                    {isLoading ? "Wait..." : connected && account ? `${account.address.toString().slice(0, 4)}...${account.address.toString().slice(-4)}` : "Connect Wallet"}
+                                    {isLoading ? "Wait..." : (connected && account) ? `${account.address.toString().slice(0, 4)}...${account.address.toString().slice(-4)}` : "Connect Wallet"}
                                 </MagneticButton>
                             </div>
 
-                            {/* Mobile Menu Button */}
-                            <button
-                                className="md:hidden text-color-support hover:text-white p-2"
-                                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            >
-                                {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                            </button>
+                            {/* Mobile Actions */}
+                            <div className="flex md:hidden items-center gap-2">
+                                {connected && (
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                            className={`p-2 rounded-xl border transition-all duration-300 ${isSettingsOpen ? 'bg-white/10 border-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.1)]' : 'bg-white/5 border-transparent text-white/40'}`}
+                                        >
+                                            <Settings size={20} className={isSettingsOpen ? 'rotate-90' : ''} />
+                                        </button>
+                                        
+                                        {isSettingsOpen && (
+                                            <div className="fixed inset-x-6 top-[100px] bg-[#0B1121]/95 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden py-2 z-[60] animate-in fade-in zoom-in-95 duration-300 transform-gpu">
+                                                <div className="px-4 py-3 border-b border-white/5 bg-white/5">
+                                                    <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1 text-center">Security Protocol</p>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-medium text-white/80">Vault Status</span>
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${encryptionKey ? 'bg-green-500/20 text-green-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                                                            {encryptionKey ? 'UNLOCKED' : 'LOCKED'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-1 gap-1 p-2">
+                                                    <button onClick={() => { ensureKey(); setIsSettingsOpen(false); }} className="w-full px-4 py-4 flex items-center gap-3 text-sm text-white/70 active:bg-white/10 rounded-xl transition-colors">
+                                                        <Key size={18} /> {encryptionKey ? "Refresh Connection" : "Unlock Vault"}
+                                                    </button>
+                                                    {encryptionKey && (
+                                                        <button onClick={async () => {
+                                                            const keyBuffer = await window.crypto.subtle.exportKey('raw', encryptionKey);
+                                                            const base64 = btoa(String.fromCharCode(...new Uint8Array(keyBuffer)));
+                                                            await navigator.clipboard.writeText(base64);
+                                                            toast.success("Key Copied!");
+                                                            setIsSettingsOpen(false);
+                                                        }} className="w-full px-4 py-4 flex items-center gap-3 text-sm text-color-primary active:bg-white/10 rounded-xl transition-colors">
+                                                            <Shield size={18} /> Backup Master Key
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => { lockVault(); setIsSettingsOpen(false); }} className="w-full px-4 py-4 flex items-center gap-3 text-sm text-red-500 active:bg-red-500/10 rounded-xl transition-colors">
+                                                        <LogOut size={18} /> Close Session
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <button
+                                    className="text-color-support hover:text-white p-2 bg-white/5 rounded-xl border border-transparent"
+                                    onClick={() => {
+                                        setMobileMenuOpen(!mobileMenuOpen);
+                                        setIsSettingsOpen(false);
+                                    }}
+                                >
+                                    {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -245,28 +293,6 @@ export default function Navbar(): React.ReactNode {
                                 </Link>
                             ))}
                             <div className="pt-6 border-t border-white/10 flex flex-col gap-4">
-                                {connected && (
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button 
-                                            onClick={() => {
-                                                lockVault();
-                                                setMobileMenuOpen(false);
-                                            }}
-                                            className="px-4 py-3 bg-white/5 border border-white/10 text-white text-sm rounded-xl font-medium"
-                                        >
-                                            Lock Vault
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                ensureKey();
-                                                setMobileMenuOpen(false);
-                                            }}
-                                            className="px-4 py-3 bg-color-primary/20 border border-color-primary/30 text-color-primary text-sm rounded-xl font-medium"
-                                        >
-                                            {encryptionKey ? 'Key Active' : 'Unlock'}
-                                        </button>
-                                    </div>
-                                )}
                                 <button
                                     className="w-full bg-gradient-to-r from-color-primary to-color-accent text-white rounded-full py-4 font-bold shadow-[0_0_30px_rgba(232,58,118,0.3)]"
                                     onClick={() => {
@@ -274,7 +300,7 @@ export default function Navbar(): React.ReactNode {
                                         setMobileMenuOpen(false);
                                     }}
                                 >
-                                    {isLoading ? "Connecting..." : connected && account ? "Disconnect Wallet" : "Connect Wallet"}
+                                    {isLoading ? "Connecting..." : (connected && account) ? "Disconnect Wallet" : "Connect Wallet"}
                                 </button>
                             </div>
                         </div>
