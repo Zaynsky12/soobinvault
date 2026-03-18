@@ -127,7 +127,18 @@ export function Dashboard() {
         };
 
         window.addEventListener('vault:uploadSuccess', handleUploadSuccess);
-        return () => window.removeEventListener('vault:uploadSuccess', handleUploadSuccess);
+        
+        // Listen for manual refresh from Navbar
+        const handleManualRefresh = () => {
+            fetchBlobs();
+        };
+
+        window.addEventListener('vault:refresh', handleManualRefresh);
+
+        return () => {
+            window.removeEventListener('vault:uploadSuccess', handleUploadSuccess);
+            window.removeEventListener('vault:refresh', handleManualRefresh);
+        };
     }, [account, shelbyClient]);
 
     useEffect(() => {
@@ -233,17 +244,29 @@ export function Dashboard() {
                             <span className="text-2xl md:text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
                         </div>
 
-                        <div className="dash-stat w-full md:min-w-[320px] relative group/search">
-                            <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-color-support/30 group-focus-within/search:text-color-primary transition-colors">
-                                <Search size={18} />
+                        <div className="dash-stat w-full md:min-w-[320px] relative group/search flex items-center gap-3">
+                            <div className="relative flex-grow">
+                                <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-color-support/30 group-focus-within/search:text-color-primary transition-colors">
+                                    <Search size={18} />
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Search Vault..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full bg-[#0A0A0A]/60 border border-white/10 rounded-2xl py-4 pl-14 pr-6 text-white text-sm outline-none focus:border-color-primary/40 focus:bg-[#0A0A0A]/80 transition-all glass-panel placeholder:text-color-support/20 font-medium"
+                                />
                             </div>
-                            <input
-                                type="text"
-                                placeholder="Search Vault..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-[#0A0A0A]/60 border border-white/10 rounded-2xl py-4 pl-14 pr-6 text-white text-sm outline-none focus:border-color-primary/40 focus:bg-[#0A0A0A]/80 transition-all glass-panel placeholder:text-color-support/20 font-medium"
-                            />
+                            
+                            <button 
+                                onClick={() => fetchBlobs()}
+                                disabled={isLoading}
+                                className={`h-[58px] px-6 rounded-2xl border border-white/10 bg-[#0A0A0A]/60 text-color-support/50 hover:text-white hover:border-white/20 hover:bg-[#0A0A0A]/80 transition-all flex items-center justify-center gap-3 group/sync ${isLoading ? 'opacity-50' : ''}`}
+                                title="Manual Sync"
+                            >
+                                <RefreshCw size={18} className={`transition-transform duration-700 ${isLoading ? 'animate-spin' : 'group-hover/sync:rotate-180'}`} />
+                                <span className="hidden lg:inline text-xs font-bold uppercase tracking-widest whitespace-nowrap">Sync</span>
+                            </button>
                         </div>
                     </div>
                 </div>

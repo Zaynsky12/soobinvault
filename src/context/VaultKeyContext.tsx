@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 
 interface VaultKeyContextType {
     encryptionKey: CryptoKey | null;
-    ensureKey: () => Promise<CryptoKey | null>;
+    ensureKey: (force?: boolean) => Promise<CryptoKey | null>;
     importKeyManual: (base64: string) => Promise<boolean>;
     lockVault: () => void;
 }
@@ -53,8 +53,8 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
         toast.success("Vault locked and persistence cleared.");
     };
 
-    const ensureKey = async (): Promise<CryptoKey | null> => {
-        if (encryptionKey) return encryptionKey;
+    const ensureKey = async (force: boolean = false): Promise<CryptoKey | null> => {
+        if (encryptionKey && !force) return encryptionKey;
 
         if (!connected || !account) {
             toast.error("Please connect your wallet first");

@@ -94,13 +94,13 @@ export default function Navbar(): React.ReactNode {
             <div className="grid grid-cols-1 gap-1 p-2">
                 <button 
                     onClick={() => {
-                        ensureKey();
+                        ensureKey(true);
                         setIsSettingsOpen(false);
                     }}
                     className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/70 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
                 >
                     <Key size={18} />
-                    {encryptionKey ? "Refresh Connection" : "Unlock Secure Vault"}
+                    {encryptionKey ? "Re-Unlock Vault" : "Unlock Secure Vault"}
                 </button>
                 
                 {encryptionKey && (
@@ -121,7 +121,19 @@ export default function Navbar(): React.ReactNode {
 
                 <button 
                     onClick={() => {
-                        const key = prompt("Paste your Master Key here to unlock:");
+                        window.dispatchEvent(new CustomEvent('vault:refresh'));
+                        setIsSettingsOpen(false);
+                        toast.success("Synchronizing with decentralized network...");
+                    }}
+                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/70 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
+                >
+                    <RefreshCw size={18} />
+                    Sync Assets
+                </button>
+
+                <button 
+                    onClick={() => {
+                        const key = prompt("Paste your Master Key here to restore your session:");
                         if (key) {
                             importKeyManual(key);
                             setIsSettingsOpen(false);
@@ -129,8 +141,8 @@ export default function Navbar(): React.ReactNode {
                     }}
                     className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
                 >
-                    <RefreshCw size={18} />
-                    Manual Sync
+                    <Key size={18} />
+                    Import Master Key
                 </button>
 
                 <a 
