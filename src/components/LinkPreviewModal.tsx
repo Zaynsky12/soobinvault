@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Copy, CheckCircle, Image as ImageIcon, FileText, Download, Loader2, RefreshCw, Link as LinkIcon } from 'lucide-react';
+import { X, FileText, Download, Loader2, RefreshCw, Music } from 'lucide-react';
 import gsap from 'gsap';
 import { GlassCard } from './ui/GlassCard';
 
@@ -14,6 +14,7 @@ interface LinkPreviewModalProps {
     isImage: boolean;
     isVideo: boolean;
     isText: boolean;
+    isAudio: boolean;
     onDownload: () => void;
     apiKey?: string;
     onFetch?: () => Promise<ReadableStream<Uint8Array> | null>;
@@ -30,6 +31,7 @@ export function LinkPreviewModal({
     isImage,
     isVideo,
     isText,
+    isAudio,
     onDownload,
     apiKey: propApiKey,
     onFetch
@@ -122,23 +124,24 @@ export function LinkPreviewModal({
             }
 
             // Force correct MIME type for previewing
+            const ext = assetName.split('.').pop()?.toLowerCase() || '';
             let forcedMimeType = rawBlob.type;
-            if (isPdf) {
-                forcedMimeType = 'application/pdf';
-            } else if (isImage) {
-                const ext = assetName.split('.').pop()?.toLowerCase();
-                if (ext === 'jpg' || ext === 'jpeg') forcedMimeType = 'image/jpeg';
-                else if (ext === 'png') forcedMimeType = 'image/png';
-                else if (ext === 'gif') forcedMimeType = 'image/gif';
-                else if (ext === 'webp') forcedMimeType = 'image/webp';
-                else if (ext === 'svg') forcedMimeType = 'image/svg+xml';
-            } else if (isVideo) {
-                const ext = assetName.split('.').pop()?.toLowerCase();
-                if (ext === 'mp4') forcedMimeType = 'video/mp4';
-                else if (ext === 'webm') forcedMimeType = 'video/webm';
-                else if (ext === 'ogg') forcedMimeType = 'video/ogg';
-                else forcedMimeType = 'video/mp4'; // fallback
-            }
+            const mimeMap: Record<string, string> = {
+                // Images
+                jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+                webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff',
+                ico: 'image/x-icon', avif: 'image/avif',
+                // Video
+                mp4: 'video/mp4', webm: 'video/webm', ogg: 'video/ogg', mov: 'video/quicktime',
+                mkv: 'video/x-matroska', avi: 'video/x-msvideo', m4v: 'video/mp4',
+                flv: 'video/x-flv', wmv: 'video/x-ms-wmv', '3gp': 'video/3gpp',
+                // Audio
+                mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', aac: 'audio/aac',
+                m4a: 'audio/mp4', opus: 'audio/ogg', wma: 'audio/x-ms-wma',
+                // PDF
+                pdf: 'application/pdf',
+            };
+            if (mimeMap[ext]) forcedMimeType = mimeMap[ext];
             const typedBlob = new Blob([rawBlob], { type: forcedMimeType });
             const url = URL.createObjectURL(typedBlob);
             setBlobUrl(url);
@@ -292,10 +295,21 @@ export function LinkPreviewModal({
                                         <div className="w-full h-full p-4 overflow-auto bg-[#0a0a0a] text-color-support/80 font-mono text-xs leading-relaxed whitespace-pre">
                                             {textContent || "Loading content..."}
                                         </div>
+                                    ) : isAudio ? (
+                                        <div className="flex flex-col items-center gap-6 px-8 py-4 w-full">
+                                            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-color-primary/30 to-color-accent/30 flex items-center justify-center border border-white/10 shadow-[0_0_30px_rgba(232,58,118,0.2)]">
+                                                <Music size={48} className="text-color-primary" />
+                                            </div>
+                                            <p className="text-sm text-white/60 font-medium truncate max-w-full">{assetName}</p>
+                                            <audio controls className="w-full rounded-xl" src={blobUrl ?? undefined}>
+                                                Your browser does not support audio playback.
+                                            </audio>
+                                        </div>
                                     ) : (
-                                        <div className="flex flex-col items-center gap-4 text-color-support/40">
-                                            <FileText size={80} strokeWidth={1} />
-                                            <p className="text-sm font-medium">Preview not available for this file type</p>
+                                        <div className="flex flex-col items-center gap-3 text-color-support/40 px-6 text-center">
+                                            <FileText size={64} strokeWidth={1} />
+                                            <p className="text-sm font-semibold text-white/60">No inline preview available</p>
+                                            <p className="text-xs text-white/30">Download the file to open it locally.</p>
                                         </div>
                                     )}
                                 </>

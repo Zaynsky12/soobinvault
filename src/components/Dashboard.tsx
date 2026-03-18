@@ -33,6 +33,7 @@ export function Dashboard() {
         isImage: boolean;
         isVideo: boolean;
         isText: boolean;
+        isAudio: boolean;
         hash: string;
         txHash: string;
         blobAccount: string;
@@ -273,9 +274,10 @@ export function Dashboard() {
                                             asset.blobNameSuffix ||
                                             (typeof asset.name === 'string' ? asset.name.replace(/^@[^/]+\//, '') : asset.name);
                                         const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
-                                        const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg)$/);
-                                        const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov)$/);
-                                        const isTxt = !!displayName.toLowerCase().match(/\.(txt|md|json|js|ts|tsx|html|css|py|go|rust|c|cpp|rs)$/);
+                                        const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/);
+                                        const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/);
+                                        const isTxt = !!displayName.toLowerCase().match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/);
+                                        const isAudio = !!displayName.toLowerCase().match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/);
 
                                         // Robust extraction of identifier and name from indexer "@identifier/path" format
                                         const nameStr = typeof asset.name === 'string' ? asset.name : '';
@@ -351,6 +353,7 @@ export function Dashboard() {
                                                 isImage: isImg,
                                                 isVideo: isVid,
                                                 isText: isTxt,
+                                                isAudio: isAudio,
                                                 hash: assetHash,
                                                 txHash: txHash,
                                                 blobAccount: resolvedAccount,
@@ -408,6 +411,7 @@ export function Dashboard() {
                 isImage={selectedAsset?.isImage || false}
                 isVideo={selectedAsset?.isVideo || false}
                 isText={selectedAsset?.isText || false}
+                isAudio={selectedAsset?.isAudio || false}
                 apiKey={shelbyClient.rpc.apiKey}
                 onFetch={selectedAsset?.blobAccount && selectedAsset?.blobName ? async () => {
                     try {
