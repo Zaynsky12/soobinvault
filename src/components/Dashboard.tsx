@@ -88,11 +88,11 @@ export function Dashboard() {
             const msg = (error?.message || String(error)).toLowerCase();
 
             if (msg.includes('monthlycredit cap') || msg.includes('credit refresh')) {
-                toast.error("Limit kredit bulanan Shelby Protocol tercapai. Silakan cek billing di geomi.dev.", { duration: 6000 });
+                toast.error("Monthly credit cap reached for Shelby Protocol. Please check billing at geomi.dev.", { duration: 6000 });
             } else if (msg.includes('401') || msg.includes('unauthorized')) {
-                toast.error("Sesi tidak valid/API Key bermasalah. Silakan login ulang.");
+                toast.error("Invalid session or API Key issue. Please log in again.");
             } else {
-                toast.error("Gagal sinkronisasi dengan Vault (Network Error).");
+                toast.error("Failed to synchronize with Vault (Network Error).");
             }
         } finally {
             setIsLoading(false);
@@ -540,7 +540,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
         if (e) e.stopPropagation();
 
         if (status !== 'live') {
-            toast("File sedang dalam proses indexing. Coba lagi sebentar lagi.", { icon: '⏳' });
+            toast("File is still indexing. Please try again in 30 seconds.", { icon: '⏳' });
             return;
         }
 
@@ -674,7 +674,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                         if (status === 'live') {
                             handleDownload();
                         } else {
-                            toast("File sedang dalam proses finalisasi di jaringan. Coba lagi dalam 30 detik.", {
+                            toast("File is being finalized on the network. Please retry in 30 seconds.", {
                                 icon: '⏳'
                             });
                         }

@@ -379,14 +379,14 @@ export function LinkPreviewModal({
                                     <div className="space-y-4">
                                         <h3 className="text-2xl font-bold text-white tracking-tight">Decryption Error</h3>
                                         <p className="text-color-support/60 text-sm leading-relaxed">
-                                            Kunci enkripsi Anda tidak cocok dengan asset ini. Hal ini biasanya terjadi jika Anda membuka vault di **browser atau perangkat berbeda**.
+                                            Your encryption key does not match this asset. This typically happens if you open the vault in a **different browser or device**.
                                         </p>
                                         
                                         <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-left space-y-3">
-                                            <p className="text-[10px] uppercase tracking-widest font-bold text-color-primary">Cara Mengatasi:</p>
+                                            <p className="text-[10px] uppercase tracking-widest font-bold text-color-primary">How to Fix:</p>
                                             <ul className="text-xs text-color-support/80 space-y-2 list-disc pl-4">
-                                                <li>Gunakan menu **Settings** lalu klik **"Re-Unlock Vault"** untuk sinkronisasi ulang tanda tangan wallet.</li>
-                                                <li>Atau gunakan **"Import Master Key"** jika Anda memiliki backup kunci dari perangkat sebelumnya.</li>
+                                                <li>Go to the **Settings** menu and click **"Re-Unlock Vault"** to re-synchronize your wallet signature.</li>
+                                                <li>Or use **"Import Master Key"** if you have a key backup from a previous session or device.</li>
                                             </ul>
                                         </div>
                                     </div>
@@ -396,7 +396,7 @@ export function LinkPreviewModal({
                                         className="inline-flex items-center gap-2 text-color-primary hover:text-white transition-colors text-xs font-bold uppercase tracking-widest group"
                                     >
                                         <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" />
-                                        Coba Lagi
+                                        Try Again
                                     </button>
                                 </div>
                             ) : fetchError === 'INDEXING' ? (
@@ -404,7 +404,7 @@ export function LinkPreviewModal({
                                     <div className="w-16 h-16 rounded-full border-4 border-color-primary/10 border-t-color-primary animate-spin" />
                                     <div className="space-y-2">
                                         <h3 className="text-white font-bold text-lg">Indexing Asset...</h3>
-                                        <p className="text-color-support/60 text-sm max-w-xs">File sedang diproses oleh jaringan desentralisasi. Silakan tunggu 1-2 menit.</p>
+                                        <p className="text-color-support/60 text-sm max-w-xs">The file is being processed by the decentralized network. Please wait 1-2 minutes.</p>
                                     </div>
                                 </div>
                             ) : fetchError ? (
