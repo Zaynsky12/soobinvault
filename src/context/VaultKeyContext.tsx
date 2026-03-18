@@ -72,8 +72,12 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                 : signature.toLowerCase();
 
             // Derive 32-byte key from canonical signature + account address as salt
-            const salt = account.address.toString().toLowerCase();
-            const key = await deriveKeyFromSignature(canonicalSignature, salt);
+            // Normalisasi Alamat: Ambil string tanpa 0x, lalu pad ke 64 karakter (32 bytes)
+            const rawAddress = account.address.toString().toLowerCase();
+            const addressWithout0x = rawAddress.startsWith('0x') ? rawAddress.slice(2) : rawAddress;
+            const canonicalSalt = addressWithout0x.padStart(64, '0');
+            
+            const key = await deriveKeyFromSignature(canonicalSignature, canonicalSalt);
             setEncryptionKey(key);
             
             // Log key fingerprint (sharing first 4 chars of hash is safe for debugging)
