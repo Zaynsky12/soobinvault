@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown } from 'lucide-react';
+import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown, RefreshCw } from 'lucide-react';
 import gsap from 'gsap';
 import Link from 'next/link';
 import { MagneticButton } from './ui/MagneticButton';
@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 
 export default function Navbar(): React.ReactNode {
     const { disconnect, connected, account, isLoading } = useWallet();
-    const { encryptionKey, lockVault, ensureKey } = useVaultKey();
+    const { encryptionKey, lockVault, ensureKey, importKeyManual } = useVaultKey();
     const [isScrolled, setIsScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isSelectorOpen, setIsSelectorOpen] = useState(false);
@@ -67,6 +67,12 @@ export default function Navbar(): React.ReactNode {
         }
     };
 
+    const navLinks = [
+        { name: 'Home', href: '/' },
+        { name: 'Vault', href: '/vault' },
+        { name: 'Dashboard', href: '/dashboard' },
+    ];
+
     const renderSettingsContent = () => (
         <div className="w-full h-full">
             <div className="px-4 py-4 border-b border-white/5 bg-white/5">
@@ -112,6 +118,20 @@ export default function Navbar(): React.ReactNode {
                         Backup Master Key
                     </button>
                 )}
+
+                <button 
+                    onClick={() => {
+                        const key = prompt("Paste your Master Key here to unlock:");
+                        if (key) {
+                            importKeyManual(key);
+                            setIsSettingsOpen(false);
+                        }
+                    }}
+                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
+                >
+                    <RefreshCw size={18} />
+                    Manual Sync
+                </button>
 
                 <a 
                     href={`https://explorer.aptoslabs.com/account/${account?.address}?network=mainnet`}

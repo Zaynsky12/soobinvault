@@ -222,52 +222,6 @@ export function Dashboard() {
                                 Vault Protocol {connected ? 'Active' : 'Inactive'}
                             </span>
                         </div>
-                        <div className="flex flex-wrap gap-3 mb-8">
-                            {connected && !encryptionKey && (
-                                <button
-                                    onClick={() => ensureKey()}
-                                    className="px-8 py-4 bg-gradient-to-r from-color-primary to-color-accent text-white rounded-2xl font-bold hover:scale-105 transition-all shadow-xl shadow-color-primary/20 flex items-center gap-2 group"
-                                >
-                                    <Key size={20} className="group-hover:rotate-12 transition-transform" />
-                                    Unlock Secure Vault
-                                </button>
-                            )}
-                            {connected && encryptionKey && (
-                                <button
-                                    onClick={() => lockVault()}
-                                    className="px-6 py-4 bg-white/5 border border-white/10 text-white/40 rounded-2xl font-bold hover:bg-red-500/10 hover:text-red-500 transition-all flex items-center gap-2"
-                                >
-                                    <Lock size={18} />
-                                    Lock Vault
-                                </button>
-                            )}
-                            {connected && (
-                                <button
-                                    onClick={() => {
-                                        const key = prompt("Paste your Master Key here to unlock:");
-                                        if (key) importKeyManual(key);
-                                    }}
-                                    className="px-6 py-4 bg-white/5 border border-white/10 text-white/40 rounded-2xl font-bold hover:bg-white/10 hover:text-color-primary transition-all flex items-center gap-2"
-                                >
-                                    <RefreshCw size={18} />
-                                    Manual Sync
-                                </button>
-                            )}
-                            {connected && encryptionKey && (
-                                <button
-                                    onClick={async () => {
-                                        const keyBuffer = await window.crypto.subtle.exportKey('raw', encryptionKey);
-                                        const base64 = btoa(String.fromCharCode(...new Uint8Array(keyBuffer)));
-                                        await navigator.clipboard.writeText(base64);
-                                        toast.success("Master Key copied to clipboard! Sync this to your other device.");
-                                    }}
-                                    className="px-6 py-4 bg-color-primary/10 border border-color-primary/20 text-color-primary rounded-2xl hover:bg-color-primary/20 transition-all font-bold flex items-center gap-2"
-                                >
-                                    <CheckCircle2 size={18} />
-                                    Backup Key
-                                </button>
-                            )}
-                        </div>
                         <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none text-center md:text-left">{connected ? 'My Vault' : 'Your Vault'}</h2>
                         <p className="text-color-support/60 text-base sm:text-lg font-normal max-w-md leading-relaxed text-center md:text-left mx-auto md:mx-0">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
                     </div>
