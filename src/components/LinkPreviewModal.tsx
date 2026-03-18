@@ -331,10 +331,7 @@ export function LinkPreviewModal({
                                                             <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border mb-3 ${isSpreadsheet ? 'bg-green-500/10 border-green-500/20 text-green-400' : isPresentation ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : isArchive ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>.{ext}</span>
                                                             <p className="text-sm font-semibold text-white/70">{assetName}</p>
                                                         </div>
-                                                        <div className="text-center text-white/30 text-xs leading-relaxed max-w-[240px]">
-                                                            <p>Browser preview isn&apos;t supported for this format.</p>
-                                                            <p className="mt-1">Download the file to open it with the appropriate application.</p>
-                                                        </div>
+
                                                     </>
                                                 );
                                             })()}
