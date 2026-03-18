@@ -25,7 +25,7 @@ export function Dashboard() {
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [optimisticAssets, setOptimisticAssets] = useState<any[]>([]);
-    const { ensureKey, encryptionKey, importKeyManual } = useVaultKey();
+    const { ensureKey, encryptionKey, importKeyManual, lockVault } = useVaultKey();
 
     // Modal State
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -222,31 +222,49 @@ export function Dashboard() {
                                 Vault Protocol {connected ? 'Active' : 'Inactive'}
                             </span>
                         </div>
-                        <div className="flex flex-wrap gap-2 mb-6">
-                            {!encryptionKey && connected && (
+                        <div className="flex flex-wrap gap-3 mb-8">
+                            {connected && !encryptionKey && (
+                                <button
+                                    onClick={() => ensureKey()}
+                                    className="px-8 py-4 bg-gradient-to-r from-color-primary to-color-accent text-white rounded-2xl font-bold hover:scale-105 transition-all shadow-xl shadow-color-primary/20 flex items-center gap-2 group"
+                                >
+                                    <Key size={20} className="group-hover:rotate-12 transition-transform" />
+                                    Unlock Secure Vault
+                                </button>
+                            )}
+                            {connected && encryptionKey && (
+                                <button
+                                    onClick={() => lockVault()}
+                                    className="px-6 py-4 bg-white/5 border border-white/10 text-white/40 rounded-2xl font-bold hover:bg-red-500/10 hover:text-red-500 transition-all flex items-center gap-2"
+                                >
+                                    <Lock size={18} />
+                                    Lock Vault
+                                </button>
+                            )}
+                            {connected && (
                                 <button
                                     onClick={() => {
                                         const key = prompt("Paste your Master Key here to unlock:");
                                         if (key) importKeyManual(key);
                                     }}
-                                    className="px-4 py-2 bg-white/5 border border-white/10 text-white/60 rounded-xl hover:bg-white/10 hover:text-color-primary transition-all duration-300 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2"
+                                    className="px-6 py-4 bg-white/5 border border-white/10 text-white/40 rounded-2xl font-bold hover:bg-white/10 hover:text-color-primary transition-all flex items-center gap-2"
                                 >
-                                    <Key size={12} />
+                                    <RefreshCw size={18} />
                                     Manual Sync
                                 </button>
                             )}
-                            {encryptionKey && (
+                            {connected && encryptionKey && (
                                 <button
                                     onClick={async () => {
                                         const keyBuffer = await window.crypto.subtle.exportKey('raw', encryptionKey);
                                         const base64 = btoa(String.fromCharCode(...new Uint8Array(keyBuffer)));
                                         await navigator.clipboard.writeText(base64);
-                                        toast.success("Master Key copied to clipboard!");
+                                        toast.success("Master Key copied to clipboard! Sync this to your other device.");
                                     }}
-                                    className="px-4 py-2 bg-color-primary/10 border border-color-primary/20 text-color-primary rounded-xl hover:bg-color-primary/20 transition-all duration-300 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2"
+                                    className="px-6 py-4 bg-color-primary/10 border border-color-primary/20 text-color-primary rounded-2xl hover:bg-color-primary/20 transition-all font-bold flex items-center gap-2"
                                 >
-                                    <LinkIcon size={12} />
-                                    Backup Master Key
+                                    <CheckCircle2 size={18} />
+                                    Backup Key
                                 </button>
                             )}
                         </div>
