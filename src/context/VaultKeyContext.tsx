@@ -45,15 +45,19 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
 
             if (typeof response.signature === 'string') {
                 signature = response.signature;
+            } else if (response.signature instanceof Uint8Array) {
+                // If it's a direct Uint8Array
+                signature = Array.from(response.signature).map(b => b.toString(16).padStart(2, '0')).join('');
             } else if (response.signature && (response.signature as any).data) {
-                // Handle Uint8Array signature in object
+                // Handle Uint8Array signature inside an object with .data field
                 const data = (response.signature as any).data;
-                if (data instanceof Uint8Array) {
+                if (data instanceof Uint8Array || Array.isArray(data)) {
                     signature = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join('');
                 } else {
                     signature = JSON.stringify(response.signature);
                 }
             } else {
+                // Fallback for any other type
                 signature = String(response.signature || "");
             }
 
@@ -80,9 +84,10 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             
             toast.success(`Vault unlocked! (Key: ${fingerprint})`, { id: toastId });
             return key;
-        } catch (error) {
-            console.error("Failed to unlock vault:", error);
-            toast.error("Failed to unlock vault. Signature required for decryption.", { id: toastId });
+        } catch (error: any) {
+            console.error("Failed to unlock vault (Full Error):", error);
+            const errorMsg = error?.message || "Signature required for decryption.";
+            toast.error(`Unlock failed: ${errorMsg}`, { id: toastId });
             return null;
         }
     };
