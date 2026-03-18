@@ -61,8 +61,15 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                  throw new Error("Signature extraction failed. Unsupported wallet signature format.");
             }
 
-            // Derive 32-byte key from signature
-            const key = await deriveKeyFromSignature(signature);
+            // Normalisasi signature agar identik di semua browser/perangkat
+            // Menghapus '0x' jika ada dan mengubah ke lowercase untuk konsistensi deterministik
+            const canonicalSignature = signature.toLowerCase().startsWith('0x') 
+                ? signature.toLowerCase().slice(2) 
+                : signature.toLowerCase();
+
+            // Derive 32-byte key from canonical signature + account address as salt
+            const salt = account.address.toString().toLowerCase();
+            const key = await deriveKeyFromSignature(canonicalSignature, salt);
             setEncryptionKey(key);
             
             toast.success("Vault unlocked! Session key derived.", { id: toastId });

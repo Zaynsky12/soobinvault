@@ -15,13 +15,22 @@ interface FileMetadata {
 
 /**
  * Derives a 256-bit AES key from a wallet signature using SHA-256.
+ * Salt (account address) added for better cross-device determinism.
  */
-export async function deriveKeyFromSignature(signature: string): Promise<CryptoKey> {
+export async function deriveKeyFromSignature(signature: string, salt?: string): Promise<CryptoKey> {
     const encoder = new TextEncoder();
-    const signatureBytes = encoder.encode(signature);
     
-    // Hash the signature to get a deterministic 256-bit (32-byte) key
-    const hashBuffer = await window.crypto.subtle.digest('SHA-256', signatureBytes);
+    // Normalize signature (remove 0x prefix if it exists and lowercase)
+    const normalizedSig = signature.toLowerCase().startsWith('0x') 
+        ? signature.toLowerCase().slice(2) 
+        : signature.toLowerCase();
+        
+    // Combine signature with salt if provided
+    const keyData = salt ? (normalizedSig + salt.toLowerCase()) : normalizedSig;
+    const keyBytes = encoder.encode(keyData);
+    
+    // Hash the normalized data to get a deterministic 256-bit (32-byte) key
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', keyBytes);
     
     // Import the hash as a raw key for AES-GCM
     return window.crypto.subtle.importKey(
