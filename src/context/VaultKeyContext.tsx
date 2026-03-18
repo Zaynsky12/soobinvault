@@ -42,10 +42,20 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                 } catch (e) {
                     console.error("Failed to restore persisted key");
                 }
+            } else if (connected) {
+                // Auto-prompt for unlock if no key exists but wallet IS connected
+                ensureKey();
             }
         };
-        loadPersistedKey();
-    }, [account]);
+        
+        if (connected && account) {
+            loadPersistedKey();
+        } else if (!connected && encryptionKey) {
+            // Auto-lock when wallet disconnects
+            setEncryptionKey(null);
+            console.log("[Vault] Wallet disconnected. Session locked.");
+        }
+    }, [account, connected]);
 
     const lockVault = () => {
         setEncryptionKey(null);
