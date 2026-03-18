@@ -37,7 +37,7 @@ export async function deriveKeyFromSignature(signature: string, salt?: string): 
         'raw',
         hashBuffer,
         { name: ALGORITHM, length: KEY_LEN },
-        false,
+        true, // Set to true to allow fingerprinting/debugging
         ['encrypt', 'decrypt']
     );
 }
