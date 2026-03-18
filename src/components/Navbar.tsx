@@ -259,7 +259,7 @@ export default function Navbar(): React.ReactNode {
                                         
                                         {/* Settings Dropdown Mobile */}
                                         {isSettingsOpen && (
-                                            <div className="fixed inset-x-6 top-[100px] bg-[#0B1121]/95 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[60] animate-in fade-in zoom-in-95 duration-300 transform-gpu">
+                                            <div className="fixed inset-x-6 top-[85px] max-h-[calc(100vh-120px)] overflow-y-auto bg-[#0B1121]/95 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl z-[60] animate-in fade-in zoom-in-95 duration-300 transform-gpu scrollbar-hide">
                                                 {renderSettingsContent()}
                                             </div>
                                         )}
