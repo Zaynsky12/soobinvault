@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 interface VaultKeyContextType {
     encryptionKey: CryptoKey | null;
     ensureKey: () => Promise<CryptoKey | null>;
+    importKeyManual: (base64: string) => Promise<boolean>;
     lockVault: () => void;
 }
 
@@ -95,9 +96,35 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             return null;
         }
     };
+    const importKeyManual = async (base64: string): Promise<boolean> => {
+        try {
+            const bytes = new Uint8Array(
+                atob(base64).split("").map(c => c.charCodeAt(0))
+            );
+            
+            const key = await window.crypto.subtle.importKey(
+                'raw',
+                bytes,
+                { name: 'AES-GCM', length: 256 },
+                true,
+                ['encrypt', 'decrypt']
+            );
+            
+            setEncryptionKey(key);
+            
+            // Log fingerprint for consistency check
+            const keyHash = await window.crypto.subtle.digest('SHA-256', bytes);
+            const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
+            toast.success(`Vault unlocked via Master Key! (Key: ${fingerprint})`);
+            return true;
+        } catch (e) {
+            toast.error("Invalid Master Key format.");
+            return false;
+        }
+    };
 
     return (
-        <VaultKeyContext.Provider value={{ encryptionKey, ensureKey, lockVault }}>
+        <VaultKeyContext.Provider value={{ encryptionKey, ensureKey, importKeyManual, lockVault }}>
             {children}
         </VaultKeyContext.Provider>
     );

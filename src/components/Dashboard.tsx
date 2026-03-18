@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2 } from 'lucide-react';
+import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
@@ -25,7 +25,7 @@ export function Dashboard() {
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [optimisticAssets, setOptimisticAssets] = useState<any[]>([]);
-    const { ensureKey } = useVaultKey();
+    const { ensureKey, encryptionKey, importKeyManual } = useVaultKey();
 
     // Modal State
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -44,7 +44,6 @@ export function Dashboard() {
         blobName: string;
     } | null>(null);
 
-    const { encryptionKey } = useVaultKey();
     const [decryptedNames, setDecryptedNames] = useState<Record<string, string>>({});
 
     // Deletion Hook
@@ -223,6 +222,17 @@ export function Dashboard() {
                                 Vault Protocol {connected ? 'Active' : 'Inactive'}
                             </span>
                         </div>
+                        {connected && !encryptionKey && (
+                            <button
+                                onClick={() => {
+                                    const key = prompt("Paste your Master Key here to unlock:");
+                                    if (key) importKeyManual(key);
+                                }}
+                                className="text-[10px] text-color-primary/60 hover:text-color-primary uppercase tracking-[0.1em] font-bold mb-4 transition-colors"
+                            >
+                                [ Manual Sync ]
+                            </button>
+                        )}
                         <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none text-center md:text-left">{connected ? 'My Vault' : 'Your Vault'}</h2>
                         <p className="text-color-support/60 text-base sm:text-lg font-normal max-w-md leading-relaxed text-center md:text-left mx-auto md:mx-0">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
                     </div>
@@ -245,6 +255,20 @@ export function Dashboard() {
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full bg-[#0A0A0A]/60 border border-white/10 rounded-2xl py-4 pl-14 pr-6 text-white text-sm outline-none focus:border-color-primary/40 focus:bg-[#0A0A0A]/80 transition-all glass-panel placeholder:text-color-support/20 font-medium"
                             />
+                            {encryptionKey && (
+                                <button 
+                                    onClick={async () => {
+                                        const keyBuffer = await window.crypto.subtle.exportKey('raw', encryptionKey);
+                                        const base64 = btoa(String.fromCharCode(...new Uint8Array(keyBuffer)));
+                                        await navigator.clipboard.writeText(base64);
+                                        toast.success("Master Key copied! Paste it in your other browser.");
+                                    }}
+                                    className="absolute right-5 top-1/2 -translate-y-1/2 text-color-support/30 hover:text-color-primary transition-colors cursor-pointer p-1"
+                                    title="Copy Master Key for Sync"
+                                >
+                                    <Key size={16} />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
