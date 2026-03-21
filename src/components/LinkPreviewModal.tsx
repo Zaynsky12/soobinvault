@@ -329,14 +329,14 @@ export function LinkPreviewModal({
     return (
         <div
             ref={overlayRef}
-            className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm transition-all duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+            className={`fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm transition-all duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
             onClick={(e) => {
                 if (e.target === overlayRef.current) onClose();
             }}
         >
-            <div ref={modalRef} className="w-full max-w-2xl max-h-[96vh] sm:max-h-[90vh] flex flex-col">
-                <GlassCard className="w-full p-0 overflow-y-auto bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] rounded-t-[2rem] sm:rounded-3xl scrollbar-hide">
-                    <div className="p-4 md:p-6 lg:p-8 flex flex-col relative z-10 min-h-full">
+            <div ref={modalRef} className="w-full max-w-2xl animate-in fade-in zoom-in-95 duration-300">
+                <GlassCard className="w-full max-h-[85vh] md:max-h-[80vh] overflow-y-auto overflow-x-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] rounded-[2rem] sm:rounded-3xl custom-scrollbar">
+                    <div className="p-5 md:p-8 flex flex-col relative z-10">
                         {/* Header */}
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-4 overflow-hidden">
@@ -357,8 +357,8 @@ export function LinkPreviewModal({
                             </button>
                         </div>
 
-                        {/* Preview Content */}
-                        <div className="flex-1 bg-black/40 rounded-3xl border border-white/5 flex items-center justify-center relative min-h-[300px] sm:min-h-[400px] py-4 sm:py-6 overflow-visible">
+                        {/* Preview Content Area */}
+                        <div className="w-full bg-black/40 rounded-3xl border border-white/5 flex items-center justify-center relative min-h-[300px] sm:min-h-[400px] py-4 sm:py-6 overflow-hidden">
                             {isProcessing ? (
                                 <div className="flex flex-col items-center gap-4">
                                     <div className="relative">
@@ -485,9 +485,9 @@ export function LinkPreviewModal({
                             )}
                         </div>
 
-                        {/* Footer / Actions */}
-                        <div className="mt-8 flex flex-col sm:flex-row items-center justify-end gap-4 border-t border-white/5 pt-8">
-                            <button onClick={onClose} className="w-full sm:w-auto px-8 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-color-support font-medium transition-all">
+                        {/* Footer / Actions - Sticky or bottom flow */}
+                        <div className="mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-white/5 pt-8 mb-2">
+                            <button onClick={onClose} className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-color-support font-medium transition-all order-2 sm:order-1">
                                 Close
                             </button>
                             <button
@@ -499,7 +499,7 @@ export function LinkPreviewModal({
                                     a.click();
                                 }}
                                 disabled={!decryptedData}
-                                className="w-full sm:w-auto px-10 py-3 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.02] active:scale-[0.98] text-white font-bold transition-all shadow-lg shadow-color-primary/20 disabled:opacity-50"
+                                className="w-full sm:w-auto px-10 py-3.5 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.02] active:scale-[0.98] text-white font-bold transition-all shadow-lg shadow-color-primary/20 disabled:opacity-50 order-1 sm:order-2"
                             >
                                 <Download size={20} className="inline-block mr-2" />
                                 Download Original
