@@ -334,11 +334,11 @@ export function LinkPreviewModal({
                 if (e.target === overlayRef.current) onClose();
             }}
         >
-            <div ref={modalRef} className="w-full max-w-2xl animate-in fade-in zoom-in-95 duration-300">
-                <GlassCard className="w-full max-h-[85vh] md:max-h-[80vh] overflow-y-auto overflow-x-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] rounded-[2rem] sm:rounded-3xl custom-scrollbar">
-                    <div className="p-5 md:p-8 flex flex-col relative z-10">
+            <div ref={modalRef} className="w-full max-w-2xl max-h-[calc(100dvh-2rem)] flex flex-col animate-in fade-in zoom-in-95 duration-300">
+                <GlassCard className="w-full flex flex-col min-h-0 overflow-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] rounded-[2rem] sm:rounded-3xl">
+                    <div className="p-5 md:p-8 flex-1 flex flex-col overflow-y-auto custom-scrollbar relative z-10">
                         {/* Header */}
-                        <div className="flex items-center justify-between mb-6">
+                        <div className="flex-shrink-0 flex items-center justify-between mb-6">
                             <div className="flex items-center gap-4 overflow-hidden">
                                 <div className="w-12 h-12 rounded-xl bg-color-primary/10 flex items-center justify-center border border-color-primary/20 shrink-0">
                                     {decryptedData ? <Unlock className="text-color-primary" size={24} /> : <Lock className="text-color-support/40" size={24} />}
@@ -358,7 +358,7 @@ export function LinkPreviewModal({
                         </div>
 
                         {/* Preview Content Area */}
-                        <div className="w-full bg-black/40 rounded-3xl border border-white/5 flex items-center justify-center relative min-h-[300px] sm:min-h-[400px] py-4 sm:py-6 overflow-hidden">
+                        <div className="flex-shrink-0 w-full bg-black/40 rounded-3xl border border-white/5 flex items-center justify-center relative min-h-[250px] sm:min-h-[400px] py-4 sm:py-6 overflow-hidden">
                             {isProcessing ? (
                                 <div className="flex flex-col items-center gap-4">
                                     <div className="relative">
@@ -486,7 +486,7 @@ export function LinkPreviewModal({
                         </div>
 
                         {/* Footer / Actions - Sticky or bottom flow */}
-                        <div className="mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-white/5 pt-8 mb-2">
+                        <div className="flex-shrink-0 mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-white/5 pt-8 mb-2">
                             <button onClick={onClose} className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-color-support font-medium transition-all order-2 sm:order-1">
                                 Close
                             </button>
