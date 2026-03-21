@@ -334,9 +334,9 @@ export function LinkPreviewModal({
                 if (e.target === overlayRef.current) onClose();
             }}
         >
-            <div ref={modalRef} className="w-full max-w-2xl max-h-[92vh] sm:max-h-[85vh] flex flex-col">
-                <GlassCard className="w-full p-0 overflow-y-auto overflow-x-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col rounded-t-[2rem] sm:rounded-3xl">
-                    <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full relative z-10">
+            <div ref={modalRef} className="w-full max-w-2xl max-h-[96vh] sm:max-h-[90vh] flex flex-col">
+                <GlassCard className="w-full p-0 overflow-y-auto bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] rounded-t-[2rem] sm:rounded-3xl scrollbar-hide">
+                    <div className="p-4 md:p-6 lg:p-8 flex flex-col relative z-10 min-h-full">
                         {/* Header */}
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-4 overflow-hidden">
@@ -358,7 +358,7 @@ export function LinkPreviewModal({
                         </div>
 
                         {/* Preview Content */}
-                        <div className="flex-1 bg-black/40 rounded-3xl border border-white/5 overflow-hidden flex items-center justify-center relative min-h-[250px] sm:min-h-[400px] py-4 sm:py-6">
+                        <div className="flex-1 bg-black/40 rounded-3xl border border-white/5 flex items-center justify-center relative min-h-[300px] sm:min-h-[400px] py-4 sm:py-6 overflow-visible">
                             {isProcessing ? (
                                 <div className="flex flex-col items-center gap-4">
                                     <div className="relative">
