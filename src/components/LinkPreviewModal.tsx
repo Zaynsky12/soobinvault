@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, FileText, Download, Loader2, RefreshCw, Music, File, Archive, FileSpreadsheet, Presentation, Lock, Unlock, Key } from 'lucide-react';
+import { X, FileText, Download, Loader2, RefreshCw, Music, File, Archive, FileSpreadsheet, Presentation, Lock, Unlock, Key, Settings } from 'lucide-react';
 import { decryptFile } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -381,9 +381,9 @@ export function LinkPreviewModal({
                                     </div>
                                     
                                     <div className="space-y-3 w-full">
-                                        <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Access Denied</h3>
+                                        <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Akses Ditolak</h3>
                                         <p className="text-color-support/70 text-sm md:text-base leading-relaxed max-w-md mx-auto">
-                                            Your current session key cannot decrypt this file. This occurs when you access your vault from a different device, browser, or wallet.
+                                            Kunci enkripsi Anda saat ini tidak cocok dengan file ini. Hal ini wajar terjadi jika Anda mengakses akun dari <strong>perangkat, browser, atau wallet yang berbeda</strong>.
                                         </p>
                                         
                                         {/* Solutions Box */}
@@ -392,23 +392,23 @@ export function LinkPreviewModal({
                                                 <div className="w-8 h-8 rounded-full bg-color-primary/10 flex items-center justify-center shrink-0">
                                                     <Key size={16} className="text-color-primary" />
                                                 </div>
-                                                <h4 className="text-sm font-bold text-white uppercase tracking-wider">Action Required</h4>
+                                                <h4 className="text-sm font-bold text-white uppercase tracking-wider">Langkah Solusi</h4>
                                             </div>
                                             
                                             <div className="space-y-4 pt-2">
                                                 <div className="flex gap-3">
                                                     <div className="shrink-0 w-6 h-6 rounded-full bg-white/5 flex items-center justify-center text-xs font-bold text-color-support">1</div>
                                                     <div>
-                                                        <p className="text-sm text-white font-medium mb-1">Open the Settings Menu</p>
-                                                        <p className="text-xs text-color-support/60 leading-relaxed">Click the Gear icon at the top of your dashboard.</p>
+                                                        <p className="text-sm text-white font-medium mb-1">Buka Menu Pengaturan</p>
+                                                        <p className="text-xs text-color-support/60 leading-relaxed">Klik ikon gerigi/Gear (<Settings size={12} className="inline" />) di bagian atas menu.</p>
                                                     </div>
                                                 </div>
                                                 
                                                 <div className="flex gap-3">
                                                     <div className="shrink-0 w-6 h-6 rounded-full bg-color-primary/20 flex items-center justify-center text-xs font-bold text-color-primary border border-color-primary/30">2</div>
                                                     <div>
-                                                        <p className="text-sm text-white font-medium mb-1">Select "Import Master Key"</p>
-                                                        <p className="text-xs text-color-support/60 leading-relaxed">Paste the original Master Key that you backed up from your old wallet or previous browser session.</p>
+                                                        <p className="text-sm text-white font-medium mb-1">Pilih "Import Master Key"</p>
+                                                        <p className="text-xs text-color-support/60 leading-relaxed">Tempelkan <i>(paste)</i> <b>Master Key</b> asli yang pernah Anda cadangkan/copy di HP atau browser pertama Anda.</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -424,7 +424,7 @@ export function LinkPreviewModal({
                                         }}
                                         className="mt-2 px-8 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all text-sm w-full sm:w-auto border border-white/10 hover:border-white/20 active:scale-95"
                                     >
-                                        Go to Settings
+                                        Buka Pengaturan Sekarang
                                     </button>
                                 </div>
                             ) : fetchError === 'INDEXING' ? (
