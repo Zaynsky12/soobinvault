@@ -86,6 +86,7 @@ export default function Navbar(): React.ReactNode {
     const handleWalletClick = () => {
         if (connected) {
             disconnect();
+            lockVault();
         } else {
             setIsSelectorOpen(true);
         }
