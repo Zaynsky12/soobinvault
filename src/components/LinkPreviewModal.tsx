@@ -486,25 +486,27 @@ export function LinkPreviewModal({
                         </div>
 
                         {/* Footer / Actions - Sticky or bottom flow */}
-                        <div className="flex-shrink-0 mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-white/5 pt-8 mb-2">
-                            <button onClick={onClose} className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-color-support font-medium transition-all order-2 sm:order-1">
-                                Close
-                            </button>
-                            <button
-                                onClick={() => {
-                                    if (!decryptedData) return;
-                                    const a = document.createElement('a');
-                                    a.href = decryptedData.url;
-                                    a.download = decryptedData.name;
-                                    a.click();
-                                }}
-                                disabled={!decryptedData}
-                                className="w-full sm:w-auto px-10 py-3.5 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.02] active:scale-[0.98] text-white font-bold transition-all shadow-lg shadow-color-primary/20 disabled:opacity-50 order-1 sm:order-2"
-                            >
-                                <Download size={20} className="inline-block mr-2" />
-                                Download Original
-                            </button>
-                        </div>
+                        {fetchError !== 'DECRYPTION_FAILED' && (
+                            <div className="flex-shrink-0 mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-white/5 pt-8 mb-2">
+                                <button onClick={onClose} className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-color-support font-medium transition-all order-2 sm:order-1">
+                                    Close
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (!decryptedData) return;
+                                        const a = document.createElement('a');
+                                        a.href = decryptedData.url;
+                                        a.download = decryptedData.name;
+                                        a.click();
+                                    }}
+                                    disabled={!decryptedData}
+                                    className="w-full sm:w-auto px-10 py-3.5 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.02] active:scale-[0.98] text-white font-bold transition-all shadow-lg shadow-color-primary/20 disabled:opacity-50 order-1 sm:order-2"
+                                >
+                                    <Download size={20} className="inline-block mr-2" />
+                                    Download Original
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </GlassCard>
             </div>
