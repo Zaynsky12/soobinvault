@@ -52,6 +52,45 @@ export function Dashboard() {
         client: shelbyClient,
     });
 
+    const handleDeleteSelectedAsset = async () => {
+        if (!account || !signAndSubmitTransaction || !selectedAsset) {
+            toast.error("Wallet not connected or asset missing.");
+            return;
+        }
+
+        const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedAsset.name}? This action is permanent and will remove the file's metadata from the blockchain.`);
+
+        if (!confirmDelete) return;
+
+        // Extract the original name suffix
+        const nameStr = selectedAsset.name;
+        const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+        const nameSuffix = nameMatch ? nameMatch[2] : (selectedAsset.blobName || nameStr);
+
+        try {
+            toast.loading(`Deleting ${selectedAsset.name}...`, { id: 'delete-blob-modal' });
+
+            await deleteBlobs.mutateAsync({
+                signer: {
+                    account: account.address,
+                    signAndSubmitTransaction: (tx: any) => signAndSubmitTransaction(tx),
+                } as any,
+                blobNames: [nameSuffix]
+            });
+
+            toast.success(`${selectedAsset.name} deleted successfully! Refreshing list...`, { id: 'delete-blob-modal' });
+            
+            setIsPreviewModalOpen(false);
+            
+            setTimeout(() => {
+                fetchBlobs();
+            }, 3000);
+        } catch (err) {
+            console.error("Deletion failed:", err);
+            toast.error(err instanceof Error ? err.message : "Failed to delete", { id: 'delete-blob-modal' });
+        }
+    };
+
 
     const fetchBlobs = async () => {
         if (!account) return;
@@ -507,6 +546,7 @@ export function Dashboard() {
                 blobName={selectedAsset?.blobName}
                 shelbyClient={shelbyClient}
                 accountAddress={account?.address.toString()}
+                onDelete={handleDeleteSelectedAsset}
             />
         </section>
     );

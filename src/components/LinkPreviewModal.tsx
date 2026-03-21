@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, FileText, Download, Loader2, RefreshCw, Music, File, Archive, FileSpreadsheet, Presentation, Lock, Unlock, Key, Settings } from 'lucide-react';
+import { X, FileText, Download, Loader2, RefreshCw, Music, File, Archive, FileSpreadsheet, Presentation, Lock, Unlock, Key, Settings, Trash2 } from 'lucide-react';
 import { decryptFile } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -25,6 +25,7 @@ interface LinkPreviewModalProps {
     blobName?: string;
     shelbyClient?: any;
     accountAddress?: string;
+    onDelete?: () => void;
 }
 
 export function LinkPreviewModal({
@@ -46,7 +47,8 @@ export function LinkPreviewModal({
     blobAccount,
     blobName,
     shelbyClient,
-    accountAddress
+    accountAddress,
+    onDelete
 }: LinkPreviewModalProps) {
     const [copied, setCopied] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
@@ -486,8 +488,12 @@ export function LinkPreviewModal({
                         {/* Footer / Actions - Sticky or bottom flow */}
                         {fetchError !== 'DECRYPTION_FAILED' && (
                             <div className="flex-shrink-0 mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-white/5 pt-8 mb-2">
-                                <button onClick={onClose} className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-color-support font-medium transition-all order-2 sm:order-1">
-                                    Close
+                                <button 
+                                    onClick={onDelete || onClose} 
+                                    className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-500 font-medium transition-all order-2 sm:order-1 flex items-center justify-center gap-2 border border-red-500/20 hover:border-red-500/40"
+                                >
+                                    <Trash2 size={18} />
+                                    Delete
                                 </button>
                                 <button
                                     onClick={() => {
@@ -495,7 +501,9 @@ export function LinkPreviewModal({
                                         const a = document.createElement('a');
                                         a.href = decryptedData.url;
                                         a.download = decryptedData.name;
+                                        document.body.appendChild(a);
                                         a.click();
+                                        document.body.removeChild(a);
                                     }}
                                     disabled={!decryptedData}
                                     className="w-full sm:w-auto px-10 py-3.5 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.02] active:scale-[0.98] text-white font-bold transition-all shadow-lg shadow-color-primary/20 disabled:opacity-50 order-1 sm:order-2"
