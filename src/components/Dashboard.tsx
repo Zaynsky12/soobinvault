@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw } from 'lucide-react';
+import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
@@ -502,6 +502,7 @@ export function Dashboard() {
 function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
     const { ensureKey } = useVaultKey();
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     useEffect(() => {
         if (!downloadUrl) return;
@@ -627,14 +628,14 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
 
     return (
         <div
-            className={`asset-row flex flex-col md:grid md:grid-cols-12 gap-4 p-5 md:p-6 items-center transition-all duration-500 relative overflow-hidden border-b border-white/5 last:border-0 hover:bg-white/[0.03] cursor-pointer group ${status !== 'live' ? 'opacity-80' : ''}`}
+            className={`asset-row flex items-center justify-between md:grid md:grid-cols-12 gap-4 p-5 md:p-6 transition-all duration-500 relative overflow-hidden border-b border-white/5 last:border-0 hover:bg-white/[0.03] cursor-pointer group ${status !== 'live' ? 'opacity-80' : ''}`}
             onClick={handleOpenPreview}
         >
             {/* Hover Background Artifact */}
             <div className="absolute inset-0 bg-gradient-to-r from-color-primary/[0.03] via-transparent to-color-accent/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
             {/* Asset Identity */}
-            <div className="w-full col-span-12 md:col-span-6 flex items-center gap-4 relative z-10">
+            <div className="flex-1 min-w-0 md:col-span-6 flex items-center gap-4 relative z-10 pr-2 md:pr-0">
                 <div className="w-12 h-12 rounded-xl glass-panel bg-[#050505] flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
                     {isImg ? (
                         <ImageIcon className="text-color-accent group-hover:text-white transition-colors" size={20} />
@@ -656,13 +657,26 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                 </div>
             </div>
 
+            {/* Mobile 3-Dot Menu Button */}
+            <div className="md:hidden relative z-10 shrink-0">
+                <button 
+                    className="p-3 -mr-2 text-color-support/50 hover:text-white transition-colors rounded-full hover:bg-white/10 active:scale-95"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsMenuOpen(true);
+                    }}
+                >
+                    <MoreVertical size={20} />
+                </button>
+            </div>
+
             {/* Capacity (Desktop Only) */}
-            <div className="hidden md:flex col-span-2 relative z-10 flex-col">
+            <div className="hidden md:flex md:col-span-2 relative z-10 flex-col">
                 <span className="text-white/80 font-mono text-xs tracking-widest">{sizeMB} MB</span>
             </div>
 
-            {/* Download Button */}
-            <div className="w-full md:col-span-2 relative z-10 flex md:justify-center items-center mt-4 md:mt-0">
+            {/* Download Button (Desktop Only) */}
+            <div className="hidden w-full md:col-span-2 relative z-10 md:flex md:justify-center items-center mt-4 md:mt-0">
                 <button
                     className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all duration-700 shadow-lg ${status === 'live'
                         ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate'
@@ -687,8 +701,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                 </button>
             </div>
 
-            {/* Actions Button (Delete) */}
-            <div className="w-full md:col-span-2 relative z-10 flex md:justify-end items-center mb-2 md:mb-0">
+            {/* Actions Button (Delete) (Desktop Only) */}
+            <div className="hidden w-full md:col-span-2 relative z-10 md:flex md:justify-end items-center mb-2 md:mb-0">
                 <button
                     className="w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-300 shadow-lg group/delete"
                     onClick={handleDelete}
@@ -703,6 +717,37 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                     <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">Delete</span>
                 </button>
             </div>
+
+            {/* Mobile Options Modal */}
+            {isMenuOpen && (
+                <div className="fixed inset-0 z-[100] flex items-end justify-center md:hidden bg-black/60 backdrop-blur-sm" onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); }}>
+                    <div className="bg-[#0A0A0A] border-t border-white/10 w-full rounded-t-[2rem] p-6 pb-10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-4 scale-y-110"></div>
+                        
+                        <div className="mb-2">
+                            <h3 className="text-white font-bold truncate text-lg pr-4">{displayName}</h3>
+                            <p className="text-color-support/60 text-xs font-mono mt-1">{sizeMB} MB • SECURED</p>
+                        </div>
+
+                        <button className="w-full p-4 flex items-center gap-4 bg-white/5 active:bg-white/10 hover:bg-white/10 rounded-2xl text-white transition-colors text-base font-bold" onClick={(e) => { setIsMenuOpen(false); handleOpenPreview(); }}>
+                            <div className="w-10 h-10 rounded-full bg-color-primary/20 flex items-center justify-center text-color-primary"><Eye size={18} /></div> Preview Asset
+                        </button>
+                        <button className="w-full p-4 flex items-center gap-4 bg-white/5 active:bg-white/10 hover:bg-white/10 rounded-2xl text-white transition-colors text-base font-bold" onClick={(e) => { 
+                            setIsMenuOpen(false); 
+                            if (status === 'live') {
+                                handleDownload(e);
+                            } else {
+                                toast("File is being finalized... Please retry in 30 seconds.", { icon: '⏳' });
+                            }
+                        }}>
+                            <div className="w-10 h-10 rounded-full bg-color-accent/20 flex items-center justify-center text-color-accent"><Download size={18} /></div> {status === 'live' ? 'Download File' : 'Processing...'}
+                        </button>
+                        <button className="w-full p-4 flex items-center gap-4 bg-red-500/10 active:bg-red-500/20 hover:bg-red-500/20 rounded-2xl text-red-500 transition-colors text-base font-bold mt-2" onClick={(e) => { setIsMenuOpen(false); handleDelete(e); }}>
+                            <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500"><Trash2 size={18} /></div> Delete from Vault
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
