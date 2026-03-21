@@ -369,7 +369,6 @@ export function LinkPreviewModal({
                                 </div>
                             ) : fetchError === 'DECRYPTION_FAILED' ? (
                                 <div className="flex flex-col items-center justify-center gap-6 md:gap-8 text-center px-6 md:px-12 py-10 md:py-16 w-full max-w-xl mx-auto">
-                                    {/* Icon Container */}
                                     <div className="relative group">
                                         <div className="absolute inset-0 bg-red-500/20 rounded-full blur-xl transition-all duration-500 animate-pulse" />
                                         <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-b from-red-500/10 to-[#0A0A0A] flex items-center justify-center border border-red-500/30 relative z-10 shadow-[0_0_30px_rgba(239,68,68,0.15)]">
@@ -386,7 +385,6 @@ export function LinkPreviewModal({
                                             Your current encryption key does not match this file. This naturally occurs when you access your vault from a <strong>different device, browser, or wallet</strong>.
                                         </p>
                                         
-                                        {/* Solutions Box */}
                                         <div className="mt-6 md:mt-8 p-5 md:p-6 rounded-3xl bg-gradient-to-br from-white/[0.03] to-white/[0.01] border border-white/10 text-left space-y-4 w-full backdrop-blur-sm">
                                             <div className="flex items-center gap-3 border-b border-white/5 pb-3">
                                                 <div className="w-8 h-8 rounded-full bg-color-primary/10 flex items-center justify-center shrink-0">
@@ -445,7 +443,7 @@ export function LinkPreviewModal({
                                     <button onClick={() => runDecryptionWithRetry(0)} className="mt-4 px-6 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold uppercase">Retry</button>
                                 </div>
                             ) : decryptedData ? (
-                                <>
+                                <div className="w-full h-full flex items-center justify-center">
                                     {decryptedData.isImage && (
                                         <img src={decryptedData.url} alt={decryptedData.name} className="max-w-full max-h-full object-contain" />
                                     )}
@@ -477,7 +475,7 @@ export function LinkPreviewModal({
                                             </div>
                                         </div>
                                     )}
-                                </>
+                                </div>
                             ) : (
                                 <div className="flex flex-col items-center gap-4 opacity-20">
                                     <File size={64} />
@@ -503,7 +501,7 @@ export function LinkPreviewModal({
                                     className="w-full sm:w-auto px-10 py-3.5 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.02] active:scale-[0.98] text-white font-bold transition-all shadow-lg shadow-color-primary/20 disabled:opacity-50 order-1 sm:order-2"
                                 >
                                     <Download size={20} className="inline-block mr-2" />
-                                    Download Original
+                                    Download
                                 </button>
                             </div>
                         )}
