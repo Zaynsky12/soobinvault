@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye } from 'lucide-react';
@@ -719,8 +720,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
             </div>
 
             {/* Mobile Options Modal */}
-            {isMenuOpen && (
-                <div className="fixed inset-0 z-[100] flex items-end justify-center md:hidden bg-black/60 backdrop-blur-sm" onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); }}>
+            {isMenuOpen && typeof window !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-end justify-center md:hidden bg-black/60 backdrop-blur-sm" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }} onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); }}>
                     <div className="bg-[#0A0A0A] border-t border-white/10 w-full rounded-t-[2rem] p-6 pb-10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
                         <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-4 scale-y-110"></div>
                         
@@ -746,7 +747,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                             <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500"><Trash2 size={18} /></div> Delete from Vault
                         </button>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
