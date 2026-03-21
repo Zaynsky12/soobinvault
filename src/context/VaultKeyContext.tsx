@@ -128,10 +128,15 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             
             // Add a slight delay for the backup reminder so it doesn't overlap too much
             setTimeout(() => {
-                toast("Security Priority: Backup your Master Key in Settings for session recovery.", { 
-                    icon: '🔑', 
-                    duration: 6000 
-                });
+                const isBackedUp = localStorage.getItem(`soobin_key_backed_up_${account.address}`);
+                if (!isBackedUp) {
+                    window.dispatchEvent(new CustomEvent('vault:requireBackup'));
+                } else {
+                    toast("Security Priority: Backup your Master Key in Settings for session recovery.", { 
+                        icon: '🔑', 
+                        duration: 6000 
+                    });
+                }
             }, 1000);
             
             return key;
@@ -160,6 +165,7 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             
             // Persist for future sessions on this device
             localStorage.setItem(`soobin_vault_key_${account?.address}`, base64);
+            localStorage.setItem(`soobin_key_backed_up_${account?.address}`, 'true'); // Implicit backup when imported
             
             // Log fingerprint for consistency check
             const keyHash = await window.crypto.subtle.digest('SHA-256', bytes);

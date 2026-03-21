@@ -334,20 +334,32 @@ export function Dashboard() {
                                         }) === index;
                                     });
 
-                                return combined
-                                    .filter(asset => {
-                                        const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || asset.blob_id || asset.blobId || (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) || '';
-                                        const nameStr = typeof asset.name === 'string' ? asset.name : '';
-                                        const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
-                                        const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
-                                        
-                                        const decryptedName = decryptedNames[nameOnly];
-                                        const nameToSearch = decryptedName || nameOnly;
+                                const filteredAssets = combined.filter(asset => {
+                                    const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || asset.blob_id || asset.blobId || (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) || '';
+                                    const nameStr = typeof asset.name === 'string' ? asset.name : '';
+                                    const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+                                    const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+                                    
+                                    const decryptedName = decryptedNames[nameOnly];
+                                    const nameToSearch = decryptedName || nameOnly || '';
 
-                                        return nameToSearch.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                            (assetHash && assetHash.toLowerCase().includes(searchQuery.toLowerCase()));
-                                    })
-                                    .map((asset, index) => {
+                                    const query = (searchQuery || '').toLowerCase().trim();
+                                    if (!query) return true;
+
+                                    return String(nameToSearch).toLowerCase().includes(query) ||
+                                        (assetHash && String(assetHash).toLowerCase().includes(query));
+                                });
+
+                                if (filteredAssets.length === 0 && (searchQuery || '').trim() !== '') {
+                                    return (
+                                        <div className="p-16 text-center flex flex-col items-center justify-center opacity-70 w-full animate-in fade-in duration-500">
+                                            <Search size={48} className="mb-4 opacity-30 text-white" />
+                                            <p className="text-color-support/60 text-lg">No assets found matching <span className="text-white font-bold">"{searchQuery}"</span></p>
+                                        </div>
+                                    );
+                                }
+
+                                return filteredAssets.map((asset, index) => {
                                         const nameStr = typeof asset.name === 'string' ? asset.name : '';
                                         const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
                                         const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
@@ -731,7 +743,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                         </div>
 
                         <button className="w-full p-4 flex items-center gap-4 bg-white/5 active:bg-white/10 hover:bg-white/10 rounded-2xl text-white transition-colors text-base font-bold" onClick={(e) => { setIsMenuOpen(false); handleOpenPreview(); }}>
-                            <div className="w-10 h-10 rounded-full bg-color-primary/20 flex items-center justify-center text-color-primary"><Eye size={18} /></div> Preview Asset
+                            <div className="w-10 h-10 rounded-full bg-color-primary/20 flex items-center justify-center text-color-primary"><Eye size={18} /></div> Preview
                         </button>
                         <button className="w-full p-4 flex items-center gap-4 bg-white/5 active:bg-white/10 hover:bg-white/10 rounded-2xl text-white transition-colors text-base font-bold" onClick={(e) => { 
                             setIsMenuOpen(false); 
@@ -741,10 +753,10 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                                 toast("File is being finalized... Please retry in 30 seconds.", { icon: '⏳' });
                             }
                         }}>
-                            <div className="w-10 h-10 rounded-full bg-color-accent/20 flex items-center justify-center text-color-accent"><Download size={18} /></div> {status === 'live' ? 'Download File' : 'Processing...'}
+                            <div className="w-10 h-10 rounded-full bg-color-accent/20 flex items-center justify-center text-color-accent"><Download size={18} /></div> {status === 'live' ? 'Download' : 'Processing...'}
                         </button>
                         <button className="w-full p-4 flex items-center gap-4 bg-red-500/10 active:bg-red-500/20 hover:bg-red-500/20 rounded-2xl text-red-500 transition-colors text-base font-bold mt-2" onClick={(e) => { setIsMenuOpen(false); handleDelete(e); }}>
-                            <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500"><Trash2 size={18} /></div> Delete from Vault
+                            <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500"><Trash2 size={18} /></div> Delete
                         </button>
                     </div>
                 </div>,

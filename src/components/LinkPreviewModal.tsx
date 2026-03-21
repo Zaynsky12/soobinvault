@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, FileText, Download, Loader2, RefreshCw, Music, File, Archive, FileSpreadsheet, Presentation, Lock, Unlock } from 'lucide-react';
+import { X, FileText, Download, Loader2, RefreshCw, Music, File, Archive, FileSpreadsheet, Presentation, Lock, Unlock, Key } from 'lucide-react';
 import { decryptFile } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -334,9 +334,9 @@ export function LinkPreviewModal({
                 if (e.target === overlayRef.current) onClose();
             }}
         >
-            <div ref={modalRef} className="w-full max-w-2xl max-h-[92vh] sm:max-h-[85vh] flex">
-                <GlassCard className="w-full p-0 overflow-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col rounded-t-[2rem] sm:rounded-3xl">
-                    <div className="p-4 md:p-8 flex flex-col h-full relative z-10">
+            <div ref={modalRef} className="w-full max-w-2xl max-h-[92vh] sm:max-h-[85vh] flex flex-col">
+                <GlassCard className="w-full p-0 overflow-y-auto overflow-x-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col rounded-t-[2rem] sm:rounded-3xl">
+                    <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full relative z-10">
                         {/* Header */}
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-4 overflow-hidden">
@@ -358,7 +358,7 @@ export function LinkPreviewModal({
                         </div>
 
                         {/* Preview Content */}
-                        <div className="flex-1 bg-black/40 rounded-3xl border border-white/5 overflow-hidden flex items-center justify-center relative min-h-[400px]">
+                        <div className="flex-1 bg-black/40 rounded-3xl border border-white/5 overflow-hidden flex items-center justify-center relative min-h-[250px] sm:min-h-[400px] py-4 sm:py-6">
                             {isProcessing ? (
                                 <div className="flex flex-col items-center gap-4">
                                     <div className="relative">
@@ -368,35 +368,63 @@ export function LinkPreviewModal({
                                     <span className="text-color-primary font-mono text-xs tracking-[0.2em] uppercase animate-pulse">Decrypting...</span>
                                 </div>
                             ) : fetchError === 'DECRYPTION_FAILED' ? (
-                                <div className="flex flex-col items-center gap-8 text-center px-8 md:px-12 py-10 max-w-lg">
-                                    <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 relative">
-                                        <Lock size={40} className="text-red-500/60" />
-                                        <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white border-4 border-[#0A0A0A]">
-                                            <X size={16} strokeWidth={3} />
+                                <div className="flex flex-col items-center justify-center gap-6 md:gap-8 text-center px-6 md:px-12 py-10 md:py-16 w-full max-w-xl mx-auto">
+                                    {/* Icon Container */}
+                                    <div className="relative group">
+                                        <div className="absolute inset-0 bg-red-500/20 rounded-full blur-xl transition-all duration-500 animate-pulse" />
+                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-b from-red-500/10 to-[#0A0A0A] flex items-center justify-center border border-red-500/30 relative z-10 shadow-[0_0_30px_rgba(239,68,68,0.15)]">
+                                            <Lock size={40} className="text-red-400 md:w-12 md:h-12" strokeWidth={1.5} />
+                                            <div className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 w-8 h-8 md:w-10 md:h-10 rounded-full bg-red-500 flex items-center justify-center text-white border-4 border-[#0A0A0A] shadow-lg">
+                                                <X size={16} strokeWidth={3} className="md:w-5 md:h-5" />
+                                            </div>
                                         </div>
                                     </div>
                                     
-                                    <div className="space-y-4">
-                                        <h3 className="text-2xl font-bold text-white tracking-tight">Decryption Error</h3>
-                                        <p className="text-color-support/60 text-sm leading-relaxed">
-                                            Your encryption key does not match this asset. This typically happens if you open the vault in a **different browser or device**.
+                                    <div className="space-y-3 w-full">
+                                        <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Access Denied</h3>
+                                        <p className="text-color-support/70 text-sm md:text-base leading-relaxed max-w-md mx-auto">
+                                            Your current session key cannot decrypt this file. This occurs when you access your vault from a different device, browser, or wallet.
                                         </p>
                                         
-                                        <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-left space-y-3">
-                                            <p className="text-[10px] uppercase tracking-widest font-bold text-color-primary">How to Fix:</p>
-                                            <ul className="text-xs text-color-support/80 space-y-2 list-disc pl-4">
-                                                <li>Go to the **Settings** menu and click **"Re-Unlock Vault"** to re-synchronize your wallet signature.</li>
-                                                <li>Or use **"Import Master Key"** if you have a key backup from a previous session or device.</li>
-                                            </ul>
+                                        {/* Solutions Box */}
+                                        <div className="mt-6 md:mt-8 p-5 md:p-6 rounded-3xl bg-gradient-to-br from-white/[0.03] to-white/[0.01] border border-white/10 text-left space-y-4 w-full backdrop-blur-sm">
+                                            <div className="flex items-center gap-3 border-b border-white/5 pb-3">
+                                                <div className="w-8 h-8 rounded-full bg-color-primary/10 flex items-center justify-center shrink-0">
+                                                    <Key size={16} className="text-color-primary" />
+                                                </div>
+                                                <h4 className="text-sm font-bold text-white uppercase tracking-wider">Action Required</h4>
+                                            </div>
+                                            
+                                            <div className="space-y-4 pt-2">
+                                                <div className="flex gap-3">
+                                                    <div className="shrink-0 w-6 h-6 rounded-full bg-white/5 flex items-center justify-center text-xs font-bold text-color-support">1</div>
+                                                    <div>
+                                                        <p className="text-sm text-white font-medium mb-1">Open the Settings Menu</p>
+                                                        <p className="text-xs text-color-support/60 leading-relaxed">Click the Gear icon at the top of your dashboard.</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="flex gap-3">
+                                                    <div className="shrink-0 w-6 h-6 rounded-full bg-color-primary/20 flex items-center justify-center text-xs font-bold text-color-primary border border-color-primary/30">2</div>
+                                                    <div>
+                                                        <p className="text-sm text-white font-medium mb-1">Select "Import Master Key"</p>
+                                                        <p className="text-xs text-color-support/60 leading-relaxed">Paste the original Master Key that you backed up from your old wallet or previous browser session.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                     
                                     <button 
-                                        onClick={() => runDecryptionWithRetry(0)}
-                                        className="inline-flex items-center gap-2 text-color-primary hover:text-white transition-colors text-xs font-bold uppercase tracking-widest group"
+                                        onClick={() => {
+                                            onClose();
+                                            setTimeout(() => {
+                                                window.dispatchEvent(new CustomEvent('vault:openSettings'));
+                                            }, 300);
+                                        }}
+                                        className="mt-2 px-8 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all text-sm w-full sm:w-auto border border-white/10 hover:border-white/20 active:scale-95"
                                     >
-                                        <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" />
-                                        Try Again
+                                        Go to Settings
                                     </button>
                                 </div>
                             ) : fetchError === 'INDEXING' ? (

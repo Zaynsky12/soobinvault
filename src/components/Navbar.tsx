@@ -18,6 +18,30 @@ export default function Navbar(): React.ReactNode {
     const [isSelectorOpen, setIsSelectorOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [keyFingerprint, setKeyFingerprint] = useState<string | null>(null);
+    const [showBackupWarning, setShowBackupWarning] = useState(false);
+    const [isKeyBackedUp, setIsKeyBackedUp] = useState(true);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && account) {
+            setIsKeyBackedUp(!!localStorage.getItem(`soobin_key_backed_up_${account.address}`));
+        }
+    }, [account, isSettingsOpen, showBackupWarning]);
+
+    useEffect(() => {
+        const handleRequireBackup = () => {
+            setShowBackupWarning(true);
+        };
+        const handleOpenSettings = () => {
+            setIsSettingsOpen(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+        window.addEventListener('vault:requireBackup', handleRequireBackup);
+        window.addEventListener('vault:openSettings', handleOpenSettings);
+        return () => {
+            window.removeEventListener('vault:requireBackup', handleRequireBackup);
+            window.removeEventListener('vault:openSettings', handleOpenSettings);
+        };
+    }, []);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -109,10 +133,18 @@ export default function Navbar(): React.ReactNode {
                             const keyBuffer = await window.crypto.subtle.exportKey('raw', encryptionKey);
                             const base64 = btoa(String.fromCharCode(...new Uint8Array(keyBuffer)));
                             await navigator.clipboard.writeText(base64);
-                            toast.success("Master Key copied!");
+                            if (account) {
+                                localStorage.setItem(`soobin_key_backed_up_${account.address}`, 'true');
+                                setIsKeyBackedUp(true);
+                            }
+                            toast.success("Master Key copied and secured!");
                             setIsSettingsOpen(false);
                         }}
-                        className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-color-primary hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
+                        className={`w-full px-4 py-3.5 flex items-center gap-3 text-sm rounded-xl transition-all ${
+                            !isKeyBackedUp 
+                                ? 'text-white bg-color-primary/20 border border-color-primary/40 shadow-[0_0_15px_rgba(232,58,118,0.2)] animate-pulse hover:bg-color-primary/30' 
+                                : 'text-color-primary hover:bg-white/5 active:bg-white/10'
+                        }`}
                     >
                         <Shield size={18} />
                         Backup Master Key
@@ -194,6 +226,35 @@ export default function Navbar(): React.ReactNode {
     return (
         <>
             <WalletSelector isOpen={isSelectorOpen} onClose={() => setIsSelectorOpen(false)} />
+            
+            {/* Master Key Backup Warning Overlay */}
+            {showBackupWarning && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md px-4 animate-in fade-in duration-500">
+                    <div className="bg-gradient-to-b from-[#1a0b14] to-[#0A0A0A] border border-color-primary/30 p-8 rounded-3xl max-w-md w-full shadow-[0_0_50px_rgba(232,58,118,0.2)] text-center relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-color-primary via-color-accent to-color-primary animate-pulse" />
+                        
+                        <div className="w-20 h-20 bg-color-primary/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-color-primary/20 shadow-[0_0_30px_rgba(232,58,118,0.3)]">
+                            <Shield size={40} className="text-color-primary" />
+                        </div>
+                        
+                        <h2 className="text-2xl font-bold text-white mb-4">Secure Your Vault</h2>
+                        <p className="text-color-support/80 text-sm mb-8 leading-relaxed">
+                            Your decentralized Master Key has been generated. <strong className="text-white">If you lose this key, you will permanently lose access to all your files.</strong> Please copy and store it in a safe place immediately.
+                        </p>
+                        
+                        <button 
+                            onClick={() => {
+                                setShowBackupWarning(false);
+                                setIsSettingsOpen(true);
+                            }}
+                            className="w-full py-4 rounded-xl bg-gradient-to-r from-color-primary to-color-accent text-white font-bold uppercase tracking-widest text-sm hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(232,58,118,0.4)]"
+                        >
+                            Open Settings to Backup
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <header className={`nav-container fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? 'py-4' : 'py-6'}`}>
                 <div className="container mx-auto px-6">
                     <div className={`flex items-center justify-between mx-auto max-w-6xl rounded-full transition-all duration-500 px-6 py-3 ${isScrolled
