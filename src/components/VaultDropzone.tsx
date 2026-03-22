@@ -16,7 +16,7 @@ interface VaultDropzoneProps {
 
 export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const { account, signAndSubmitTransaction } = useWallet();
-    const { ensureKey } = useVaultKey();
+    const { ensureKey, encryptionKey } = useVaultKey();
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -272,7 +272,22 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             className="hidden"
                         />
 
-                        {uploadState === 'idle' && (
+                        {!encryptionKey ? (
+                            <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500">
+                                <div ref={iconRef} className="w-24 h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(232,58,118,0.2)] border border-color-primary/30">
+                                    <Lock size={48} strokeWidth={1.5} className="text-color-primary" />
+                                </div>
+                                <h3 className="text-3xl font-semibold mb-3 text-white">Vault Securely Locked</h3>
+                                <p className="text-color-support mb-8 text-lg">You must unlock the vault to encrypt and store new assets.</p>
+
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); ensureKey(false); }}
+                                    className="mt-4 px-10 py-4 rounded-full bg-color-primary/20 border border-color-primary/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-primary hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate"
+                                >
+                                    Unlock Secure Vault
+                                </button>
+                            </div>
+                        ) : uploadState === 'idle' && (
                             <div className="flex flex-col items-center text-center">
                                 <div ref={iconRef} className="w-24 h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(251,179,204,0.2)]">
                                     <UploadCloud size={48} strokeWidth={1.5} className="text-color-accent" />
@@ -286,7 +301,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 >
                                     Browse
                                 </button>
-
                             </div>
                         )}
 

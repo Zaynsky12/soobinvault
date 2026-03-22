@@ -327,6 +327,25 @@ export function Dashboard() {
                                 <Lock size={48} className="mb-4 opacity-50" />
                                 <p>Connect your Petra Wallet to view your secure Vault.</p>
                             </div>
+                        ) : !encryptionKey ? (
+                            <div className="p-20 text-center flex flex-col items-center justify-center bg-[#050505] m-6 rounded-[2.5rem] border border-color-primary/20 shadow-[0_0_50px_rgba(232,58,118,0.05)] relative overflow-hidden group">
+                                <div className="absolute inset-0 bg-gradient-to-br from-color-primary/5 via-transparent to-color-accent/5 opacity-50" />
+                                <div className="relative z-10 w-full flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
+                                    <div className="w-24 h-24 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center mb-8 mx-auto shadow-[0_0_40px_rgba(232,58,118,0.2)] border border-color-primary/30">
+                                        <Lock size={48} className="text-color-primary" />
+                                    </div>
+                                    <h3 className="text-3xl font-bold text-white mb-4 tracking-tight">Vault Securely Locked</h3>
+                                    <p className="text-color-support/60 mb-10 max-w-sm mx-auto font-light leading-relaxed text-lg">
+                                        Your session has been locked for your security. Unlock the vault to decrypt and view your files.
+                                    </p>
+                                    <button
+                                        onClick={() => ensureKey(false)}
+                                        className="px-10 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold uppercase tracking-widest text-xs hover:scale-105 transition-all w-full max-w-xs shadow-[0_0_30px_rgba(255,255,255,0.05)]"
+                                    >
+                                        Unlock Secure Vault
+                                    </button>
+                                </div>
+                            </div>
                         ) : isLoading ? (
                             <div className="p-12 text-center text-color-support flex flex-col items-center">
                                 <div className="w-8 h-8 rounded-full border-t-2 border-b-2 border-color-primary animate-spin mb-4" />
