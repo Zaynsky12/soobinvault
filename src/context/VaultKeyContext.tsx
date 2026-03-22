@@ -167,6 +167,46 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                 }
             }
 
+            // --- AUTO FALLBACK FOR KEYLESS/MULTIKEY ACCOUNTS ---
+            if (errorMsg.toLowerCase().includes("multikey") || errorMsg.toLowerCase().includes("keyless")) {
+                console.warn("[Vault] Multikey signature extraction failed. Using secure random fallback.");
+                toast("Keyless/Multikey account detected. Generating a secure local session key...", { 
+                    id: toastId, 
+                    icon: '🚀',
+                    duration: 4000 
+                });
+                
+                try {
+                    const key = await window.crypto.subtle.generateKey(
+                        { name: 'AES-GCM', length: 256 },
+                        true,
+                        ['encrypt', 'decrypt']
+                    );
+                    
+                    setEncryptionKey(key);
+                    
+                    const rawKey = await window.crypto.subtle.exportKey('raw', key);
+                    const base64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
+                    localStorage.setItem(`soobin_vault_key_${account.address}`, base64);
+                    
+                    const keyHash = await window.crypto.subtle.digest('SHA-256', rawKey);
+                    const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
+                    console.log(`[Vault] Random session key generated. Fingerprint: ${fingerprint}`);
+                    
+                    // Force a backup warning immediately so the user knows they MUST back it up!
+                    setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('vault:requireBackup'));
+                    }, 500);
+                    
+                    return key;
+                } catch (fallbackError) {
+                    console.error("Fallback key generation failed:", fallbackError);
+                    toast.error("Failed to generate local key.", { id: toastId });
+                    return null;
+                }
+            }
+            // ---------------------------------------------------
+
             if (errorMsg === "Request canceled by user.") {
                 toast.error("Unlock canceled. Vault remains locked.", { id: toastId });
             } else {
