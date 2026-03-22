@@ -171,7 +171,10 @@ export default function Navbar(): React.ReactNode {
                         setIsSettingsOpen(false);
                         const key = await requestPin("Paste your Master Key here to restore your session:");
                         if (key) {
-                            importKeyManual(key);
+                            // Wait for the exit animation of the first modal to complete
+                            setTimeout(() => {
+                                importKeyManual(key);
+                            }, 500);
                         }
                     }}
                     className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"

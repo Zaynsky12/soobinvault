@@ -20,6 +20,9 @@ export function VaultPinOverlay({ isOpen, title, onSubmit, onCancel }: VaultPinO
     useEffect(() => {
         if (isOpen) {
             setPin('');
+            // Kill any outgoing animations to prevent them from hiding the newly opened modal
+            gsap.killTweensOf([overlayRef.current, modalRef.current]);
+            
             gsap.fromTo(overlayRef.current,
                 { opacity: 0 },
                 { opacity: 1, duration: 0.3, ease: 'power2.out' }
@@ -31,7 +34,7 @@ export function VaultPinOverlay({ isOpen, title, onSubmit, onCancel }: VaultPinO
             // Auto-focus input
             setTimeout(() => inputRef.current?.focus(), 100);
         }
-    }, [isOpen]);
+    }, [isOpen, title]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Escape') {
