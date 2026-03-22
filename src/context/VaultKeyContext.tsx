@@ -52,8 +52,9 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
 
     const lockVault = () => {
         setEncryptionKey(null);
-        if (account) localStorage.removeItem(`soobin_vault_key_${account.address}`);
-        toast.success("Vault locked and persistence cleared.");
+        // Do NOT delete from localStorage, otherwise Keyless/Multikey accounts 
+        // will permanently lose their randomly generated keys upon disconnecting!
+        toast.success("Vault session locked in memory.");
     };
 
     const ensureKey = async (force: boolean = false): Promise<CryptoKey | null> => {
