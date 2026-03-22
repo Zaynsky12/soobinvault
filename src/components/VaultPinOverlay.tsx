@@ -88,8 +88,10 @@ export function VaultPinOverlay({ isOpen, title, onSubmit, onCancel }: VaultPinO
                 </div>
                 
                 <h2 className="text-xl font-bold text-white mb-2">{title}</h2>
-                <p className="text-color-support/80 text-sm mb-8">
-                    Enter your secure 6-digit Vault PIN to access or protect your session keys.
+                <p className="text-color-support/80 text-sm mb-8 min-h-[20px]">
+                    {title.toLowerCase().includes('master key') 
+                        ? "Please carefully paste your previously backed up Key string."
+                        : "Enter your secure 6-digit Vault PIN to access or protect your session keys."}
                 </p>
 
                 <div className="mb-8">
@@ -111,7 +113,7 @@ export function VaultPinOverlay({ isOpen, title, onSubmit, onCancel }: VaultPinO
                     className="w-full py-4 rounded-xl bg-gradient-to-r from-color-primary to-color-accent text-white font-bold uppercase tracking-widest text-sm hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(232,58,118,0.4)] disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
                 >
                     <ShieldCheck size={18} />
-                    Confirm Security PIN
+                    {title.toLowerCase().includes('master key') ? "Confirm Master Key" : "Confirm Security PIN"}
                 </button>
             </div>
         </div>
