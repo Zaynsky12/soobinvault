@@ -145,9 +145,15 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             return key;
         } catch (error: any) {
             console.error("Failed to unlock vault (Full Error):", error);
+            console.debug("Error type is:", typeof error);
             
-            let errorMsg = "Signature required for decryption.";
-            if (typeof error === 'string') {
+            let errorMsg = "Signature missing. Please check your wallet popup.";
+            
+            if (error === undefined) {
+                errorMsg = "Browser wallet extension rejected the request (Undefined Error).";
+            } else if (error === null) {
+                errorMsg = "Browser wallet extension rejected the request (Null Error).";
+            } else if (typeof error === 'string') {
                 errorMsg = error;
             } else if (error?.name === 'UserRejectedRequestError' || (typeof error?.message === 'string' && error.message.toLowerCase().includes('user rejected'))) {
                 errorMsg = "Request canceled by user.";
