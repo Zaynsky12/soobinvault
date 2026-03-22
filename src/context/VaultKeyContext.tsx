@@ -209,10 +209,36 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                     return encryptionKey;
                 }
                 
-                const savedKey = localStorage.getItem(`soobin_vault_key_${account.address}`);
-                if (savedKey) {
+                const savedData = localStorage.getItem(`soobin_vault_key_${account.address}`);
+                if (savedData) {
                     try {
-                        const bytes = new Uint8Array(atob(savedKey).split("").map(c => c.charCodeAt(0)));
+                        let base64MasterKey = savedData;
+                        
+                        // Check if it's a JSON string (meaning it's PIN-encrypted)
+                        if (savedData.startsWith("{")) {
+                            const encryptedObject = JSON.parse(savedData);
+                            if (encryptedObject.protected) {
+                                const pin = prompt("🔒 Vault is localized. Enter your local PIN to decrypt your session key:");
+                                if (!pin) {
+                                    toast.error("PIN required to restore session.");
+                                    return null;
+                                }
+                                
+                                const ptUtf8 = new TextEncoder().encode(pin);
+                                const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
+                                const kek = await window.crypto.subtle.importKey(
+                                    'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+                                );
+                                
+                                const iv = new Uint8Array(atob(encryptedObject.iv).split("").map(c => c.charCodeAt(0)));
+                                const ciphertext = new Uint8Array(atob(encryptedObject.ciphertext).split("").map(c => c.charCodeAt(0)));
+                                
+                                const decryptedBuffer = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, ciphertext);
+                                base64MasterKey = new TextDecoder().decode(decryptedBuffer);
+                            }
+                        }
+
+                        const bytes = new Uint8Array(atob(base64MasterKey).split("").map(c => c.charCodeAt(0)));
                         const key = await window.crypto.subtle.importKey(
                             'raw', bytes, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
                         );
@@ -220,7 +246,7 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                         toast.success("Restored existing local session key.", { id: toastId });
                         return key;
                     } catch (e) {
-                        console.warn("Failed to restore key during fallback, proceeding to generate a new one.");
+                        console.warn("Failed to restore key during fallback, proceeding to generate a new one.", e);
                     }
                 }
 
