@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 
 export default function Navbar(): React.ReactNode {
     const { disconnect, connected, account, isLoading } = useWallet();
-    const { encryptionKey, lockVault, ensureKey, importKeyManual } = useVaultKey();
+    const { encryptionKey, lockVault, ensureKey, importKeyManual, requestPin } = useVaultKey();
     const [isScrolled, setIsScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isSelectorOpen, setIsSelectorOpen] = useState(false);
@@ -117,16 +117,18 @@ export default function Navbar(): React.ReactNode {
             </div>
 
             <div className="grid grid-cols-1 gap-1 p-2">
-                <button 
-                    onClick={() => {
-                        ensureKey(true);
-                        setIsSettingsOpen(false);
-                    }}
-                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/70 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
-                >
-                    <Key size={18} />
-                    {encryptionKey ? "Re-Unlock Vault" : "Unlock Secure Vault"}
-                </button>
+                {!encryptionKey && (
+                    <button 
+                        onClick={() => {
+                            ensureKey(false);
+                            setIsSettingsOpen(false);
+                        }}
+                        className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/70 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
+                    >
+                        <Key size={18} />
+                        Unlock Secure Vault
+                    </button>
+                )}
                 
                 {encryptionKey && (
                     <button 
@@ -165,11 +167,11 @@ export default function Navbar(): React.ReactNode {
                 </button>
 
                 <button 
-                    onClick={() => {
-                        const key = prompt("Paste your Master Key here to restore your session:");
+                    onClick={async () => {
+                        setIsSettingsOpen(false);
+                        const key = await requestPin("Paste your Master Key here to restore your session:");
                         if (key) {
                             importKeyManual(key);
-                            setIsSettingsOpen(false);
                         }
                     }}
                     className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"

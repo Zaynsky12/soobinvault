@@ -10,15 +10,30 @@ interface VaultKeyContextType {
     ensureKey: (force?: boolean) => Promise<CryptoKey | null>;
     importKeyManual: (base64: string) => Promise<boolean>;
     lockVault: () => void;
+    requestPin: (title: string) => Promise<string | null>;
 }
 
 const VaultKeyContext = createContext<VaultKeyContextType | undefined>(undefined);
+
+import { VaultPinOverlay } from '@/components/VaultPinOverlay';
 
 const SIGN_MESSAGE = "Unlock SoobinVault Session. Nonce: soobinvault-v1";
 
 export function VaultKeyProvider({ children }: { children: ReactNode }) {
     const { signMessage, account, connected } = useWallet();
     const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
+
+    const [pinPromptConfig, setPinPromptConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        resolve: ((pin: string | null) => void) | null;
+    }>({ isOpen: false, title: "", resolve: null });
+
+    const requestPin = (title: string): Promise<string | null> => {
+        return new Promise((resolve) => {
+            setPinPromptConfig({ isOpen: true, title, resolve });
+        });
+    };
 
     // Load key from localStorage on mount or account change
     React.useEffect(() => {
@@ -33,7 +48,7 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                     if (savedData.startsWith("{")) {
                         const encryptedObject = JSON.parse(savedData);
                         if (encryptedObject.protected) {
-                            const pin = prompt("🔒 Vault is locked. Enter your local PIN to decrypt your session key:");
+                            const pin = await requestPin("🔒 Vault is locked. Enter your local PIN to decrypt your session key:");
                             if (!pin) {
                                 toast.error("PIN required to restore session.");
                                 return;
@@ -218,7 +233,7 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                         if (savedData.startsWith("{")) {
                             const encryptedObject = JSON.parse(savedData);
                             if (encryptedObject.protected) {
-                                const pin = prompt("🔒 Vault is localized. Enter your local PIN to decrypt your session key:");
+                                const pin = await requestPin("🔒 Vault is localized. Enter your local PIN to decrypt your session key:");
                                 if (!pin) {
                                     toast.error("PIN required to restore session.");
                                     return null;
@@ -268,7 +283,7 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                     const rawKey = await window.crypto.subtle.exportKey('raw', key);
                     const base64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
                     
-                    const pin = prompt("🔒 Create a PIN to securely encrypt your local session key:");
+                    const pin = await requestPin("🔒 Create a PIN to securely encrypt your local session key:");
                     if (pin) {
                         const ptUtf8 = new TextEncoder().encode(pin);
                         const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
@@ -334,7 +349,7 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             setEncryptionKey(key);
             
             // Persist for future sessions on this device
-            const pin = prompt("🔒 Create a PIN to securely encrypt your Master Key on this device:");
+            const pin = await requestPin("🔒 Create a PIN to securely encrypt your Master Key on this device:");
             if (pin) {
                 const ptUtf8 = new TextEncoder().encode(pin);
                 const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
@@ -371,8 +386,20 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <VaultKeyContext.Provider value={{ encryptionKey, ensureKey, importKeyManual, lockVault }}>
+        <VaultKeyContext.Provider value={{ encryptionKey, ensureKey, importKeyManual, lockVault, requestPin }}>
             {children}
+            <VaultPinOverlay 
+                isOpen={pinPromptConfig.isOpen}
+                title={pinPromptConfig.title}
+                onSubmit={(pin) => {
+                    pinPromptConfig.resolve?.(pin);
+                    setPinPromptConfig({ isOpen: false, title: "", resolve: null });
+                }}
+                onCancel={() => {
+                    pinPromptConfig.resolve?.(null);
+                    setPinPromptConfig({ isOpen: false, title: "", resolve: null });
+                }}
+            />
         </VaultKeyContext.Provider>
     );
 }
