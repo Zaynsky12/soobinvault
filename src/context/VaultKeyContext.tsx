@@ -24,11 +24,43 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
     React.useEffect(() => {
         const loadPersistedKey = async () => {
             if (!account || typeof window === 'undefined') return;
-            const savedKey = localStorage.getItem(`soobin_vault_key_${account.address}`);
-            if (savedKey) {
+            const savedData = localStorage.getItem(`soobin_vault_key_${account.address}`);
+            if (savedData) {
                 try {
+                    let base64MasterKey = savedData;
+                    
+                    // Check if it's a JSON string (meaning it's PIN-encrypted)
+                    if (savedData.startsWith("{")) {
+                        const encryptedObject = JSON.parse(savedData);
+                        if (encryptedObject.protected) {
+                            const pin = prompt("🔒 Vault is locked. Enter your local PIN to decrypt your session key:");
+                            if (!pin) {
+                                toast.error("PIN required to restore session.");
+                                return;
+                            }
+                            
+                            // Derive Key-Encrypting-Key from PIN
+                            const ptUtf8 = new TextEncoder().encode(pin);
+                            const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
+                            const kek = await window.crypto.subtle.importKey(
+                                'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+                            );
+                            
+                            const iv = new Uint8Array(atob(encryptedObject.iv).split("").map(c => c.charCodeAt(0)));
+                            const ciphertext = new Uint8Array(atob(encryptedObject.ciphertext).split("").map(c => c.charCodeAt(0)));
+                            
+                            try {
+                                const decryptedBuffer = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, ciphertext);
+                                base64MasterKey = new TextDecoder().decode(decryptedBuffer);
+                            } catch (decErr) {
+                                toast.error("Incorrect PIN. Access Denied.");
+                                return;
+                            }
+                        }
+                    }
+
                     const bytes = new Uint8Array(
-                        atob(savedKey).split("").map(c => c.charCodeAt(0))
+                        atob(base64MasterKey).split("").map(c => c.charCodeAt(0))
                     );
                     const key = await window.crypto.subtle.importKey(
                         'raw',
@@ -40,10 +72,9 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                     setEncryptionKey(key);
                     console.log("[Vault] Key restored from local persistence.");
                     
-                    // Remind user to backup key if they haven't been reminded this session
-                    toast("Welcome back! Remember to backup your Master Key in Settings.", { icon: '🛡️', duration: 5000 });
+                    toast("Welcome back! Session restored securely.", { icon: '🛡️', duration: 5000 });
                 } catch (e) {
-                    console.error("Failed to restore persisted key");
+                    console.error("Failed to restore persisted key", e);
                 }
             }
         };
@@ -52,9 +83,8 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
 
     const lockVault = () => {
         setEncryptionKey(null);
-        // Do NOT delete from localStorage, otherwise Keyless/Multikey accounts 
-        // will permanently lose their randomly generated keys upon disconnecting!
-        toast.success("Vault session locked in memory.");
+        // We do not delete from localStorage because it is now PIN-protected (if keyless)
+        toast.success("Vault session securely locked.");
     };
 
     const ensureKey = async (force: boolean = false): Promise<CryptoKey | null> => {
@@ -211,7 +241,29 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                     
                     const rawKey = await window.crypto.subtle.exportKey('raw', key);
                     const base64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
-                    localStorage.setItem(`soobin_vault_key_${account.address}`, base64);
+                    
+                    const pin = prompt("🔒 Create a PIN to securely encrypt your local session key:");
+                    if (pin) {
+                        const ptUtf8 = new TextEncoder().encode(pin);
+                        const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
+                        const kek = await window.crypto.subtle.importKey(
+                            'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
+                        );
+                        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                        const encodedBase64 = new TextEncoder().encode(base64);
+                        const ciphertextBuf = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, encodedBase64);
+                        
+                        const encryptedData = JSON.stringify({
+                            protected: true,
+                            iv: btoa(String.fromCharCode(...iv)),
+                            ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuf)))
+                        });
+                        localStorage.setItem(`soobin_vault_key_${account.address}`, encryptedData);
+                        toast.success("Key created and protected with PIN.");
+                    } else {
+                        localStorage.setItem(`soobin_vault_key_${account.address}`, base64);
+                        toast("Key saved without PIN protection.", { icon: '⚠️' });
+                    }
                     
                     const keyHash = await window.crypto.subtle.digest('SHA-256', rawKey);
                     const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -256,7 +308,29 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             setEncryptionKey(key);
             
             // Persist for future sessions on this device
-            localStorage.setItem(`soobin_vault_key_${account?.address}`, base64);
+            const pin = prompt("🔒 Create a PIN to securely encrypt your Master Key on this device:");
+            if (pin) {
+                const ptUtf8 = new TextEncoder().encode(pin);
+                const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
+                const kek = await window.crypto.subtle.importKey(
+                    'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
+                );
+                const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                const encodedBase64 = new TextEncoder().encode(base64);
+                const ciphertextBuf = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, encodedBase64);
+                
+                const encryptedData = JSON.stringify({
+                    protected: true,
+                    iv: btoa(String.fromCharCode(...iv)),
+                    ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuf)))
+                });
+                localStorage.setItem(`soobin_vault_key_${account?.address}`, encryptedData);
+                toast.success("Master Key restored and secured with PIN.");
+            } else {
+                localStorage.setItem(`soobin_vault_key_${account?.address}`, base64);
+                toast("Key saved without PIN protection.", { icon: '⚠️' });
+            }
+            
             localStorage.setItem(`soobin_key_backed_up_${account?.address}`, 'true'); // Implicit backup when imported
             
             // Log fingerprint for consistency check
