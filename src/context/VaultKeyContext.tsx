@@ -170,6 +170,29 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             // --- AUTO FALLBACK FOR KEYLESS/MULTIKEY ACCOUNTS ---
             if (errorMsg.toLowerCase().includes("multikey") || errorMsg.toLowerCase().includes("keyless")) {
                 console.warn("[Vault] Multikey signature extraction failed. Using secure random fallback.");
+                
+                // PREVENT DESTRUCTIVE OVERWRITES
+                // If the user already has a session key in memory, or in localStorage, we should use it!
+                if (force && encryptionKey) {
+                    toast.success("Vault is securely unlocked using your local key.", { id: toastId });
+                    return encryptionKey;
+                }
+                
+                const savedKey = localStorage.getItem(`soobin_vault_key_${account.address}`);
+                if (savedKey) {
+                    try {
+                        const bytes = new Uint8Array(atob(savedKey).split("").map(c => c.charCodeAt(0)));
+                        const key = await window.crypto.subtle.importKey(
+                            'raw', bytes, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
+                        );
+                        setEncryptionKey(key);
+                        toast.success("Restored existing local session key.", { id: toastId });
+                        return key;
+                    } catch (e) {
+                        console.warn("Failed to restore key during fallback, proceeding to generate a new one.");
+                    }
+                }
+
                 toast("Keyless/Multikey account detected. Generating a secure local session key...", { 
                     id: toastId, 
                     icon: '🚀',
