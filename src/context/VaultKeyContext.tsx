@@ -67,12 +67,22 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
         const toastId = toast.loading("Waiting for wallet signature to derive session key...");
         try {
             // Request signature for deterministic key derivation
-            const response = await signMessage({
-                message: SIGN_MESSAGE,
-                nonce: "soobinvault-v1",
-                address: true,      // Include address
-                application: false  // DO NOT include domain (important for cross-domain/device consistency)
-            } as any); // Use 'as any' to avoid potential linting issues with optional fields
+            let response;
+            try {
+                response = await signMessage({
+                    message: SIGN_MESSAGE,
+                    nonce: "soobinvault-v1",
+                    address: true,      // Include address
+                    application: false  // DO NOT include domain
+                } as any);
+            } catch (initialError: any) {
+                console.warn("[Vault] Standard signMessage failed, trying fallback...", initialError);
+                // Fallback for strict wallets that reject customized payloads
+                response = await signMessage({
+                    message: SIGN_MESSAGE,
+                    nonce: "soobinvault-v1",
+                });
+            }
 
             // Extract signature - response.signature can be string or object depending on wallet
             let signature: string;
@@ -80,18 +90,15 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             if (typeof response.signature === 'string') {
                 signature = response.signature;
             } else if (response.signature instanceof Uint8Array) {
-                // If it's a direct Uint8Array
-                signature = Array.from(response.signature).map(b => b.toString(16).padStart(2, '0')).join('');
+                signature = Array.from(response.signature).map((b: number) => b.toString(16).padStart(2, '0')).join('');
             } else if (response.signature && (response.signature as any).data) {
-                // Handle Uint8Array signature inside an object with .data field
                 const data = (response.signature as any).data;
                 if (data instanceof Uint8Array || Array.isArray(data)) {
-                    signature = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join('');
+                    signature = Array.from(data).map((b: number) => b.toString(16).padStart(2, '0')).join('');
                 } else {
                     signature = JSON.stringify(response.signature);
                 }
             } else {
-                // Fallback for any other type
                 signature = String(response.signature || "");
             }
 
@@ -99,14 +106,12 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                  throw new Error("Signature extraction failed. Unsupported wallet signature format.");
             }
 
-            // Normalisasi signature agar identik di semua browser/perangkat
-            // Menghapus '0x' jika ada dan mengubah ke lowercase untuk konsistensi deterministik
+            // Canonicalize signature
             const canonicalSignature = signature.toLowerCase().startsWith('0x') 
                 ? signature.toLowerCase().slice(2) 
                 : signature.toLowerCase();
 
-            // Derive 32-byte key from canonical signature + account address as salt
-            // Normalisasi Alamat: Ambil string tanpa 0x, lalu pad ke 64 karakter (32 bytes)
+            // Canonicalize salt
             const rawAddress = account.address.toString().toLowerCase();
             const addressWithout0x = rawAddress.startsWith('0x') ? rawAddress.slice(2) : rawAddress;
             const canonicalSalt = addressWithout0x.padStart(64, '0');
@@ -114,19 +119,17 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             const key = await deriveKeyFromSignature(canonicalSignature, canonicalSalt);
             setEncryptionKey(key);
             
-            // Persist the key for automatic unlock next time
+            // Persist the key
             const rawKey = await window.crypto.subtle.exportKey('raw', key);
             const base64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
             localStorage.setItem(`soobin_vault_key_${account.address}`, base64);
             
-            // Log key fingerprint (sharing first 4 chars of hash is safe for debugging)
             const keyHash = await window.crypto.subtle.digest('SHA-256', rawKey);
             const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
             console.log(`[Vault] Session key derived. Fingerprint: ${fingerprint}`);
             
             toast.success(`Vault unlocked! (Key: ${fingerprint})`, { id: toastId });
             
-            // Add a slight delay for the backup reminder so it doesn't overlap too much
             setTimeout(() => {
                 const isBackedUp = localStorage.getItem(`soobin_key_backed_up_${account.address}`);
                 if (!isBackedUp) {
@@ -142,8 +145,27 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             return key;
         } catch (error: any) {
             console.error("Failed to unlock vault (Full Error):", error);
-            const errorMsg = error?.message || "Signature required for decryption.";
-            toast.error(`Unlock failed: ${errorMsg}`, { id: toastId });
+            
+            let errorMsg = "Signature required for decryption.";
+            if (typeof error === 'string') {
+                errorMsg = error;
+            } else if (error?.name === 'UserRejectedRequestError' || (typeof error?.message === 'string' && error.message.toLowerCase().includes('user rejected'))) {
+                errorMsg = "Request canceled by user.";
+            } else if (error?.message) {
+                errorMsg = error.message;
+            } else if (error && typeof error === 'object') {
+                try {
+                    errorMsg = JSON.stringify(error);
+                } catch {
+                    errorMsg = String(error);
+                }
+            }
+
+            if (errorMsg === "Request canceled by user.") {
+                toast.error("Unlock canceled. Vault remains locked.", { id: toastId });
+            } else {
+                toast.error(`Unlock failed: ${errorMsg}`, { id: toastId });
+            }
             return null;
         }
     };
