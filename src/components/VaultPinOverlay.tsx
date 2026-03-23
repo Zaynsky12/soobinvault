@@ -7,11 +7,13 @@ import gsap from 'gsap';
 interface VaultPinOverlayProps {
     isOpen: boolean;
     title: string;
+    allowReset?: boolean;
+    required?: boolean;
     onSubmit: (pin: string) => void;
     onCancel: () => void;
 }
 
-export function VaultPinOverlay({ isOpen, title, onSubmit, onCancel }: VaultPinOverlayProps) {
+export function VaultPinOverlay({ isOpen, title, allowReset, required, onSubmit, onCancel }: VaultPinOverlayProps) {
     const [pin, setPin] = useState('');
     const overlayRef = useRef<HTMLDivElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
@@ -37,7 +39,7 @@ export function VaultPinOverlay({ isOpen, title, onSubmit, onCancel }: VaultPinO
     }, [isOpen, title]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Escape') {
+        if (e.key === 'Escape' && !required) {
             handleCancel();
         } else if (e.key === 'Enter') {
             handleSubmit();
@@ -76,22 +78,28 @@ export function VaultPinOverlay({ isOpen, title, onSubmit, onCancel }: VaultPinO
                 {/* Decorative Top Bar */}
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-color-primary via-color-accent to-color-primary animate-pulse" />
                 
-                <button 
-                    onClick={handleCancel}
-                    className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
-                >
-                    <X size={20} />
-                </button>
+                {!required && (
+                    <button 
+                        onClick={handleCancel}
+                        className="absolute top-4 right-4 text-white/40 hover:text-white transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
+                )}
 
                 <div className="w-16 h-16 bg-color-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-color-primary/20 shadow-[0_0_30px_rgba(232,58,118,0.3)]">
                     <Lock size={32} className="text-color-primary" />
                 </div>
                 
                 <h2 className="text-xl font-bold text-white mb-2">{title}</h2>
-                <p className="text-color-support/80 text-sm mb-8 min-h-[20px]">
+                <p className={`text-sm mb-8 min-h-[20px] ${title.toLowerCase().includes('incorrect') ? 'text-red-400 font-medium animate-pulse' : 'text-color-support/80'}`}>
                     {title.toLowerCase().includes('master key') 
                         ? "Please carefully paste your previously backed up Key string."
-                        : "Enter your secure 6-digit Vault PIN to access or protect your session keys."}
+                        : title.toLowerCase().includes('incorrect')
+                            ? "The password you entered was incorrect. Please try again or reset your local vault."
+                            : title.toLowerCase().includes('create')
+                                ? "Create a secure 6-digit PIN to secure your vault on this device."
+                                : "Enter your secure 6-digit Vault PIN to access your session keys."}
                 </p>
 
                 <div className="mb-8">
@@ -115,6 +123,21 @@ export function VaultPinOverlay({ isOpen, title, onSubmit, onCancel }: VaultPinO
                     <ShieldCheck size={18} />
                     {title.toLowerCase().includes('master key') ? "Confirm Master Key" : "Confirm Security PIN"}
                 </button>
+
+                {allowReset && (
+                    <button
+                        onClick={() => {
+                            gsap.to(modalRef.current, {
+                                scale: 0.95, opacity: 0, duration: 0.2, ease: 'power2.in',
+                                onComplete: () => onSubmit("__RESET__")
+                            });
+                            gsap.to(overlayRef.current, { opacity: 0, duration: 0.3, delay: 0.1 });
+                        }}
+                        className="w-full mt-4 py-3 rounded-xl border border-white/10 text-white/50 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/5 transition-all text-sm font-medium"
+                    >
+                        Forgot PIN? Reset Local Vault
+                    </button>
+                )}
             </div>
         </div>
     );

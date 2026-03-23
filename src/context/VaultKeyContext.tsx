@@ -26,12 +26,15 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
     const [pinPromptConfig, setPinPromptConfig] = useState<{
         isOpen: boolean;
         title: string;
+        allowReset?: boolean;
+        required?: boolean;
+        timestamp?: number;
         resolve: ((pin: string | null) => void) | null;
-    }>({ isOpen: false, title: "", resolve: null });
+    }>({ isOpen: false, title: "", allowReset: false, required: false, timestamp: 0, resolve: null });
 
-    const requestPin = (title: string): Promise<string | null> => {
+    const requestPin = (title: string, allowReset: boolean = false, required: boolean = false): Promise<string | null> => {
         return new Promise((resolve) => {
-            setPinPromptConfig({ isOpen: true, title, resolve });
+            setPinPromptConfig({ isOpen: true, title, allowReset, required, timestamp: Date.now(), resolve });
         });
     };
 
@@ -48,28 +51,38 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                     if (savedData.startsWith("{")) {
                         const encryptedObject = JSON.parse(savedData);
                         if (encryptedObject.protected) {
-                            const pin = await requestPin("🔒 Vault is locked. Enter your local PIN to decrypt your session key:");
-                            if (!pin) {
-                                toast.error("PIN required to restore session.");
-                                return;
-                            }
-                            
-                            // Derive Key-Encrypting-Key from PIN
-                            const ptUtf8 = new TextEncoder().encode(pin);
-                            const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
-                            const kek = await window.crypto.subtle.importKey(
-                                'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
-                            );
-                            
-                            const iv = new Uint8Array(atob(encryptedObject.iv).split("").map(c => c.charCodeAt(0)));
-                            const ciphertext = new Uint8Array(atob(encryptedObject.ciphertext).split("").map(c => c.charCodeAt(0)));
-                            
-                            try {
-                                const decryptedBuffer = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, ciphertext);
-                                base64MasterKey = new TextDecoder().decode(decryptedBuffer);
-                            } catch (decErr) {
-                                toast.error("Incorrect PIN. Access Denied.");
-                                return;
+                            let decrypted = false;
+                            let promptTitle = "🔒 Vault is locked. Enter your local PIN to decrypt your session key:";
+                            while (!decrypted) {
+                                const pin = await requestPin(promptTitle, true);
+                                if (!pin) {
+                                    toast.error("PIN required to restore session.");
+                                    return;
+                                }
+                                if (pin === "__RESET__") {
+                                    localStorage.removeItem(`soobin_vault_key_${account.address}`);
+                                    localStorage.removeItem(`soobin_key_backed_up_${account.address}`);
+                                    toast.success("Local vault cleared. You can now generate a new one.");
+                                    return;
+                                }
+                                
+                                try {
+                                    const ptUtf8 = new TextEncoder().encode(pin);
+                                    const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
+                                    const kek = await window.crypto.subtle.importKey(
+                                        'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+                                    );
+                                    
+                                    const iv = new Uint8Array(atob(encryptedObject.iv).split("").map(c => c.charCodeAt(0)));
+                                    const ciphertext = new Uint8Array(atob(encryptedObject.ciphertext).split("").map(c => c.charCodeAt(0)));
+                                    
+                                    const decryptedBuffer = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, ciphertext);
+                                    base64MasterKey = new TextDecoder().decode(decryptedBuffer);
+                                    decrypted = true;
+                                } catch (decErr) {
+                                    toast.error("Incorrect PIN. Please try again.");
+                                    promptTitle = "❌ Incorrect password. Please try again:";
+                                }
                             }
                         }
                     }
@@ -165,10 +178,33 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             const key = await deriveKeyFromSignature(canonicalSignature, canonicalSalt);
             setEncryptionKey(key);
             
-            // Persist the key
+            // Persist the key with a mandatory PIN
+            let pin = null;
+            while (!pin) {
+                pin = await requestPin("🔒 Create a PIN to securely protect your session on this device:", false, true);
+                if (!pin) {
+                    toast.error("PIN is mandatory to secure your vault.");
+                }
+            }
+            
             const rawKey = await window.crypto.subtle.exportKey('raw', key);
             const base64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
-            localStorage.setItem(`soobin_vault_key_${account.address}`, base64);
+            
+            const ptUtf8 = new TextEncoder().encode(pin);
+            const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
+            const kek = await window.crypto.subtle.importKey(
+                'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
+            );
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            const encodedBase64 = new TextEncoder().encode(base64);
+            const ciphertextBuf = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, encodedBase64);
+            
+            const encryptedData = JSON.stringify({
+                protected: true,
+                iv: btoa(String.fromCharCode(...iv)),
+                ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuf)))
+            });
+            localStorage.setItem(`soobin_vault_key_${account.address}`, encryptedData);
             
             const keyHash = await window.crypto.subtle.digest('SHA-256', rawKey);
             const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -233,23 +269,39 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                         if (savedData.startsWith("{")) {
                             const encryptedObject = JSON.parse(savedData);
                             if (encryptedObject.protected) {
-                                const pin = await requestPin("🔒 Vault is localized. Enter your local PIN to decrypt your session key:");
-                                if (!pin) {
-                                    toast.error("PIN required to restore session.");
-                                    return null;
+                                let decrypted = false;
+                                let promptTitle = "🔒 Vault is localized. Enter your local PIN to decrypt your session key:";
+                                while (!decrypted) {
+                                    const pin = await requestPin(promptTitle, true);
+                                    if (!pin) {
+                                        toast.error("PIN required to restore session.");
+                                        return null;
+                                    }
+                                    if (pin === "__RESET__") {
+                                        localStorage.removeItem(`soobin_vault_key_${account.address}`);
+                                        localStorage.removeItem(`soobin_key_backed_up_${account.address}`);
+                                        toast.success("Local vault cleared. Proceeding to create a new one.");
+                                        throw new Error("Reset local vault");
+                                    }
+                                    
+                                    try {
+                                        const ptUtf8 = new TextEncoder().encode(pin);
+                                        const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
+                                        const kek = await window.crypto.subtle.importKey(
+                                            'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+                                        );
+                                        
+                                        const iv = new Uint8Array(atob(encryptedObject.iv).split("").map(c => c.charCodeAt(0)));
+                                        const ciphertext = new Uint8Array(atob(encryptedObject.ciphertext).split("").map(c => c.charCodeAt(0)));
+                                        
+                                        const decryptedBuffer = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, ciphertext);
+                                        base64MasterKey = new TextDecoder().decode(decryptedBuffer);
+                                        decrypted = true;
+                                    } catch (decErr) {
+                                        toast.error("Incorrect PIN. Please try again.");
+                                        promptTitle = "❌ Incorrect password. Please try again:";
+                                    }
                                 }
-                                
-                                const ptUtf8 = new TextEncoder().encode(pin);
-                                const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
-                                const kek = await window.crypto.subtle.importKey(
-                                    'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
-                                );
-                                
-                                const iv = new Uint8Array(atob(encryptedObject.iv).split("").map(c => c.charCodeAt(0)));
-                                const ciphertext = new Uint8Array(atob(encryptedObject.ciphertext).split("").map(c => c.charCodeAt(0)));
-                                
-                                const decryptedBuffer = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, kek, ciphertext);
-                                base64MasterKey = new TextDecoder().decode(decryptedBuffer);
                             }
                         }
 
@@ -283,28 +335,30 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                     const rawKey = await window.crypto.subtle.exportKey('raw', key);
                     const base64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
                     
-                    const pin = await requestPin("🔒 Create a PIN to securely encrypt your local session key:");
-                    if (pin) {
-                        const ptUtf8 = new TextEncoder().encode(pin);
-                        const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
-                        const kek = await window.crypto.subtle.importKey(
-                            'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
-                        );
-                        const iv = window.crypto.getRandomValues(new Uint8Array(12));
-                        const encodedBase64 = new TextEncoder().encode(base64);
-                        const ciphertextBuf = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, encodedBase64);
-                        
-                        const encryptedData = JSON.stringify({
-                            protected: true,
-                            iv: btoa(String.fromCharCode(...iv)),
-                            ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuf)))
-                        });
-                        localStorage.setItem(`soobin_vault_key_${account.address}`, encryptedData);
-                        toast.success("Key created and protected with PIN.");
-                    } else {
-                        localStorage.setItem(`soobin_vault_key_${account.address}`, base64);
-                        toast("Key saved without PIN protection.", { icon: '⚠️' });
+                    let pin = null;
+                    while (!pin) {
+                        pin = await requestPin("🔒 Create a PIN to securely encrypt your local session key:", false, true);
+                        if (!pin) {
+                            toast.error("PIN is mandatory to secure your vault.");
+                        }
                     }
+                    
+                    const ptUtf8 = new TextEncoder().encode(pin);
+                    const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
+                    const kek = await window.crypto.subtle.importKey(
+                        'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
+                    );
+                    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                    const encodedBase64 = new TextEncoder().encode(base64);
+                    const ciphertextBuf = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, encodedBase64);
+                    
+                    const encryptedData = JSON.stringify({
+                        protected: true,
+                        iv: btoa(String.fromCharCode(...iv)),
+                        ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuf)))
+                    });
+                    localStorage.setItem(`soobin_vault_key_${account.address}`, encryptedData);
+                    toast.success("Key created and protected with PIN.");
                     
                     const keyHash = await window.crypto.subtle.digest('SHA-256', rawKey);
                     const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -349,28 +403,30 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             setEncryptionKey(key);
             
             // Persist for future sessions on this device
-            const pin = await requestPin("🔒 Create a PIN to securely encrypt your Master Key on this device:");
-            if (pin) {
-                const ptUtf8 = new TextEncoder().encode(pin);
-                const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
-                const kek = await window.crypto.subtle.importKey(
-                    'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
-                );
-                const iv = window.crypto.getRandomValues(new Uint8Array(12));
-                const encodedBase64 = new TextEncoder().encode(base64);
-                const ciphertextBuf = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, encodedBase64);
-                
-                const encryptedData = JSON.stringify({
-                    protected: true,
-                    iv: btoa(String.fromCharCode(...iv)),
-                    ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuf)))
-                });
-                localStorage.setItem(`soobin_vault_key_${account?.address}`, encryptedData);
-                toast.success("Master Key restored and secured with PIN.");
-            } else {
-                localStorage.setItem(`soobin_vault_key_${account?.address}`, base64);
-                toast("Key saved without PIN protection.", { icon: '⚠️' });
+            let pin = null;
+            while (!pin) {
+                pin = await requestPin("🔒 Create a PIN to securely encrypt the imported key on this device:", false, true);
+                if (!pin) {
+                    toast.error("PIN is mandatory to secure your vault.");
+                }
             }
+            
+            const ptUtf8 = new TextEncoder().encode(pin);
+            const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
+            const kek = await window.crypto.subtle.importKey(
+                'raw', hashBuffer, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
+            );
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            const encodedBase64 = new TextEncoder().encode(base64);
+            const ciphertextBuf = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, kek, encodedBase64);
+            
+            const encryptedData = JSON.stringify({
+                protected: true,
+                iv: btoa(String.fromCharCode(...iv)),
+                ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuf)))
+            });
+            localStorage.setItem(`soobin_vault_key_${account?.address}`, encryptedData);
+            toast.success("Master Key restored and secured with PIN.");
             
             localStorage.setItem(`soobin_key_backed_up_${account?.address}`, 'true'); // Implicit backup when imported
             
@@ -389,15 +445,18 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
         <VaultKeyContext.Provider value={{ encryptionKey, ensureKey, importKeyManual, lockVault, requestPin }}>
             {children}
             <VaultPinOverlay 
+                key={pinPromptConfig.timestamp || "pin-overlay"}
                 isOpen={pinPromptConfig.isOpen}
                 title={pinPromptConfig.title}
+                allowReset={pinPromptConfig.allowReset}
+                required={pinPromptConfig.required}
                 onSubmit={(pin) => {
                     pinPromptConfig.resolve?.(pin);
-                    setPinPromptConfig({ isOpen: false, title: "", resolve: null });
+                    setPinPromptConfig({ isOpen: false, title: "", allowReset: false, required: false, timestamp: 0, resolve: null });
                 }}
                 onCancel={() => {
                     pinPromptConfig.resolve?.(null);
-                    setPinPromptConfig({ isOpen: false, title: "", resolve: null });
+                    setPinPromptConfig({ isOpen: false, title: "", allowReset: false, required: false, timestamp: 0, resolve: null });
                 }}
             />
         </VaultKeyContext.Provider>

@@ -195,18 +195,7 @@ export default function Navbar(): React.ReactNode {
             </div>
 
             <div className="border-t border-white/5 p-2 mt-1">
-                {encryptionKey && (
-                    <button 
-                        onClick={() => {
-                            lockVault();
-                            setIsSettingsOpen(false);
-                        }}
-                        className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-red-500/60 hover:text-red-500 hover:bg-red-500/5 rounded-xl transition-all"
-                    >
-                        <LogOut size={18} />
-                        Lock Session
-                    </button>
-                )}
+
                 <button 
                     onClick={() => {
                         disconnect();
