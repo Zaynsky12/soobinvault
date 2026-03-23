@@ -59,11 +59,12 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                                     toast.error("PIN required to restore session.");
                                     return;
                                 }
-                                if (pin === "__RESET__") {
+                                if (pin === "__IMPORT__") {
                                     localStorage.removeItem(`soobin_vault_key_${account.address}`);
                                     localStorage.removeItem(`soobin_key_backed_up_${account.address}`);
-                                    toast.success("Previous session cleared. Creating a new vault...");
-                                    ensureKey(true);
+                                    toast.success("Ready to restore your session. Please provide your Master Key.");
+                                    const masterKey = await requestPin("Please carefully paste your previously backed up Master Key:");
+                                    if (masterKey) await importKeyManual(masterKey);
                                     return;
                                 }
                                 
@@ -289,11 +290,12 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                                         toast.error("PIN required to restore session.");
                                         return null;
                                     }
-                                    if (pin === "__RESET__") {
+                                    if (pin === "__IMPORT__") {
                                         localStorage.removeItem(`soobin_vault_key_${account.address}`);
                                         localStorage.removeItem(`soobin_key_backed_up_${account.address}`);
-                                        toast.success("Local vault cleared. Creating a new one...");
-                                        ensureKey(true);
+                                        toast.success("Ready to restore your session. Please provide your Master Key.");
+                                        const masterKey = await requestPin("Please carefully paste your previously backed up Master Key:");
+                                        if (masterKey) await importKeyManual(masterKey);
                                         return null;
                                     }
                                     
