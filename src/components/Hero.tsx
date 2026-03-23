@@ -95,11 +95,11 @@ export function Hero() {
                 </div>
 
                 <h1 className="animate-in text-5xl md:text-7xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-color-support drop-shadow-lg leading-[1.1] tracking-tight">
-                    Unbreakable Storage for the Decentralized Web.
+                    Your Digital Legacy, <br className="hidden md:block" /> Locked with <span className="text-color-accent">Zero-Knowledge</span>.
                 </h1>
 
-                <p className="animate-in text-xl md:text-2xl text-[#A3A3A3] mb-12 max-w-2xl mx-auto font-normal leading-relaxed">
-                    Store, share, and <span className="text-white font-semibold">stream</span> your files on the world's most powerful <span className="text-color-accent">cryptographic</span> storage network.
+                <p className="animate-in text-xl md:text-2xl text-[#A3A3A3] mb-12 max-w-3xl mx-auto font-normal leading-relaxed">
+                    Protect your private files with <span className="text-white font-semibold">Signer-Based Encryption</span> and mandatory <span className="text-color-accent">PIN Security</span>. Powered by Aptos & Shelby Protocol.
                 </p>
 
                 <div className="animate-in flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -107,12 +107,12 @@ export function Hero() {
                         className="bg-color-accent text-white w-full sm:w-auto text-lg font-bold shadow-[0_0_30px_-5px_#E83A76] hover:shadow-[0_0_50px_-5px_#E83A76] rounded-2xl"
                         onClick={handleWalletClick}
                     >
-                        {isLoading ? "Connecting..." : connected && account ? `Connected: ${account.address.toString().slice(0, 6)}...` : "Connect Petra Wallet"}
+                        {isLoading ? "Connecting..." : connected && account ? `Connected: ${account.address.toString().slice(0, 6)}...` : "Connect Wallet"}
                     </MagneticButton>
-                    <a 
-                        href="https://docs.shelby.xyz/" 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
+                    <a
+                        href="https://docs.shelby.xyz/"
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="text-color-support hover:text-white transition-colors duration-200 font-semibold px-8 py-4 w-full sm:w-auto glass-panel rounded-2xl hover:bg-white/10 relative overflow-hidden group flex items-center justify-center"
                     >
                         <span className="relative z-10">Explore Documentation</span>

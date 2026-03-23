@@ -42,12 +42,12 @@ export function Protocol() {
                         <div className="absolute top-8 bottom-8 left-1/2 md:left-[56px] w-[2px] bg-gradient-to-b from-[#38BDF8]/40 via-[#A855F7]/40 to-transparent -translate-x-1/2 z-0" />
 
                         {[
-                            { step: '01', title: 'Initialize Session', desc: 'Securely link your Aptos Petra wallet to authenticate securely without vulnerable passwords.' },
-                            { step: '02', title: 'Encrypt Payload', desc: 'Drag and drop your file into the secure Vault interface below to heavily encode your data locally.' },
-                            { step: '03', title: 'Broadcast Data', desc: 'Approve the cryptographic transaction to distribute your payload as shards across the network array.' }
+                            { step: '01', title: 'Initialize Session', desc: 'Securely link your Aptos wallet to authenticate without vulnerable passwords or centralized databases.' },
+                            { step: '02', title: 'Unlock Secure Vault', desc: 'Sign the cryptographic message and set your 6-digit local PIN to encrypt your master vault key.' },
+                            { step: '03', title: 'Manage Assets', desc: 'Drag and drop your files to encrypt them locally and distribute them across the decentralized network.' }
                         ].map((item, i) => (
-                            <GlassCard key={i} className="protocol-step relative z-10 p-6 flex flex-col md:flex-row items-center text-center md:text-left gap-6 bg-[#0A0A0A]/90 border border-white/5 hover:border-[#38BDF8]/40 transition-all duration-300 group">
-                                <div className="shrink-0 w-16 h-16 rounded-2xl bg-black flex items-center justify-center text-[#38BDF8] font-mono font-bold text-2xl shadow-[0_0_20px_rgba(56,189,248,0.15)] border border-white/10 group-hover:border-[#38BDF8]/50 z-10 transition-colors">
+                            <GlassCard key={i} className="protocol-step relative z-10 p-6 flex flex-col md:flex-row items-center text-center md:text-left gap-6 bg-[#0A0A0A]/90 border border-white/5 hover:border-color-accent/40 transition-all duration-300 group">
+                                <div className="shrink-0 w-16 h-16 rounded-2xl bg-black flex items-center justify-center text-color-accent font-mono font-bold text-2xl shadow-[0_0_20px_rgba(232,58,118,0.15)] border border-white/10 group-hover:border-color-accent/50 z-10 transition-colors">
                                     {item.step}
                                 </div>
                                 <div className="flex-grow z-10">

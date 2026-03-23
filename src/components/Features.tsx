@@ -12,19 +12,19 @@ const features = [
     {
         icon: Shield,
         title: "Zero-Knowledge Architecture",
-        description: "Military-grade encryption deployed locally. Your cryptographic keys never leave your device. We cannot access your data.",
+        description: "Military-grade AES-256-GCM encryption deployed locally. Your cryptographic keys never leave your device. We cannot access your data.",
         speed: 0.8
     },
     {
         icon: Network,
-        title: "Fragmented Redundancy",
-        description: "Your payloads are fractured into cryptographically secure shards and distributed across independent network nodes. Zero single points of failure.",
+        title: "Mandatory PIN Protection",
+        description: "Every session is secured by a user-defined 6-digit PIN, encrypting your local vault key with a hardware-grade approach.",
         speed: 1.2
     },
     {
         icon: Wallet,
-        title: "Frictionless Authentication",
-        description: "Authenticate securely via cryptographic signature using your Aptos Petra wallet. No vulnerable passwords or databases.",
+        title: "Master Key Restoration",
+        description: "Lose your PIN? No problem. Restore your entire vault seamlessly using your unique 64-character Master Key backup.",
         speed: 0.9
     }
 ];
@@ -105,10 +105,10 @@ export function Features() {
                             <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-[radial-gradient(ellipse_at_center,rgba(251,179,204,0.2)_0%,transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
 
                             <div className="relative z-10 w-full md:w-3/4">
-                                <div className="inline-flex px-4 py-1.5 rounded-full bg-[#1A1A1A] border border-white/5 text-[#A3A3A3] text-xs font-mono font-medium mb-6 uppercase tracking-widest">Global Nodes</div>
-                                <h3 className="text-3xl md:text-4xl font-bold mb-4 text-white">Fragmented Redundancy</h3>
+                                <div className="inline-flex px-4 py-1.5 rounded-full bg-[#1A1A1A] border border-white/5 text-[#A3A3A3] text-xs font-mono font-medium mb-6 uppercase tracking-widest">Protocol Core</div>
+                                <h3 className="text-3xl md:text-4xl font-bold mb-4 text-white">Zero-Knowledge Architecture</h3>
                                 <p className="text-[#A3A3A3] text-lg font-light leading-relaxed">
-                                    Your payloads are fractured into cryptographically secure shards and distributed across independent network nodes. Zero single points of failure. Absolute censorship resistance.
+                                    Military-grade AES-256-GCM encryption deployed locally. Your cryptographic keys never leave your device. We cannot access your data—only you hold the power of decryption.
                                 </p>
                             </div>
                         </GlassCard>
@@ -118,12 +118,12 @@ export function Features() {
                     <div data-speed="1.2" className="parallax-feature md:col-span-1 md:row-span-1">
                         <GlassCard className="feature-card p-8 flex flex-col h-[280px] bg-[#1A0D12]/60 relative overflow-hidden group hover:border-[#E83A76]/30 transition-all duration-500">
                             <div className="w-14 h-14 rounded-2xl glass-panel flex items-center justify-center mb-6 text-[#E83A76] bg-black/40 group-hover:rotate-12 transition-transform duration-500">
-                                <Shield size={24} strokeWidth={2} />
+                                <Network size={24} strokeWidth={2} />
                             </div>
 
                             <div className="relative z-10 mt-auto">
-                                <h3 className="text-2xl font-semibold mb-2 text-white">Zero-Knowledge Architecture</h3>
-                                <p className="text-color-support/80 text-sm font-light">Military-grade encryption deployed locally. Your cryptographic keys never leave your device.</p>
+                                <h3 className="text-2xl font-semibold mb-2 text-white">Mandatory PIN</h3>
+                                <p className="text-color-support/80 text-sm font-light">Every session is secured by a user-defined 6-digit PIN, encrypting your local vault key with a hardware-grade approach.</p>
                             </div>
                             <div className="absolute -top-10 -right-10 w-48 h-48 bg-[radial-gradient(ellipse_at_center,rgba(232,58,118,0.15)_0%,transparent_70%)] pointer-events-none" />
                         </GlassCard>
@@ -139,8 +139,8 @@ export function Features() {
                             <div className="absolute bottom-0 right-0 w-full h-1/2 bg-gradient-to-t from-[#F472B6]/10 to-transparent pointer-events-none" />
 
                             <div className="relative z-10 mt-auto">
-                                <h3 className="text-2xl font-semibold mb-2 text-white">Frictionless Authentication</h3>
-                                <p className="text-color-support/80 text-sm font-light">Authenticate securely via cryptographic signature. No vulnerable passwords or databases.</p>
+                                <h3 className="text-2xl font-semibold mb-2 text-white">Master Key Recovery</h3>
+                                <p className="text-color-support/80 text-sm font-light">Seamlessly restore your vault using a 64-character backup if you forget your PIN or switch devices.</p>
                             </div>
                         </GlassCard>
                     </div>
