@@ -1,134 +1,121 @@
-# 🔐 SoobinVault Protocol: Developer & Integration Guide
+# 🔐 SoobinVault Protocol
 
-SoobinVault is a production-grade **Zero-Knowledge Storage Vault** built on top of the **Aptos Blockchain** and **Shelby Protocol**. It allows users to encrypt and distribute files across a decentralized network where only the owner (via their wallet signature) can access and decrypt the data.
+SoobinVault is a production-grade **Zero-Knowledge Storage Vault** built on top of the **Aptos Blockchain** and **Shelby Protocol**. It empowers users with absolute data sovereignty by ensuring that files are encrypted locally and distributed across a decentralized network.
 
 🌐 **Live Website:** [https://soobinvault.vercel.app/](https://soobinvault.vercel.app/)
 
 ---
 
+## 🧐 What is SoobinVault?
+
+Traditional cloud storage relies on centralized trust. SoobinVault replaces "Trust" with "Math". 
+It is a non-custodial storage protocol where:
+1.  **You Own the Keys:** Encryption keys are derived from your wallet signature.
+2.  **Privacy by Default:** Metadata (filenames, types, sizes) is encrypted along with the content.
+3.  **Local Security:** Sensible session management with mandatory PIN protection for your local device.
+
+---
+
 ## 🚀 Key Features for Users & Developers
 
-- 🛡️ **Zero-Knowledge Architecture:** Files are encrypted client-side using **AES-256-GCM** before ever leaving the browser.
-- 🔐 **Mandatory PIN Protection:** Every session is secured by a user-defined 6-digit PIN, encrypting your local vault key for maximum device-level security.
-- 🔑 **Deterministic Key Derivation:** Derived from unique wallet signatures. No passwords or keys are ever stored on a centralized server.
-- 🛠️ **Advanced Session Recovery:** Seamlessly restore your vault using a 64-character Master Key backup if you forget your local PIN.
-- 🔒 **Security Hardened:** Implements strict **Content Security Policy (CSP)**, HSTS, and Anti-Clickjacking headers for a production-grade defense.
-- 🔎 **Encrypted Metadata Search:** Privacy-preserving search mechanism using encrypted filename "hints".
-- 📱 **Mobile-First UX:** Premium, responsive interface with consolidated search and sync controls.
+### 🛡️ Security First
+- **Zero-Knowledge Architecture:** Files are encrypted client-side using **AES-256-GCM** before ever leaving the browser.
+- **Mandatory PIN Protection:** Every session is secured by a user-defined 6-digit PIN, encrypting your local vault key for maximum device-level security.
+- **Deterministic Key Derivation:** Derived from unique, verifiable wallet signatures. No passwords or keys are ever stored on any server.
+- **Security Hardened:** Implements strict **Content Security Policy (CSP)**, HSTS, and Anti-Clickjacking headers.
+
+### ⚡ Premium Experience
+- **Advanced Session Recovery:** Seamlessly restore your vault using a 64-character Master Key backup if you forget your local PIN or move to a new device.
+- **Mobile-First Design:** A sleek, responsive interface built with **Next.js 14** and **GSAP** for fluid animations.
+- **Consolidated Controls:** Integrated search and sync/refresh tools for a clean, intuitive workspace.
 
 ---
 
 ## 🏗️ Technical Architecture
 
-SoobinVault follows a strict **"Encrypt-then-Upload"** flow with a local security layer:
+SoobinVault utilizes a layered security model to protect data at rest and in transit:
 
+### The "Encrypt-then-Upload" Flow
 ```mermaid
 graph TD
-    A[User Setup/Connect] --> B[Request Wallet Signature]
-    B --> C[Derive Master Key via SHA-256]
-    C --> D[User Sets/Enters 6-digit PIN]
-    D --> E[Encrypt Master Key with PIN-derived KEK]
-    E --> F[Store Encrypted Key in LocalStorage]
-    F --> G[Encrypt File Content + Metadata Header]
-    G --> H[Upload to Shelby Protocol & Aptos Blockchain]
-    H --> I[Session Recovery via Master Key Import]
+    A["User Connects Wallet (Aptos)"] --> B["Request Wallet Signature"]
+    B --> C["Derive Master Key (AES-256)"]
+    C --> D["User Sets 6-digit Local PIN"]
+    D --> E["Encrypt Master Key with PIN-derived KEK"]
+    E --> F["Store Encrypted Key in LocalStorage"]
+    F --> G["Encrypt File Header + Payload (AES-GCM)"]
+    G --> H["Distribute to Shelby Nodes & Aptos Indexer"]
+    H --> I["Session Recovery via Master Key Import"]
 ```
 
-### 1. Key Derivation Logic
-The session key is derived deterministically from a wallet signature of a static message:
+### 1. Key Management Logic
+The **Master Key** is derived deterministically from a wallet signature of a static, versioned message:
 `"Unlock SoobinVault Session. Nonce: soobinvault-v1"`
 
-We use the wallet address as a salt to ensure the key is globally unique to the account. This allows users to access their files on any device by simply re-signing the message with the same wallet.
+To protect this key on the user's device, we use a **Key Encryption Key (KEK)** derived from a user's 6-digit PIN using **SHA-256**. The Master Key is stored in `localStorage` ONLY in its encrypted form.
 
-### 2. File Packaging Format
-An encrypted "Vault Payload" consists of:
-`IV (12 bytes) + Encrypted(Metadata_Size (4) + Metadata_JSON + File_Bytes)`
-
-This ensures that file type, original name, and size are all protected by the same encryption as the file content itself.
-
-### 3. Security Hardening
-SoobinVault implements multiple layers of web security to protect user sessions:
-- **Strict CSP:** Prevents unauthorized script execution and limits connections to known wallet and storage origins.
-- **X-Frame-Options:** Set to `DENY` to prevent clickjacking attacks.
-- **HSTS:** Enforces secure HTTPS connections for 1 year.
-- **MIME Sniffing Prevention:** Uses `X-Content-Type-Options: nosniff`.
+### 2. Privacy-Preserving Search
+FileName metadata is never stored in plaintext. SoobinVault uses base64-encoded encrypted "hints" that allow the UI to display and search for files locally without exposing their names to the storage provider.
 
 ---
 
 ## 🛠️ Integration Guide for Developers
 
-Developers can integrate SoobinVault's security layer into their own dApps or extend its capabilities.
-
 ### Prerequisites
-- Node.js 18+
-- Petra Wallet (or any Aptos-compatible wallet)
-- Shelby Protocol API Key (Get one at [geomi.dev](https://geomi.dev))
+- Node.js 18.17.0+
+- Aptos-compatible wallet (Petra, Martian, etc.)
+- Shelby Protocol API Key
 
-### Setup Environment
+### Installation
 ```bash
 git clone https://github.com/Zaynsky12/soobinvault.git
 cd soobinvault
 npm install
 ```
 
-Create a `.env.local` file:
+### Environment Variables
+Create a `.env.local` file in the root directory:
 ```env
 NEXT_PUBLIC_SHELBY_API_KEY=your_shelby_api_key
 ```
 
-### Core Utility: `@/utils/crypto.ts`
-This is where the magic happens. You can use these utilities in your own modules:
+### Core Cryptographic API (`@/utils/crypto.ts`)
+You can use the internal crypto engine for your own decentralized applications:
 
 ```typescript
 import { encryptFile, decryptFile, deriveKeyFromSignature } from '@/utils/crypto';
 
 // 1. Signature -> Master Key
-// canonicalSalt should be the account address padded to 64 chars
-const key = await deriveKeyFromSignature(walletSignature, canonicalSalt);
+const masterKey = await deriveKeyFromSignature(walletSignature, accountAddress);
 
-// 2. Encryption
-const encryptedPayload = await encryptFile(fileObject, key);
+// 2. Client-side Encryption
+const encryptedBuffer = await encryptFile(fileObject, masterKey);
 
-// 3. Decryption
-const { blob, metadata } = await decryptFile(encryptedBuffer, key);
-console.log(`Original Name: ${metadata.name}`);
+// 3. Client-side Decryption
+const { blob, metadata } = await decryptFile(encryptedBuffer, masterKey);
 ```
 
-### Context Provider: `VaultKeyContext.tsx`
-Wrap your application in the `VaultKeyProvider` to manage the encryption state globally. This handles session persistence safely in memory and `localStorage`.
+### State Management (`VaultKeyContext.tsx`)
+The `VaultKeyProvider` manages the lifecycle of the encryption key, including PIN prompts and session locking.
 
 ```tsx
-import { useVaultKey } from '@/context/VaultKeyContext';
-
 const { encryptionKey, ensureKey, lockVault } = useVaultKey();
 
-// Trigger a signature request to unlock
-const key = await ensureKey(); 
-
-// To force a refresh (e.g., if user thinks key is wrong)
-const refreshedKey = await ensureKey(true);
+// Trigger a secure unlock (Signature + PIN)
+const activeKey = await ensureKey(); 
 ```
 
 ---
 
-## 🔧 Deployment & Integration with Shelby
-
-SoobinVault uses the `@shelby-protocol/sdk` and `react` hooks for reliable storage.
-
-- **Upload:** Use `useUploadBlobs` to push encrypted `Uint8Array` data.
-- **Fetch:** Use the `coordination.getAccountBlobs` method to list all assets associated with a wallet address.
-- **Sync:** The application implements a `vault:refresh` event system to sync the UI across components when assets are updated.
+## 🤝 Contribution & Standards
+1.  **Visuals:** Maintain the "Aesthetic" design language using GSAP and Tailwind CSS.
+2.  **Security:** All cryptographic operations MUST stay on the client-side. Never log or transmit raw keys.
+3.  **Performance:** Optimize for low latency during encryption of large files (>50MB).
 
 ---
 
-## 🤝 Contribution
-1.  **UI/UX:** We use GSAP for all animations. Please maintain the premium aesthetic.
-2.  **Security:** Always ensure `crypto.subtle` operations are performed within a secure context (HTTPS).
-3.  **Optimization:** Use the `Manual Sync` and `Re-Unlock` features to ensure session consistency across different wallet states.
+## 📜 License & Credits
+Built for the **Aptos Ecosystem**. Powered by the **Shelby Protocol** decentralized storage layer.
 
----
-
-## 📜 License & Acknowledgments
-Built with 💖 for the **Aptos Ecosystem**. Special thanks to the **Shelby Protocol** team for providing the decentralized storage layer.
-
-All cryptographic operations are performed strictly on the client-side. **Your keys, your data.**
+**Your keys, your data. Forever.**
+ strictly on the client-side. **Your keys, your data.**
