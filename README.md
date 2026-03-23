@@ -8,29 +8,30 @@ SoobinVault is a production-grade **Zero-Knowledge Storage Vault** built on top 
 
 ## 🚀 Key Features for Users & Developers
 
-- 🛡️ **Zero-Knowledge Architecture:** Files are encrypted client-side using **AES-256-GCM** with a 256-bit key before ever leaving the browser.
-- 🔑 **Deterministic Key Derivation:** Decryption keys are derived from a unique, verifiable wallet signature. No passwords or keys are ever stored on a centralized server.
-- 🌐 **Decentralized Distribution:** Powered by **Shelby Protocol**, ensuring data is fractured, replicated, and distributed across a decentralized network of nodes.
-- 🔎 **Encrypted Metadata Search:** Implements a privacy-preserving search mechanism using base64-encoded encrypted filename "hints".
-- ⚡ **Premium UX:** Built with Next.js 14 and GSAP for a fluid, high-performance interface.
+- 🛡️ **Zero-Knowledge Architecture:** Files are encrypted client-side using **AES-256-GCM** before ever leaving the browser.
+- 🔐 **Mandatory PIN Protection:** Every session is secured by a user-defined 6-digit PIN, encrypting your local vault key for maximum device-level security.
+- 🔑 **Deterministic Key Derivation:** Derived from unique wallet signatures. No passwords or keys are ever stored on a centralized server.
+- 🛠️ **Advanced Session Recovery:** Seamlessly restore your vault using a 64-character Master Key backup if you forget your local PIN.
+- 🔒 **Security Hardened:** Implements strict **Content Security Policy (CSP)**, HSTS, and Anti-Clickjacking headers for a production-grade defense.
+- 🔎 **Encrypted Metadata Search:** Privacy-preserving search mechanism using encrypted filename "hints".
+- 📱 **Mobile-First UX:** Premium, responsive interface with consolidated search and sync controls.
 
 ---
 
 ## 🏗️ Technical Architecture
 
-SoobinVault follows a strict **"Encrypt-then-Upload"** flow. Below is the simplified lifecycle of a file in the protocol:
+SoobinVault follows a strict **"Encrypt-then-Upload"** flow with a local security layer:
 
 ```mermaid
 graph TD
-    A[User Selects File] --> B[Request Wallet Signature]
-    B --> C[Derive AES-256 Key via SHA-256]
-    C --> D[Encrypt File Content + Metadata Header]
-    D --> E[Encrypt Filename for Storage Identifier]
-    E --> F[Upload Encrypted Payload to Shelby Protocol]
-    F --> G[Commit Blob to Aptos Blockchain]
-    G --> H[User Downloads Encrypted Buffer]
-    H --> I[Re-Unlock Session via Signature]
-    I --> J[Decrypt Header & Content Locally]
+    A[User Setup/Connect] --> B[Request Wallet Signature]
+    B --> C[Derive Master Key via SHA-256]
+    C --> D[User Sets/Enters 6-digit PIN]
+    D --> E[Encrypt Master Key with PIN-derived KEK]
+    E --> F[Store Encrypted Key in LocalStorage]
+    F --> G[Encrypt File Content + Metadata Header]
+    G --> H[Upload to Shelby Protocol & Aptos Blockchain]
+    H --> I[Session Recovery via Master Key Import]
 ```
 
 ### 1. Key Derivation Logic
@@ -44,6 +45,13 @@ An encrypted "Vault Payload" consists of:
 `IV (12 bytes) + Encrypted(Metadata_Size (4) + Metadata_JSON + File_Bytes)`
 
 This ensures that file type, original name, and size are all protected by the same encryption as the file content itself.
+
+### 3. Security Hardening
+SoobinVault implements multiple layers of web security to protect user sessions:
+- **Strict CSP:** Prevents unauthorized script execution and limits connections to known wallet and storage origins.
+- **X-Frame-Options:** Set to `DENY` to prevent clickjacking attacks.
+- **HSTS:** Enforces secure HTTPS connections for 1 year.
+- **MIME Sniffing Prevention:** Uses `X-Content-Type-Options: nosniff`.
 
 ---
 
