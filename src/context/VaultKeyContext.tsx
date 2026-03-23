@@ -62,7 +62,8 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                                 if (pin === "__RESET__") {
                                     localStorage.removeItem(`soobin_vault_key_${account.address}`);
                                     localStorage.removeItem(`soobin_key_backed_up_${account.address}`);
-                                    toast.success("Local vault cleared. You can now generate a new one.");
+                                    toast.success("Previous session cleared. Creating a new vault...");
+                                    ensureKey(true);
                                     return;
                                 }
                                 
@@ -291,8 +292,9 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                                     if (pin === "__RESET__") {
                                         localStorage.removeItem(`soobin_vault_key_${account.address}`);
                                         localStorage.removeItem(`soobin_key_backed_up_${account.address}`);
-                                        toast.success("Local vault cleared. Proceeding to create a new one.");
-                                        throw new Error("Reset local vault");
+                                        toast.success("Local vault cleared. Creating a new one...");
+                                        ensureKey(true);
+                                        return null;
                                     }
                                     
                                     try {

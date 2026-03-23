@@ -135,7 +135,7 @@ export function VaultPinOverlay({ isOpen, title, allowReset, required, onSubmit,
                         }}
                         className="w-full mt-4 py-3 rounded-xl border border-white/10 text-white/50 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/5 transition-all text-sm font-medium"
                     >
-                        Forgot PIN? Reset Local Vault
+                        Create New Vault
                     </button>
                 )}
             </div>
