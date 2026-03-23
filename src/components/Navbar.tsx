@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown, RefreshCw } from 'lucide-react';
+import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown, RefreshCw, PlusCircle } from 'lucide-react';
 import gsap from 'gsap';
 import Link from 'next/link';
 import { MagneticButton } from './ui/MagneticButton';
@@ -117,19 +117,6 @@ export default function Navbar(): React.ReactNode {
             </div>
 
             <div className="grid grid-cols-1 gap-1 p-2">
-                {!encryptionKey && (
-                    <button 
-                        onClick={() => {
-                            ensureKey(false);
-                            setIsSettingsOpen(false);
-                        }}
-                        className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/70 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
-                    >
-                        <Key size={18} />
-                        Unlock Secure Vault
-                    </button>
-                )}
-                
                 {encryptionKey && (
                     <button 
                         onClick={async () => {
@@ -181,6 +168,24 @@ export default function Navbar(): React.ReactNode {
                 >
                     <Key size={18} />
                     Import Master Key
+                </button>
+
+                <button 
+                    onClick={async () => {
+                        if (!confirm("⚠️ Warning: Creating a new vault will replace your current local session. If you don't have a backup of your Master Key, you will lose access to existing files. Proceed?")) return;
+                        
+                        const addr = account?.address.toString();
+                        console.log(`[Vault] Initiating Create New Vault for ${addr}`);
+                        localStorage.removeItem(`soobin_vault_key_${addr}`);
+                        localStorage.removeItem(`soobin_key_backed_up_${addr}`);
+                        setIsSettingsOpen(false);
+                        await ensureKey(true);
+                        console.log(`[Vault] Create New Vault completed for ${addr}`);
+                    }}
+                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
+                >
+                    <PlusCircle size={18} />
+                    Create New Vault
                 </button>
 
                 <a 

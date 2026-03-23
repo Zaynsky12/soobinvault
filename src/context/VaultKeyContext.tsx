@@ -176,16 +176,22 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             const canonicalSalt = addressWithout0x.padStart(64, '0');
             
             const key = await deriveKeyFromSignature(canonicalSignature, canonicalSalt);
-            setEncryptionKey(key);
             
             // Persist the key with a mandatory PIN
             let pin = null;
+            console.log("[Vault] Entering mandatory PIN creation loop...");
+            // Increased delay to ensure any previous signature UI and navbar animation has cleared
+            await new Promise(r => setTimeout(r, 500));
+
             while (!pin) {
+                console.log("[Vault] Requesting PIN...");
                 pin = await requestPin("🔒 Create a PIN to securely protect your session on this device:", false, true);
                 if (!pin) {
+                    console.warn("[Vault] PIN creation cancelled or empty. Retrying...");
                     toast.error("PIN is mandatory to secure your vault.");
                 }
             }
+            console.log("[Vault] PIN received, encrypting key...");
             
             const rawKey = await window.crypto.subtle.exportKey('raw', key);
             const base64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
@@ -206,15 +212,20 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             });
             localStorage.setItem(`soobin_vault_key_${account.address}`, encryptedData);
             
+            // ONLY SET ENCRYPTION KEY AFTER PIN IS CREATED AND DATA IS PERSISTED
+            setEncryptionKey(key);
+            
             const keyHash = await window.crypto.subtle.digest('SHA-256', rawKey);
             const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
-            console.log(`[Vault] Session key derived. Fingerprint: ${fingerprint}`);
+            console.log(`[Vault] Session key derived and secured. Fingerprint: ${fingerprint}`);
             
-            toast.success(`Vault unlocked! (Key: ${fingerprint})`, { id: toastId });
+            toast.success(`${force ? 'Vault created/restored!' : 'Vault unlocked!'} (Key: ${fingerprint})`, { id: toastId });
             
             setTimeout(() => {
                 const isBackedUp = localStorage.getItem(`soobin_key_backed_up_${account.address}`);
-                if (!isBackedUp) {
+                console.log(`[Vault] Checking backup status for ${account.address}: ${isBackedUp}`);
+                if (!isBackedUp || isBackedUp === 'false') {
+                    console.log("[Vault] Dispatching vault:requireBackup event");
                     window.dispatchEvent(new CustomEvent('vault:requireBackup'));
                 } else {
                     toast("Security Priority: Backup your Master Key in Settings for session recovery.", { 
@@ -254,9 +265,9 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                 console.warn("[Vault] Multikey signature extraction failed. Using secure random fallback.");
                 
                 // PREVENT DESTRUCTIVE OVERWRITES
-                // If the user already has a session key in memory, or in localStorage, we should use it!
-                if (force && encryptionKey) {
-                    toast.success("Vault is securely unlocked using your local key.", { id: toastId });
+                // Only return early if WE ARE NOT forcing a new key and we already have one!
+                if (!force && encryptionKey) {
+                    toast.success("Using existing local session key.", { id: toastId });
                     return encryptionKey;
                 }
                 
@@ -330,18 +341,22 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                         ['encrypt', 'decrypt']
                     );
                     
-                    setEncryptionKey(key);
-                    
                     const rawKey = await window.crypto.subtle.exportKey('raw', key);
                     const base64 = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
                     
                     let pin = null;
+                    console.log("[Vault] [Fallback] Entering mandatory PIN creation loop...");
+                    await new Promise(r => setTimeout(r, 500));
+                    
                     while (!pin) {
+                        console.log("[Vault] [Fallback] Requesting PIN...");
                         pin = await requestPin("🔒 Create a PIN to securely encrypt your local session key:", false, true);
                         if (!pin) {
+                            console.warn("[Vault] [Fallback] PIN creation cancelled. Retrying...");
                             toast.error("PIN is mandatory to secure your vault.");
                         }
                     }
+                    console.log("[Vault] [Fallback] PIN received, encrypting key...");
                     
                     const ptUtf8 = new TextEncoder().encode(pin);
                     const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
@@ -358,6 +373,10 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                         ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuf)))
                     });
                     localStorage.setItem(`soobin_vault_key_${account.address}`, encryptedData);
+                    
+                    // ONLY SET ENCRYPTION KEY AFTER PIN IS CREATED AND DATA IS PERSISTED
+                    setEncryptionKey(key);
+                    
                     toast.success("Key created and protected with PIN.");
                     
                     const keyHash = await window.crypto.subtle.digest('SHA-256', rawKey);
@@ -366,8 +385,9 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                     
                     // Force a backup warning immediately so the user knows they MUST back it up!
                     setTimeout(() => {
+                        console.log("[Vault] [Fallback] Dispatching vault:requireBackup event");
                         window.dispatchEvent(new CustomEvent('vault:requireBackup'));
-                    }, 500);
+                    }, 1000);
                     
                     return key;
                 } catch (fallbackError) {
@@ -400,16 +420,20 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                 ['encrypt', 'decrypt']
             );
             
-            setEncryptionKey(key);
-            
             // Persist for future sessions on this device
             let pin = null;
+            console.log("[Vault] [Import] Entering mandatory PIN creation loop...");
+            await new Promise(r => setTimeout(r, 500));
+            
             while (!pin) {
+                console.log("[Vault] [Import] Requesting PIN...");
                 pin = await requestPin("🔒 Create a PIN to securely encrypt the imported key on this device:", false, true);
                 if (!pin) {
+                    console.warn("[Vault] [Import] PIN creation cancelled. Retrying...");
                     toast.error("PIN is mandatory to secure your vault.");
                 }
             }
+            console.log("[Vault] [Import] PIN received, encrypting key...");
             
             const ptUtf8 = new TextEncoder().encode(pin);
             const hashBuffer = await window.crypto.subtle.digest('SHA-256', ptUtf8);
@@ -426,6 +450,10 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                 ciphertext: btoa(String.fromCharCode(...new Uint8Array(ciphertextBuf)))
             });
             localStorage.setItem(`soobin_vault_key_${account?.address}`, encryptedData);
+            
+            // ONLY SET ENCRYPTION KEY AFTER PIN IS CREATED AND DATA IS PERSISTED
+            setEncryptionKey(key);
+            
             toast.success("Master Key restored and secured with PIN.");
             
             localStorage.setItem(`soobin_key_backed_up_${account?.address}`, 'true'); // Implicit backup when imported
