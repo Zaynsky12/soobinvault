@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, AlertCircle } from 'lucide-react';
+import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive } from 'lucide-react';
 import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -66,6 +66,22 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setIsDragging(false);
     };
 
+    const getFileType = (file: File) => {
+        const name = file.name.toLowerCase();
+        const type = file.type.toLowerCase();
+        
+        return {
+            isImage: type.startsWith('image/') || !!name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/),
+            isVideo: type.startsWith('video/') || !!name.match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/),
+            isAudio: type.startsWith('audio/') || !!name.match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
+            isSpreadsheet: !!name.match(/\.(xls|xlsx|ods|numbers|csv)$/),
+            isPresentation: !!name.match(/\.(ppt|pptx|odp|key)$/),
+            isArchive: !!name.match(/\.(zip|rar|7z|gz|tar)$/),
+            isText: type.startsWith('text/') || !!name.match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/),
+            isPdf: !!name.match(/\.(pdf)$/)
+        };
+    };
+
     const uploadSingleFile = async (
         droppedFile: File,
         cryptoKey: CryptoKey,
@@ -75,7 +91,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setCurrentFile(droppedFile);
         setCurrentIndex(index);
 
-        if (droppedFile.type.startsWith('image/')) {
+        const fileInfo = getFileType(droppedFile);
+
+        if (fileInfo.isImage || fileInfo.isVideo) {
             const url = URL.createObjectURL(droppedFile);
             setPreviewUrl(prev => {
                 if (prev) URL.revokeObjectURL(prev);
@@ -256,6 +274,51 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
     const totalFiles = queue.length;
 
+    const renderPreview = () => {
+        if (!currentFile) return null;
+        const info = getFileType(currentFile);
+
+        if (previewUrl && info.isImage) {
+            return (
+                <div className="w-32 h-32 mb-6 rounded-xl overflow-hidden border border-white/20 shadow-2xl relative">
+                    <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-color-primary/20 animate-pulse mix-blend-overlay" />
+                </div>
+            );
+        }
+
+        if (previewUrl && info.isVideo) {
+            return (
+                <div className="w-48 h-32 mb-6 rounded-xl overflow-hidden border border-white/20 shadow-2xl relative bg-black">
+                    <video src={previewUrl} muted loop autoPlay playsInline className="w-full h-full object-cover opacity-60" />
+                    <div className="absolute inset-0 bg-color-primary/20 animate-pulse mix-blend-overlay" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full border border-white/30 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                            <FileIcon size={20} className="text-white animate-pulse" />
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Icons for documents/others
+        let Icon = FileIcon;
+        let iconColor = "text-color-accent";
+        let bgColor = "bg-color-deep";
+
+        if (info.isAudio) { Icon = Music; iconColor = "text-blue-400"; bgColor = "bg-blue-500/10"; }
+        else if (info.isSpreadsheet) { Icon = FileSpreadsheet; iconColor = "text-green-400"; bgColor = "bg-green-500/10"; }
+        else if (info.isPresentation) { Icon = Presentation; iconColor = "text-orange-400"; bgColor = "bg-orange-500/10"; }
+        else if (info.isArchive) { Icon = Archive; iconColor = "text-purple-400"; bgColor = "bg-purple-500/10"; }
+        else if (info.isPdf || info.isText) { Icon = FileText; iconColor = "text-red-400"; bgColor = "bg-red-500/10"; }
+
+        return (
+            <div className={`w-20 h-20 rounded-2xl glass-panel flex items-center justify-center mb-6 ${iconColor} animate-pulse ${bgColor} border border-white/5`}>
+                <Icon size={40} />
+            </div>
+        );
+    };
+
     return (
         <section id="vault" className="py-20 md:py-24 relative z-10 px-6">
             <div className="container mx-auto max-w-4xl text-center mb-8 md:mb-12">
@@ -308,6 +371,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </div>
                                 <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Deploy Assets</h3>
                                 <p className="text-color-support/70 mb-2 text-sm md:text-lg">Drag &amp; drop or tap to browse</p>
+                                <p className="text-color-support/40 mb-8 text-xs font-mono tracking-tighter uppercase">Images • Videos • Documents</p>
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     className="mt-4 px-10 py-4 rounded-full bg-color-accent/20 border border-color-accent/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
@@ -320,16 +384,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         {/* Uploading state */}
                         {uploadState === 'uploading' && currentFile && (
                             <div className="w-full max-w-lg flex flex-col items-center">
-                                {previewUrl ? (
-                                    <div className="w-32 h-32 mb-6 rounded-xl overflow-hidden border border-white/20 shadow-2xl relative">
-                                        <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-color-primary/20 animate-pulse mix-blend-overlay" />
-                                    </div>
-                                ) : (
-                                    <div className="w-20 h-20 rounded-2xl glass-panel flex items-center justify-center mb-6 text-color-accent animate-pulse bg-color-deep">
-                                        <FileIcon size={40} />
-                                    </div>
-                                )}
+                                {renderPreview()}
 
                                 {/* File name */}
                                 <h3 className="text-xl font-medium mb-1 w-full text-center text-white break-all">{currentFile.name}</h3>
