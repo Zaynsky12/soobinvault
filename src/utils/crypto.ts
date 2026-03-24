@@ -122,7 +122,7 @@ export async function decryptFile(
         return { blob, metadata };
     } catch (err) {
         console.error("Decryption operation failed:", err);
-        throw new Error("Gagal mendekripsi file. Pastikan data tidak korup dan session key valid.");
+        throw new Error("Failed to decrypt file. Ensure the data is not corrupted and the session key is valid.");
     }
 }
 

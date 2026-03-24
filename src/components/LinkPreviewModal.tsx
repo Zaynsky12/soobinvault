@@ -357,7 +357,7 @@ export function LinkPreviewModal({
                                 </div>
                                 <div className="flex flex-col min-w-0">
                                     <h2 className="text-lg md:text-xl font-bold text-white truncate leading-tight">
-                                        {isProcessing ? "Mendekripsi..." : (decryptedData ? decryptedData.name : "Vault Asset")}
+                                        {isProcessing ? "Decrypting..." : (decryptedData ? decryptedData.name : "Vault Asset")}
                                     </h2>
                                     <p className="text-[10px] text-color-support/40 uppercase tracking-widest mt-0.5">
                                         {assetSizeStr} MB • {decryptedData ? "SECURED" : "ENCRYPTED"}
@@ -531,7 +531,7 @@ function TextPreview({ url }: { url: string }) {
             .then(setText)
             .catch(err => {
                 console.error('Failed to load text:', err);
-                setText('Gagal memuat konten teks.');
+                setText('Failed to load text content.');
             });
     }, [url]);
 
