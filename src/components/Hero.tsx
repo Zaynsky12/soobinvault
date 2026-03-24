@@ -1,20 +1,16 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { MagneticButton } from "./ui/MagneticButton";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { WalletSelector } from "./WalletSelector";
-import { useVaultKey } from "../context/VaultKeyContext";
 
 gsap.registerPlugin(ScrollTrigger);
 
 export function Hero() {
     const container = useRef<HTMLDivElement>(null);
-    const { disconnect, connected, account, isLoading } = useWallet();
-    const { lockVault } = useVaultKey();
-    const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+    const { connect, disconnect, connected, account, isLoading } = useWallet();
 
     useEffect(() => {
         const ctx = gsap.context(() => {
@@ -56,10 +52,9 @@ export function Hero() {
 
     const handleWalletClick = () => {
         if (connected) {
-            lockVault();
             disconnect();
         } else {
-            setIsSelectorOpen(true);
+            connect("Petra" as any); // Type cast to prevent strict literal type issues if wallet names differ slightly
         }
     };
 
@@ -129,8 +124,6 @@ export function Hero() {
             {/* Ambient gradient glows - Reduced blur and removed blend modes for performance */}
             <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-color-primary/10 rounded-full blur-[80px] pointer-events-none will-change-transform" />
             <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-color-accent/10 rounded-full blur-[80px] pointer-events-none will-change-transform" />
-            
-            <WalletSelector isOpen={isSelectorOpen} onClose={() => setIsSelectorOpen(false)} />
         </section>
     );
 }

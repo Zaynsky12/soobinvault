@@ -22,7 +22,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
         if (typeof window === "undefined") return null;
         if (globalShelbyClient) return globalShelbyClient;
 
-        const rawKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_gF2zRB6gnm2_FKvapPPnzEPKRen56NDfrWy2uUGCnsZSr";
+        const rawKey = process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
         const apiKey = rawKey.trim();
 
         console.log("[Shelby] Initializing client. Key length:", apiKey.length, "Starts with aptoslabs:", apiKey.startsWith("aptoslabs_"));

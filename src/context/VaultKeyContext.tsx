@@ -20,7 +20,7 @@ import { VaultPinOverlay } from '@/components/VaultPinOverlay';
 const SIGN_MESSAGE = "Unlock SoobinVault Session. Nonce: soobinvault-v1";
 
 export function VaultKeyProvider({ children }: { children: ReactNode }) {
-    const { signMessage, account, connected, wallet } = useWallet();
+    const { signMessage, account, connected } = useWallet();
     const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
 
     const [pinPromptConfig, setPinPromptConfig] = useState<{
@@ -136,31 +136,6 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
 
         const toastId = toast.loading("Waiting for wallet signature to derive session key...");
         try {
-            // --- PROACTIVE FALLBACK FOR SOCIAL LOGINS (APTOS CONNECT) ---
-            // Gmail/Apple logins often hang on signMessage popups.
-            // We proactively switch to the secure local session strategy for these accounts.
-            const walletName = wallet?.name || "";
-            const isSocialLogin = 
-                walletName.includes('Google') || 
-                walletName.includes('Apple') || 
-                walletName.includes('Aptos Connect') ||
-                walletName.includes('Petra Web') ||
-                walletName.toLowerCase().includes('keyless') ||
-                (wallet as any)?.name === 'AptosConnect' || // Some old versions
-                (wallet as any)?.adapter?.name?.includes('Aptos Connect');
-
-            console.log("[Vault] [Debug] Connection Identity Check:", {
-                walletName,
-                isSocialLogin,
-                accountType: (account as any)?.type,
-                fullWallet: { name: wallet?.name, adapter: (wallet as any)?.adapter?.name }
-            });
-
-            if (isSocialLogin) {
-                console.log(`[Vault] Social login (${walletName}) detected. Bypassing signMessage.`);
-                throw new Error("KEYLESS_FALLBACK"); // Specifically trigger the fallback
-            }
-
             // Request signature for deterministic key derivation
             let response;
             try {
@@ -297,7 +272,7 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             }
 
             // --- AUTO FALLBACK FOR KEYLESS/MULTIKEY ACCOUNTS ---
-            if (errorMsg.toLowerCase().includes("multikey") || errorMsg.toLowerCase().includes("keyless") || errorMsg === "KEYLESS_FALLBACK") {
+            if (errorMsg.toLowerCase().includes("multikey") || errorMsg.toLowerCase().includes("keyless")) {
                 console.warn("[Vault] Multikey signature extraction failed. Using secure random fallback.");
                 
                 // PREVENT DESTRUCTIVE OVERWRITES
