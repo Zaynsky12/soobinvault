@@ -308,7 +308,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </div>
                                 <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Deploy Assets</h3>
                                 <p className="text-color-support/70 mb-2 text-sm md:text-lg">Drag &amp; drop or tap to browse</p>
-                                <p className="text-color-support/40 mb-8 text-xs">Multiple files supported</p>
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     className="mt-4 px-10 py-4 rounded-full bg-color-accent/20 border border-color-accent/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
@@ -354,13 +353,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         {queue.map((_, i) => (
                                             <div
                                                 key={i}
-                                                className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                                                    i < currentIndex
+                                                className={`w-2 h-2 rounded-full transition-all duration-300 ${i < currentIndex
                                                         ? 'bg-green-400'
                                                         : i === currentIndex
-                                                        ? 'bg-color-primary animate-pulse'
-                                                        : 'bg-white/20'
-                                                }`}
+                                                            ? 'bg-color-primary animate-pulse'
+                                                            : 'bg-white/20'
+                                                    }`}
                                             />
                                         ))}
                                     </div>
@@ -370,20 +368,21 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                         {/* Success state */}
                         {uploadState === 'success' && (
-                            <div className="flex flex-col items-center text-center">
-                                <div className="w-24 h-24 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center mb-6 text-green-400 shadow-[0_0_30px_rgba(74,222,128,0.2)]">
-                                    <CheckCircle size={48} strokeWidth={2} />
+                            <div className="flex flex-col items-center text-center px-4">
+                                <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center mb-4 md:mb-6 text-green-400 shadow-[0_0_30px_rgba(74,222,128,0.2)]">
+                                    <CheckCircle size={32} strokeWidth={2} className="md:hidden" />
+                                    <CheckCircle size={48} strokeWidth={2} className="hidden md:block" />
                                 </div>
-                                <h3 className="text-3xl font-semibold mb-2 text-white">
+                                <h3 className="text-xl md:text-3xl font-semibold mb-2 text-white">
                                     {successCount} Asset{successCount !== 1 ? 's' : ''} Secured
                                 </h3>
                                 {failCount > 0 && (
-                                    <div className="flex items-center gap-2 text-red-400 text-sm mb-2">
-                                        <AlertCircle size={14} />
+                                    <div className="flex items-center gap-2 text-red-400 text-[10px] md:text-sm mb-2">
+                                        <AlertCircle size={12} className="md:w-3.5 md:h-3.5" />
                                         <span>{failCount} file{failCount !== 1 ? 's' : ''} failed</span>
                                     </div>
                                 )}
-                                <p className="text-color-support text-base mb-6">
+                                <p className="text-color-support text-xs md:text-lg mb-6 max-w-xs mx-auto">
                                     {successCount > 0 ? 'Your files are now immutably stored on the soobinvault network.' : 'No files were uploaded successfully.'}
                                 </p>
 
@@ -392,16 +391,16 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         href={`https://explorer.aptoslabs.com/txn/${lastTxHash}?network=testnet`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="mb-8 px-6 py-2 rounded-xl bg-color-primary/10 border border-color-primary/20 text-color-primary hover:bg-color-primary/20 transition-all flex items-center gap-2 font-mono text-xs"
+                                        className="mb-6 md:mb-8 px-5 md:px-6 py-2 rounded-xl bg-color-primary/10 border border-color-primary/20 text-color-primary hover:bg-color-primary/20 transition-all flex items-center gap-2 font-mono text-[10px] md:text-xs"
                                     >
-                                        <LinkIcon size={14} />
-                                        Last tx: {lastTxHash.substring(0, 10)}...{lastTxHash.substring(lastTxHash.length - 10)}
+                                        <LinkIcon size={12} className="md:w-3.5 md:h-3.5" />
+                                        <span>Last tx: {lastTxHash.substring(0, 6)}...{lastTxHash.substring(lastTxHash.length - 6)}</span>
                                     </a>
                                 )}
 
                                 <button
                                     onClick={resetTarget}
-                                    className="px-8 py-4 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 text-white transition-colors font-medium backdrop-blur-md"
+                                    className="w-full sm:w-auto px-8 py-3.5 md:py-4 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 text-white transition-colors font-medium backdrop-blur-md text-sm md:text-base uppercase tracking-widest"
                                 >
                                     Store More Assets
                                 </button>
