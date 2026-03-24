@@ -631,7 +631,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
         if (!downloadUrl) return;
 
         const checkStatus = async () => {
-            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
+            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_gF2zRB6gnm2_FKvapPPnzEPKRen56NDfrWy2uUGCnsZSr";
             try {
                 const response = await fetch(downloadUrl!, {
                     method: 'GET',
@@ -676,7 +676,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
         const downloadToastId = toast.loading(`Decrypting ${displayName}...`);
 
         try {
-            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
+            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_gF2zRB6gnm2_FKvapPPnzEPKRen56NDfrWy2uUGCnsZSr";
             const response = await fetch(downloadUrl!, {
                 headers: { 'Authorization': `Bearer ${apiKey.trim()}` }
             });
