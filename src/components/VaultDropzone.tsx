@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useUploadBlobs } from "@shelby-protocol/react";
+import { getFileType } from '../utils/file';
 
 interface VaultDropzoneProps {
     refetch?: () => void;
@@ -66,22 +67,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setIsDragging(false);
     };
 
-    const getFileType = (file: File) => {
-        const name = file.name.toLowerCase();
-        const type = file.type.toLowerCase();
-        
-        return {
-            isImage: type.startsWith('image/') || !!name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/),
-            isVideo: type.startsWith('video/') || !!name.match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/),
-            isAudio: type.startsWith('audio/') || !!name.match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
-            isSpreadsheet: !!name.match(/\.(xls|xlsx|ods|numbers|csv)$/),
-            isPresentation: !!name.match(/\.(ppt|pptx|odp|key)$/),
-            isArchive: !!name.match(/\.(zip|rar|7z|gz|tar)$/),
-            isText: type.startsWith('text/') || !!name.match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/),
-            isPdf: !!name.match(/\.(pdf)$/)
-        };
-    };
-
     const uploadSingleFile = async (
         droppedFile: File,
         cryptoKey: CryptoKey,
@@ -91,7 +76,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setCurrentFile(droppedFile);
         setCurrentIndex(index);
 
-        const fileInfo = getFileType(droppedFile);
+        const fileInfo = getFileType(droppedFile.name, droppedFile.type);
 
         if (fileInfo.isImage || fileInfo.isVideo) {
             const url = URL.createObjectURL(droppedFile);
@@ -276,7 +261,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
     const renderPreview = () => {
         if (!currentFile) return null;
-        const info = getFileType(currentFile);
+        const info = getFileType(currentFile.name, currentFile.type);
 
         if (previewUrl && info.isImage) {
             return (

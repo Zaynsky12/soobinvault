@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { X, FileText, Download, Loader2, RefreshCw, Music, File, Archive, FileSpreadsheet, Presentation, Lock, Unlock, Key, Settings, Trash2 } from 'lucide-react';
+import { AlertCircle, Download, ExternalLink, FileText, Image as ImageIcon, Info, Lock, Unlock, Maximize2, RefreshCw, Trash2, X, Music, Video, Key, Settings, File as FileIcon, Archive, FileSpreadsheet, Presentation } from 'lucide-react';
 import { decryptFile } from '../utils/crypto';
+import { getFileType } from '../utils/file';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
 import { GlassCard } from './ui/GlassCard';
@@ -457,7 +458,7 @@ export function LinkPreviewModal({
                                     {decryptedData.isAudio && (
                                         <div className="flex flex-col items-center gap-6 p-12 glass-panel rounded-3xl border-white/10">
                                             <div className="w-24 h-24 rounded-full bg-color-primary/20 flex items-center justify-center">
-                                                <Music size={48} className="text-color-primary" />
+                                                <FileIcon size={48} className="text-color-primary" />
                                             </div>
                                             <audio src={decryptedData.url} controls className="w-full max-w-sm h-10 filter invert brightness-125" />
                                         </div>
@@ -472,7 +473,7 @@ export function LinkPreviewModal({
                                     )}
                                     {!decryptedData.isImage && !decryptedData.isVideo && !decryptedData.isAudio && !decryptedData.isText && !decryptedData.isDocument && (
                                         <div className="flex flex-col items-center gap-6 p-12 text-center">
-                                            <File size={64} className="text-color-support/20" />
+                                            <FileIcon size={64} className="text-color-support/20" />
                                             <div>
                                                 <h3 className="text-xl font-bold text-white mb-2">Decrypted File</h3>
                                                 <p className="text-color-support/60 text-sm">Preview not available for this format.</p>
@@ -482,7 +483,7 @@ export function LinkPreviewModal({
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center gap-4 opacity-20">
-                                    <File size={64} />
+                                    <FileIcon size={64} />
                                 </div>
                             )}
                         </div>
@@ -546,7 +547,7 @@ function DocumentPreviewCard({ name, extension }: { name: string; extension: str
     const isSpreadsheet = ['xls', 'xlsx', 'ods', 'numbers', 'csv'].includes(extension.toLowerCase());
     const isPresentation = ['ppt', 'pptx', 'odp', 'key'].includes(extension.toLowerCase());
     const isArchive = ['zip', 'rar', '7z', 'gz', 'tar'].includes(extension.toLowerCase());
-    const Icon = isSpreadsheet ? FileSpreadsheet : isPresentation ? Presentation : isArchive ? Archive : File;
+    const Icon = isSpreadsheet ? FileSpreadsheet : isPresentation ? Presentation : isArchive ? Archive : FileIcon;
 
     return (
         <div className="flex flex-col items-center gap-6 p-12 text-center">

@@ -13,6 +13,7 @@ import { useShelbyClient, useDeleteBlobs } from "@shelby-protocol/react";
 import { LinkPreviewModal } from './LinkPreviewModal';
 import { decryptFile, decryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
+import { getFileType } from '../utils/file';
 
 // Register GSAP plugins
 if (typeof window !== 'undefined') {
@@ -443,12 +444,27 @@ export function Dashboard() {
 
                                     const decryptedName = decryptedNames[nameOnly];
                                     const nameToSearch = decryptedName || nameOnly || '';
+                                    const fileType = getFileType(nameToSearch);
 
                                     const query = (searchQuery || '').toLowerCase().trim();
                                     if (!query) return true;
 
-                                    return String(nameToSearch).toLowerCase().includes(query) ||
-                                        (assetHash && String(assetHash).toLowerCase().includes(query));
+                                    const matchesName = String(nameToSearch).toLowerCase().includes(query);
+                                    const matchesHash = assetHash && String(assetHash).toLowerCase().includes(query);
+                                    
+                                    // Category matching
+                                    const isImageQuery = query === 'image' || query === 'photo' || query === 'pic' || query === 'img';
+                                    const isVideoQuery = query === 'video' || query === 'movie' || query === 'clip' || query === 'vid';
+                                    const isAudioQuery = query === 'audio' || query === 'music' || query === 'song' || query === 'mp3';
+                                    const isDocQuery = query === 'document' || query === 'doc' || query === 'pdf' || query === 'file';
+
+                                    const matchesCategory = 
+                                        (isImageQuery && fileType.isImage) ||
+                                        (isVideoQuery && fileType.isVideo) ||
+                                        (isAudioQuery && fileType.isAudio) ||
+                                        (isDocQuery && fileType.isDocument);
+
+                                    return matchesName || matchesHash || matchesCategory;
                                 });
 
                                 if (filteredAssets.length === 0 && (searchQuery || '').trim() !== '') {
@@ -468,11 +484,12 @@ export function Dashboard() {
                                     const decryptedName = decryptedNames[nameOnly];
                                     const displayName: string = decryptedName || nameOnly;
                                     const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
-                                    const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/);
-                                    const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/);
-                                    const isTxt = !!displayName.toLowerCase().match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/);
-                                    const isAudio = !!displayName.toLowerCase().match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/);
-                                    const isDocument = !!displayName.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/);
+                                    const fileInfo = getFileType(displayName);
+                                    const isImg = fileInfo.isImage;
+                                    const isVid = fileInfo.isVideo;
+                                    const isTxt = fileInfo.isText;
+                                    const isAudio = fileInfo.isAudio;
+                                    const isDocument = fileInfo.isDocument;
 
                                     // Robust extraction of identifier and name from indexer "@identifier/path" format
                                     if (index === 0) console.log('[Debug] Asset structure:', JSON.stringify(asset, null, 2));
