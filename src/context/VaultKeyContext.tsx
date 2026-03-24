@@ -139,14 +139,25 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             // --- PROACTIVE FALLBACK FOR SOCIAL LOGINS (APTOS CONNECT) ---
             // Gmail/Apple logins often hang on signMessage popups.
             // We proactively switch to the secure local session strategy for these accounts.
+            const walletName = wallet?.name || "";
             const isSocialLogin = 
-                wallet?.name === 'Continue with Google' || 
-                wallet?.name === 'Continue with Apple' || 
-                wallet?.name === 'Aptos Connect' ||
-                wallet?.name === 'Petra Web';
+                walletName.includes('Google') || 
+                walletName.includes('Apple') || 
+                walletName.includes('Aptos Connect') ||
+                walletName.includes('Petra Web') ||
+                walletName.toLowerCase().includes('keyless') ||
+                (wallet as any)?.name === 'AptosConnect' || // Some old versions
+                (wallet as any)?.adapter?.name?.includes('Aptos Connect');
+
+            console.log("[Vault] [Debug] Connection Identity Check:", {
+                walletName,
+                isSocialLogin,
+                accountType: (account as any)?.type,
+                fullWallet: { name: wallet?.name, adapter: (wallet as any)?.adapter?.name }
+            });
 
             if (isSocialLogin) {
-                console.log("[Vault] Social login detected. Bypassing signMessage to avoid hanging popups.");
+                console.log(`[Vault] Social login (${walletName}) detected. Bypassing signMessage.`);
                 throw new Error("KEYLESS_FALLBACK"); // Specifically trigger the fallback
             }
 
