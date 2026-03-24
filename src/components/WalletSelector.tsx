@@ -101,7 +101,7 @@ export function WalletSelector({ isOpen, onClose }: WalletSelectorProps): React.
                                     </div>
                                     <div className="text-left">
                                         <h3 className="text-white font-bold tracking-tight text-sm">{wallet.name}</h3>
-                                        {wallet.name === 'Aptos Connect' && (
+                                        {(wallet.name === 'Aptos Connect' || wallet.name === 'Continue with Google' || wallet.name === 'Continue with Apple') && (
                                             <span className="text-[8px] uppercase tracking-[0.15em] text-color-accent font-bold">Social Login Enabled</span>
                                         )}
                                     </div>
