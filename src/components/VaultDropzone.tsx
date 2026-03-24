@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useUploadBlobs } from "@shelby-protocol/react";
+import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk";
 
 interface VaultDropzoneProps {
     refetch?: () => void;
@@ -108,6 +109,33 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             const encryptedBlobName = `${safeEncryptedName}.vault`;
 
             setUploadStatusText("Distributing encrypted fragments to nodes...");
+
+            // --- TESTNET FAUCET INTEGRATION ---
+            // Social login users (Keyless) often start with 0 APT on Testnet.
+            // We automatically fund them if their balance is zero to enable the upload.
+            try {
+                const config = new AptosConfig({ network: Network.TESTNET });
+                const aptos = new Aptos(config);
+                const resources = await aptos.getAccountResources({ accountAddress: account.address.toString() });
+                const accountResource = resources.find((r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>");
+                const balance = accountResource ? (accountResource.data as any).coin.value : "0";
+
+                if (balance === "0") {
+                    console.log("[Vault] Zero balance detected for social login. Requesting Testnet Faucet...");
+                    setUploadStatusText("Funding account via Testnet Faucet...");
+                    await aptos.fundAccount({
+                        accountAddress: account.address.toString(),
+                        amount: 100_000_000, // 1 APT
+                    });
+                    console.log("[Vault] Faucet funding successful.");
+                    // Give indexer a moment to catch up with the new balance
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } catch (faucetError) {
+                console.warn("[Vault] Faucet funding failed or skipped:", faucetError);
+                // We don't block the upload here; it might fail later if indeed 0 balance, 
+                // but we let it try in case it's a false positive on balance check.
+            }
 
             // Wrap mutateAsync in an inner try-catch so SDK-level errors
             let txHash: string | undefined;
