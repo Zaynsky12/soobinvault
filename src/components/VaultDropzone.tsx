@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, File as FileIcon, CheckCircle, Image as ImageIcon, Link as LinkIcon, Lock, ShieldCheck, Key } from 'lucide-react';
+import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, AlertCircle } from 'lucide-react';
 import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -18,12 +18,18 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const { account, signAndSubmitTransaction } = useWallet();
     const { ensureKey, encryptionKey } = useVaultKey();
     const [isDragging, setIsDragging] = useState(false);
-    const [file, setFile] = useState<File | null>(null);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success'>('idle');
     const [uploadStatusText, setUploadStatusText] = useState<string>("Encrypting and distributing to nodes...");
     const [lastTxHash, setLastTxHash] = useState<string | null>(null);
-    
+
+    // Multi-file queue state
+    const [queue, setQueue] = useState<File[]>([]);
+    const [currentIndex, setCurrentIndex] = useState<number>(0);
+    const [currentFile, setCurrentFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [successCount, setSuccessCount] = useState<number>(0);
+    const [failCount, setFailCount] = useState<number>(0);
+
     const uploadBlobs = useUploadBlobs({});
 
     const dropzoneRef = useRef<HTMLDivElement>(null);
@@ -33,34 +39,22 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
     useEffect(() => {
         if (!iconRef.current) return;
-
         if (isDragging) {
-            gsap.to(iconRef.current, {
-                scale: 1.2,
-                y: -10,
-                duration: 0.4,
-                ease: "back.out(1.7, 0.3)"
-            });
+            gsap.to(iconRef.current, { scale: 1.2, y: -10, duration: 0.4, ease: "back.out(1.7, 0.3)" });
         } else {
-            gsap.to(iconRef.current, {
-                scale: 1,
-                y: 0,
-                duration: 0.4,
-                ease: "power2.out"
-            });
+            gsap.to(iconRef.current, { scale: 1, y: 0, duration: 0.4, ease: "power2.out" });
         }
     }, [isDragging]);
 
     useEffect(() => {
         if (uploadState === 'uploading' && progressRef.current) {
-            // Indeterminate loading animation
             const anim = gsap.fromTo(progressRef.current,
                 { x: "-100%", width: "50%" },
                 { x: "200%", duration: 1.5, repeat: -1, ease: "power1.inOut" }
             );
             return () => { anim.kill(); };
         }
-    }, [uploadState]);
+    }, [uploadState, currentIndex]);
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -72,50 +66,44 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setIsDragging(false);
     };
 
-    const uploadToShelby = async (droppedFile: File) => {
-        if (!account) {
-            toast.error("Please connect your Aptos wallet first!");
-            return;
-        }
+    const uploadSingleFile = async (
+        droppedFile: File,
+        cryptoKey: CryptoKey,
+        index: number,
+        total: number
+    ): Promise<boolean> => {
+        setCurrentFile(droppedFile);
+        setCurrentIndex(index);
 
-        setFile(droppedFile);
-
-        // Create preview if image
         if (droppedFile.type.startsWith('image/')) {
             const url = URL.createObjectURL(droppedFile);
-            setPreviewUrl(url);
+            setPreviewUrl(prev => {
+                if (prev) URL.revokeObjectURL(prev);
+                return url;
+            });
         } else {
-            setPreviewUrl(null);
+            setPreviewUrl(prev => {
+                if (prev) URL.revokeObjectURL(prev);
+                return null;
+            });
         }
 
         try {
-            setUploadState('uploading');
-            setUploadStatusText("Awaiting wallet signature...");
-            const cryptoKey = await ensureKey();
-            if (!cryptoKey) {
-                setUploadState('idle');
-                return;
-            }
-            
-            // Encrypt and distribute
-            setUploadStatusText("Performing AES-256-GCM encryption...");
+            setUploadStatusText(`Performing AES-256-GCM encryption...`);
             const encryptedData = await encryptFile(droppedFile, cryptoKey);
-            
-            // Encrypt filename for zero-knowledge search in Dashboard
+
             const encryptedNameBase64 = await encryptText(droppedFile.name, cryptoKey);
-            // Replace unsafe Base64 chars to make it a valid blob name
             const safeEncryptedName = encryptedNameBase64.replace(/\//g, '_').replace(/\+/g, '-');
             const encryptedBlobName = `${safeEncryptedName}.vault`;
 
-            setUploadStatusText("Distributing encrypted fragments to nodes...");
+            setUploadStatusText(`Distributing encrypted fragments to nodes...`);
 
-            // Wrap mutateAsync in an inner try-catch so SDK-level errors
             let txHash: string | undefined;
 
             try {
                 await uploadBlobs.mutateAsync({
                     signer: {
-                        account: account.address,
+                        account: account!.address,
                         signAndSubmitTransaction: async (tx: any) => {
                             const response = await signAndSubmitTransaction(tx);
                             if (response && (response as any).hash) {
@@ -127,20 +115,17 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             return response;
                         },
                     },
-                    blobs: [{ 
-                        blobName: encryptedBlobName, 
-                        blobData: encryptedData 
+                    blobs: [{
+                        blobName: encryptedBlobName,
+                        blobData: encryptedData
                     }],
-                    expirationMicros: Date.now() * 1000 + 86400000000 * 30, // 30 days
+                    expirationMicros: Date.now() * 1000 + 86400000000 * 30,
                 });
             } catch (sdkError) {
                 const msg = sdkError instanceof Error
                     ? sdkError.message.toLowerCase()
                     : String(sdkError).toLowerCase();
 
-                // Detect explicit user cancellation from any Aptos/Petra wallet.
-                // These phrases are emitted when the user dismisses the wallet popup
-                // BEFORE the transaction is submitted — no upload happened yet.
                 const isUserCancellation =
                     msg.includes('user rejected') ||
                     msg.includes('user denied') ||
@@ -149,94 +134,118 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     msg.includes('4001');
 
                 if (isUserCancellation) {
-                    toast.error('Transaction Cancelled');
-                    resetTarget();
-                    return;
+                    toast.error(`Cancelled: ${droppedFile.name}`);
+                    return false;
                 } else if (!txHash) {
-                    let errorMessage = sdkError instanceof Error ? sdkError.message : 'Upload failed. Please try again.';
-                    
-                    // The SDK API sometimes returns stringified JSON errors
+                    let errorMessage = sdkError instanceof Error ? sdkError.message : 'Upload failed.';
                     try {
                         const parsed = JSON.parse(errorMessage);
-                        if (parsed && parsed.message) {
-                            errorMessage = parsed.message;
-                        } else if (parsed && parsed.error) {
-                            errorMessage = parsed.error;
-                        }
-                    } catch (e) {
-                        // Not JSON, ignore
-                    }
-                    
-                    if (errorMessage.toLowerCase().includes('not yet been marked successfully written')) {
-                        errorMessage = 'This file is currently being processed by the network. Please check your Dashboard in a few minutes or try again later.';
-                    }
+                        if (parsed?.message) errorMessage = parsed.message;
+                        else if (parsed?.error) errorMessage = parsed.error;
+                    } catch (e) { /* Not JSON */ }
 
-                    toast.error(errorMessage);
-                    resetTarget();
-                    return;
+                    if (errorMessage.toLowerCase().includes('not yet been marked successfully written')) {
+                        errorMessage = 'File is being processed by the network. Check your Dashboard in a few minutes.';
+                    }
+                    toast.error(`${droppedFile.name}: ${errorMessage}`);
+                    return false;
                 } else {
-                    console.warn(`Spurious error ignored. Transaction was submitted with hash ${txHash}:`, sdkError);
+                    console.warn(`Spurious error ignored for ${droppedFile.name}. txHash: ${txHash}`, sdkError);
                 }
             }
 
-            // At this point, the transaction was successful or a spurious indexer error was caught and bypassed.
-            // Add a delay of approximately 2 seconds to give the Aptos Indexer time to synchronize.
             await new Promise(resolve => setTimeout(resolve, 2000));
 
-            // Upload completed — show success and clear state
-            toast.success('Upload Successful!');
-            setUploadState('success');
-            resetTarget();
-            
-            // Dispatch a custom event with metadata so siblings (like Dashboard) can show optimistic UI
-            window.dispatchEvent(new CustomEvent('vault:uploadSuccess', { 
-                detail: { 
-                    name: droppedFile.name, 
+            window.dispatchEvent(new CustomEvent('vault:uploadSuccess', {
+                detail: {
+                    name: droppedFile.name,
                     size: droppedFile.size,
                     txHash: txHash,
                     timestamp: Date.now()
-                } 
+                }
             }));
-            
-            if (refetch) {
-                refetch();
-            }
+
+            if (refetch) refetch();
+            return true;
 
         } catch (error) {
-            // Outer catch handles unexpected preparation failures (e.g. arrayBuffer read error)
-            let errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
-            
+            let errorMessage = error instanceof Error ? error.message : 'Upload failed.';
             try {
                 const parsed = JSON.parse(errorMessage);
-                if (parsed && parsed.message) {
-                    errorMessage = parsed.message;
-                }
-            } catch (e) {
-                // Not JSON, ignore
-            }
-            
-            toast.error(errorMessage);
-            resetTarget();
+                if (parsed?.message) errorMessage = parsed.message;
+            } catch (e) { /* Not JSON */ }
+            toast.error(`${droppedFile.name}: ${errorMessage}`);
+            return false;
         }
+    };
+
+    const startUploadQueue = async (files: File[]) => {
+        if (!account) {
+            toast.error("Please connect your Aptos wallet first!");
+            return;
+        }
+        if (files.length === 0) return;
+
+        setQueue(files);
+        setSuccessCount(0);
+        setFailCount(0);
+        setCurrentIndex(0);
+        setUploadState('uploading');
+        setUploadStatusText("Awaiting wallet signature...");
+
+        const cryptoKey = await ensureKey();
+        if (!cryptoKey) {
+            setUploadState('idle');
+            return;
+        }
+
+        let successes = 0;
+        let failures = 0;
+
+        for (let i = 0; i < files.length; i++) {
+            setUploadStatusText("Awaiting wallet signature...");
+            const ok = await uploadSingleFile(files[i], cryptoKey, i, files.length);
+            if (ok) successes++;
+            else failures++;
+        }
+
+        setSuccessCount(successes);
+        setFailCount(failures);
+
+        if (successes > 0) {
+            toast.success(`${successes} file${successes > 1 ? 's' : ''} uploaded successfully!`);
+        }
+
+        setUploadState('success');
+
+        // Clean up preview
+        setPreviewUrl(prev => {
+            if (prev) URL.revokeObjectURL(prev);
+            return null;
+        });
+        setCurrentFile(null);
     };
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(false);
-
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            uploadToShelby(e.dataTransfer.files[0]);
+            startUploadQueue(Array.from(e.dataTransfer.files));
         }
     };
 
     const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            uploadToShelby(e.target.files[0]);
+            startUploadQueue(Array.from(e.target.files));
         }
     };
 
     const resetTarget = () => {
-        setFile(null);
+        setQueue([]);
+        setCurrentFile(null);
+        setCurrentIndex(0);
+        setSuccessCount(0);
+        setFailCount(0);
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
         setUploadState('idle');
@@ -245,11 +254,13 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
+    const totalFiles = queue.length;
+
     return (
         <section id="vault" className="py-20 md:py-24 relative z-10 px-6">
             <div className="container mx-auto max-w-4xl text-center mb-8 md:mb-12">
                 <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white tracking-tight">The Storage Vault</h2>
-                <p className="text-color-support/70 text-base md:text-xl font-light max-w-2xl mx-auto">Drag & drop your digital assets to encrypt and fracture them across the global network.</p>
+                <p className="text-color-support/70 text-base md:text-xl font-light max-w-2xl mx-auto">Drag &amp; drop your digital assets to encrypt and fracture them across the global network.</p>
             </div>
 
             <div className="container mx-auto max-w-3xl relative">
@@ -267,11 +278,13 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     >
                         <input
                             type="file"
+                            multiple
                             ref={fileInputRef}
                             onChange={handleFileInput}
                             className="hidden"
                         />
 
+                        {/* Vault Locked */}
                         {!encryptionKey ? (
                             <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500 w-full px-4">
                                 <div ref={iconRef} className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(232,58,118,0.2)] border border-color-primary/30">
@@ -280,7 +293,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </div>
                                 <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Vault Locked</h3>
                                 <p className="text-color-support/70 mb-8 text-sm md:text-lg">Unlock your vault to secure new assets.</p>
-
                                 <button
                                     onClick={(e) => { e.stopPropagation(); ensureKey(false); }}
                                     className="mt-4 px-10 py-4 rounded-full bg-color-primary/20 border border-color-primary/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-primary hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
@@ -294,9 +306,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     <UploadCloud size={40} strokeWidth={1.5} className="md:hidden text-color-accent" />
                                     <UploadCloud size={48} strokeWidth={1.5} className="hidden md:block text-color-accent" />
                                 </div>
-                                <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Deploy Asset</h3>
-                                <p className="text-color-support/70 mb-8 text-sm md:text-lg">Drag & drop or tap to browse</p>
-
+                                <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Deploy Assets</h3>
+                                <p className="text-color-support/70 mb-2 text-sm md:text-lg">Drag &amp; drop or tap to browse</p>
+                                <p className="text-color-support/40 mb-8 text-xs">Multiple files supported</p>
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     className="mt-4 px-10 py-4 rounded-full bg-color-accent/20 border border-color-accent/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
@@ -306,7 +318,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             </div>
                         )}
 
-                        {uploadState === 'uploading' && file && (
+                        {/* Uploading state */}
+                        {uploadState === 'uploading' && currentFile && (
                             <div className="w-full max-w-lg flex flex-col items-center">
                                 {previewUrl ? (
                                     <div className="w-32 h-32 mb-6 rounded-xl overflow-hidden border border-white/20 shadow-2xl relative">
@@ -318,32 +331,71 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         <FileIcon size={40} />
                                     </div>
                                 )}
-                                <h3 className="text-2xl font-medium mb-2 w-full text-center text-white break-all">{file.name}</h3>
-                                <p className="text-color-support text-base mb-8 text-center w-full">{uploadStatusText}</p>
+
+                                {/* File name */}
+                                <h3 className="text-xl font-medium mb-1 w-full text-center text-white break-all">{currentFile.name}</h3>
+
+                                {/* File X of N indicator */}
+                                {totalFiles > 1 && (
+                                    <p className="text-color-primary/80 text-xs font-bold uppercase tracking-widest mb-2">
+                                        File {currentIndex + 1} of {totalFiles}
+                                    </p>
+                                )}
+
+                                <p className="text-color-support text-sm mb-8 text-center w-full">{uploadStatusText}</p>
 
                                 <div className="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/10">
                                     <div ref={progressRef} className="h-full w-0 bg-gradient-to-r from-color-primary to-color-accent shadow-[0_0_10px_rgba(232,58,118,0.8)]" />
                                 </div>
+
+                                {/* Overall progress dots for multi-file */}
+                                {totalFiles > 1 && (
+                                    <div className="flex gap-2 mt-4">
+                                        {queue.map((_, i) => (
+                                            <div
+                                                key={i}
+                                                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                                                    i < currentIndex
+                                                        ? 'bg-green-400'
+                                                        : i === currentIndex
+                                                        ? 'bg-color-primary animate-pulse'
+                                                        : 'bg-white/20'
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
+                        {/* Success state */}
                         {uploadState === 'success' && (
-                            <div className="flex flex-col items-center">
+                            <div className="flex flex-col items-center text-center">
                                 <div className="w-24 h-24 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center mb-6 text-green-400 shadow-[0_0_30px_rgba(74,222,128,0.2)]">
                                     <CheckCircle size={48} strokeWidth={2} />
                                 </div>
-                                <h3 className="text-3xl font-semibold mb-3 text-white">Asset Secured</h3>
-                                <p className="text-color-support text-lg mb-6">Your file is now immutably stored on the soobinvault network.</p>
-                                
+                                <h3 className="text-3xl font-semibold mb-2 text-white">
+                                    {successCount} Asset{successCount !== 1 ? 's' : ''} Secured
+                                </h3>
+                                {failCount > 0 && (
+                                    <div className="flex items-center gap-2 text-red-400 text-sm mb-2">
+                                        <AlertCircle size={14} />
+                                        <span>{failCount} file{failCount !== 1 ? 's' : ''} failed</span>
+                                    </div>
+                                )}
+                                <p className="text-color-support text-base mb-6">
+                                    {successCount > 0 ? 'Your files are now immutably stored on the soobinvault network.' : 'No files were uploaded successfully.'}
+                                </p>
+
                                 {lastTxHash && (
-                                    <a 
+                                    <a
                                         href={`https://explorer.aptoslabs.com/txn/${lastTxHash}?network=testnet`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="mb-8 px-6 py-2 rounded-xl bg-color-primary/10 border border-color-primary/20 text-color-primary hover:bg-color-primary/20 transition-all flex items-center gap-2 font-mono text-xs"
                                     >
                                         <LinkIcon size={14} />
-                                        View Transaction: {lastTxHash.substring(0, 10)}...{lastTxHash.substring(lastTxHash.length - 10)}
+                                        Last tx: {lastTxHash.substring(0, 10)}...{lastTxHash.substring(lastTxHash.length - 10)}
                                     </a>
                                 )}
 
@@ -351,7 +403,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     onClick={resetTarget}
                                     className="px-8 py-4 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 text-white transition-colors font-medium backdrop-blur-md"
                                 >
-                                    Store Another Asset
+                                    Store More Assets
                                 </button>
                             </div>
                         )}
@@ -359,7 +411,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                     {/* Ambient drag glow */}
                     <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-color-primary/30 blur-[120px] rounded-full pointer-events-none transition-opacity duration-500 ${isDragging ? 'opacity-100' : 'opacity-0'}`} />
-                    
+
                 </GlassCard>
             </div>
         </section>
