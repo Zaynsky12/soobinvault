@@ -4,7 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye } from 'lucide-react';
+import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle } from 'lucide-react';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
@@ -79,9 +80,9 @@ export function Dashboard() {
             });
 
             toast.success(`${selectedAsset.name} deleted successfully! Refreshing list...`, { id: 'delete-blob-modal' });
-            
+
             setIsPreviewModalOpen(false);
-            
+
             setTimeout(() => {
                 fetchBlobs();
             }, 3000);
@@ -167,7 +168,7 @@ export function Dashboard() {
         };
 
         window.addEventListener('vault:uploadSuccess', handleUploadSuccess);
-        
+
         // Listen for manual refresh from Navbar
         const handleManualRefresh = () => {
             fetchBlobs();
@@ -260,8 +261,48 @@ export function Dashboard() {
         <section ref={containerRef} id="dashboard" className="py-24 relative z-10 px-6 mt-12 mb-32">
             <div className="container mx-auto max-w-6xl">
 
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 border-b border-white/5 pb-8">
-                    <div className="mb-8 md:mb-0 flex flex-col items-center md:items-start">
+                {/* Mobile Fixed Search Bar (Google Drive Style) - Compact Version */}
+                <div className="md:hidden fixed top-[80px] left-0 right-0 z-[40] px-6 animate-in slide-in-from-top duration-500 pointer-events-none pb-2">
+                    <div className="max-w-sm mx-auto bg-[#0B1121]/90 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl flex items-center px-3 py-2 group focus-within:border-color-primary/40 transition-all pointer-events-auto">
+                        <Search size={16} className="text-color-support/40 mr-2.5" />
+                        <input
+                            type="text"
+                            placeholder="Search Vault..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="flex-1 bg-transparent border-none outline-none text-white text-xs placeholder:text-color-support/20 font-medium"
+                        />
+                        <button
+                            onClick={() => fetchBlobs()}
+                            disabled={isLoading}
+                            className={`w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center ml-2 shadow-lg shrink-0 hover:bg-white/10 active:scale-90 transition-all ${isLoading ? 'opacity-50' : ''}`}
+                        >
+                            <RefreshCw size={14} className={`text-color-support/60 ${isLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-700'}`} />
+                        </button>
+                    </div>
+
+                    {/* Mobile Filter Chips */}
+                    <div className="flex flex-wrap justify-center gap-2 mt-4 pb-2 pointer-events-auto">
+                        {['All', 'Image', 'Video', 'Document'].map((chip) => (
+                            <button
+                                key={chip}
+                                className={`px-4 py-1.5 rounded-full border text-[11px] font-bold uppercase tracking-widest whitespace-nowrap transition-all ${(chip === 'All' && !searchQuery) || (searchQuery && chip.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    ? 'bg-color-primary/20 border-color-primary/40 text-color-primary'
+                                    : 'bg-white/5 border-white/5 text-color-support/40'
+                                    }`}
+                                onClick={() => {
+                                    if (chip === 'All') setSearchQuery('');
+                                    else setSearchQuery(chip.toLowerCase());
+                                }}
+                            >
+                                {chip}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="hidden md:flex flex-col md:flex-row justify-between items-start md:items-end mb-0 md:mb-12 md:border-b border-white/5 md:pb-8 md:mt-0 mt-48">
+                    <div className="hidden md:flex flex-col items-start">
                         <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-4 transition-all duration-500 ${connected
                             ? 'bg-green-500/10 border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
                             : 'bg-red-500/10 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
@@ -278,40 +319,43 @@ export function Dashboard() {
                     </div>
 
                     <div className="w-full md:w-auto flex flex-col sm:flex-row items-center md:items-end gap-3 md:gap-4 mt-6 md:mt-0">
-                        <div className="dash-stat flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start w-full sm:w-auto md:min-w-[140px] px-6 py-4 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
-                            <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-primary/20 to-transparent" />
-                            <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block md:mb-2">Total Assets</span>
-                            <span className="text-2xl md:text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
-                        </div>
+                        {/* Desktop Only Stats & Search */}
+                        <div className="hidden md:flex flex-col md:flex-row items-end gap-4">
+                            <div className="dash-stat flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start w-full sm:w-auto md:min-w-[140px] px-6 py-4 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
+                                <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-primary/20 to-transparent" />
+                                <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block md:mb-2">Total Assets</span>
+                                <span className="text-2xl md:text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
+                            </div>
 
-                        <div className="dash-stat w-full md:min-w-[400px] relative flex items-center group/search">
-                            <div className="relative flex-grow">
-                                <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-color-support/30 group-focus-within/search:text-color-primary transition-colors">
-                                    <Search size={18} />
+                            <div className="dash-stat w-full md:min-w-[400px] relative flex items-center group/search">
+                                <div className="relative flex-grow">
+                                    <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-color-support/30 group-focus-within/search:text-color-primary transition-colors">
+                                        <Search size={18} />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Search Vault..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full bg-[#0A0A0A]/60 border border-white/10 rounded-2xl py-4 pl-14 pr-24 text-white text-sm outline-none focus:border-color-primary/40 focus:bg-[#0A0A0A]/80 transition-all glass-panel placeholder:text-color-support/20 font-medium"
+                                    />
+                                    <button
+                                        onClick={() => fetchBlobs()}
+                                        disabled={isLoading}
+                                        className={`absolute right-2 top-2 bottom-2 px-4 rounded-xl border border-white/10 bg-white/5 text-color-support/50 hover:text-white hover:border-white/20 hover:bg-white/10 transition-all flex items-center justify-center gap-2 group/sync ${isLoading ? 'opacity-50' : ''}`}
+                                        title="Manual Sync"
+                                    >
+                                        <RefreshCw size={16} className={`transition-transform duration-700 ${isLoading ? 'animate-spin' : 'group-hover/sync:rotate-180'}`} />
+                                        <span className="text-[10px] font-bold uppercase tracking-widest">Sync</span>
+                                    </button>
                                 </div>
-                                <input
-                                    type="text"
-                                    placeholder="Search Vault..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full bg-[#0A0A0A]/60 border border-white/10 rounded-2xl py-4 pl-14 pr-24 text-white text-sm outline-none focus:border-color-primary/40 focus:bg-[#0A0A0A]/80 transition-all glass-panel placeholder:text-color-support/20 font-medium"
-                                />
-                                <button 
-                                    onClick={() => fetchBlobs()}
-                                    disabled={isLoading}
-                                    className={`absolute right-2 top-2 bottom-2 px-4 rounded-xl border border-white/10 bg-white/5 text-color-support/50 hover:text-white hover:border-white/20 hover:bg-white/10 transition-all flex items-center justify-center gap-2 group/sync ${isLoading ? 'opacity-50' : ''}`}
-                                    title="Manual Sync"
-                                >
-                                    <RefreshCw size={16} className={`transition-transform duration-700 ${isLoading ? 'animate-spin' : 'group-hover/sync:rotate-180'}`} />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest">Sync</span>
-                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <GlassCard className="assets-container p-0 overflow-hidden border-white/5 bg-[#050505]/90 backdrop-blur-3xl rounded-3xl">
-                    {/* Table Header */}
+                <GlassCard className="assets-container p-0 md:p-0 overflow-hidden border-none md:border md:border-white/5 bg-transparent md:bg-[#050505]/90 backdrop-blur-3xl rounded-3xl">
+                    {/* Table Header (Desktop Only) */}
                     <div className="hidden md:grid grid-cols-12 gap-4 p-5 border-b border-white/5 text-color-support/40 text-[10px] font-bold uppercase tracking-[0.2em] bg-[#0A0A0A]">
                         <div className="col-span-6">Asset Name</div>
                         <div className="col-span-2">Capacity</div>
@@ -319,8 +363,8 @@ export function Dashboard() {
                         <div className="col-span-2 text-right">DELETE</div>
                     </div>
 
-                    {/* Asset Rows */}
-                    <div className="divide-y divide-white/5 min-h-[200px]">
+                    {/* Asset Rows/List */}
+                    <div className="md:divide-y md:divide-white/5 min-h-[200px] md:max-w-none max-w-2xl mx-auto divide-y divide-white/5 bg-white/[0.02] border border-white/10 rounded-2xl md:bg-transparent md:border-none md:rounded-none relative shadow-2xl">
                         {!account ? (
                             <div className="p-12 text-center text-color-support/60 flex flex-col items-center">
                                 <Lock size={48} className="mb-4 opacity-50" />
@@ -396,7 +440,7 @@ export function Dashboard() {
                                     const nameStr = typeof asset.name === 'string' ? asset.name : '';
                                     const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
                                     const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
-                                    
+
                                     const decryptedName = decryptedNames[nameOnly];
                                     const nameToSearch = decryptedName || nameOnly || '';
 
@@ -417,118 +461,118 @@ export function Dashboard() {
                                 }
 
                                 return filteredAssets.map((asset, index) => {
-                                        const nameStr = typeof asset.name === 'string' ? asset.name : '';
-                                        const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
-                                        const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
-                                        
-                                        const decryptedName = decryptedNames[nameOnly];
-                                        const displayName: string = decryptedName || nameOnly;
-                                        const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
-                                        const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/);
-                                        const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/);
-                                        const isTxt = !!displayName.toLowerCase().match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/);
-                                        const isAudio = !!displayName.toLowerCase().match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/);
-                                        const isDocument = !!displayName.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/);
+                                    const nameStr = typeof asset.name === 'string' ? asset.name : '';
+                                    const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+                                    const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
 
-                                        // Robust extraction of identifier and name from indexer "@identifier/path" format
-                                        if (index === 0) console.log('[Debug] Asset structure:', JSON.stringify(asset, null, 2));
+                                    const decryptedName = decryptedNames[nameOnly];
+                                    const displayName: string = decryptedName || nameOnly;
+                                    const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
+                                    const isImg = !!displayName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/);
+                                    const isVid = !!displayName.toLowerCase().match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/);
+                                    const isTxt = !!displayName.toLowerCase().match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/);
+                                    const isAudio = !!displayName.toLowerCase().match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/);
+                                    const isDocument = !!displayName.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/);
 
-                                        // Use extracted identifier or fallback to account address
-                                        const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
-                                        // Ensure the identifier has the 0x prefix if it appears to be a raw hex address
-                                        let finalIdentifier = identifier;
-                                        const isHex = /^[0-9a-fA-F]+$/.test(finalIdentifier);
-                                        if (finalIdentifier && !finalIdentifier.startsWith('0x') && isHex && finalIdentifier.length >= 60) {
-                                            finalIdentifier = `0x${finalIdentifier}`;
-                                        }
+                                    // Robust extraction of identifier and name from indexer "@identifier/path" format
+                                    if (index === 0) console.log('[Debug] Asset structure:', JSON.stringify(asset, null, 2));
 
-                                        // Construct the download URL with strict encoding for both parts, but allowing slashes to remain literal for paths
-                                        const rpcBaseUrl = shelbyClient.baseUrl;
-                                        const downloadUrl = (finalIdentifier && nameOnly)
-                                            ? `${rpcBaseUrl}/v1/blobs/${encodeURIComponent(finalIdentifier)}/${nameOnly.split('/').map((segment: string) => encodeURIComponent(segment)).join('/')}`
-                                            : null;
+                                    // Use extracted identifier or fallback to account address
+                                    const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
+                                    // Ensure the identifier has the 0x prefix if it appears to be a raw hex address
+                                    let finalIdentifier = identifier;
+                                    const isHex = /^[0-9a-fA-F]+$/.test(finalIdentifier);
+                                    if (finalIdentifier && !finalIdentifier.startsWith('0x') && isHex && finalIdentifier.length >= 60) {
+                                        finalIdentifier = `0x${finalIdentifier}`;
+                                    }
 
-                                        if (index === 0) {
-                                            console.log(`[Debug] URL Construction for ${displayName}:`, {
-                                                rawIdentifier: identifier,
-                                                finalIdentifier,
-                                                nameOnly,
-                                                downloadUrl
-                                            });
-                                        }
+                                    // Construct the download URL with strict encoding for both parts, but allowing slashes to remain literal for paths
+                                    const rpcBaseUrl = shelbyClient.baseUrl;
+                                    const downloadUrl = (finalIdentifier && nameOnly)
+                                        ? `${rpcBaseUrl}/v1/blobs/${encodeURIComponent(finalIdentifier)}/${nameOnly.split('/').map((segment: string) => encodeURIComponent(segment)).join('/')}`
+                                        : null;
 
-                                        const assetHash = asset.blob_merkle_root ||
-                                            asset.merkle_root ||
-                                            asset.merkleRoot ||
-                                            asset.hash ||
-                                            asset.blob_hash ||
-                                            asset.blob_id ||
-                                            asset.blobId ||
-                                            (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) ||
-                                            '';
+                                    if (index === 0) {
+                                        console.log(`[Debug] URL Construction for ${displayName}:`, {
+                                            rawIdentifier: identifier,
+                                            finalIdentifier,
+                                            nameOnly,
+                                            downloadUrl
+                                        });
+                                    }
 
-                                        // Extract transaction hash specifically for Explorer link
-                                        const txHash = asset.transaction_hash ||
-                                            asset.tx_hash ||
-                                            asset.upload_tx_hash ||
-                                            asset.creation_tx_hash ||
-                                            asset.transactionHash ||
-                                            asset.blob_transaction_hash ||
-                                            asset.txHash ||
-                                            (asset.metadata && (
-                                                asset.metadata.transaction_hash ||
-                                                asset.metadata.tx_hash ||
-                                                asset.metadata.upload_tx_hash ||
-                                                asset.metadata.transactionHash
-                                            )) ||
-                                            '';
+                                    const assetHash = asset.blob_merkle_root ||
+                                        asset.merkle_root ||
+                                        asset.merkleRoot ||
+                                        asset.hash ||
+                                        asset.blob_hash ||
+                                        asset.blob_id ||
+                                        asset.blobId ||
+                                        (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) ||
+                                        '';
 
-                                        // Debug log for identifying hash fields if none found
-                                        if (!assetHash && index === 0) {
-                                            console.log("Asset structure debug (missing hash):", asset);
-                                        }
-                                        const handleOpenPreview = () => {
-                                            setSelectedAsset({
-                                                name: displayName,
-                                                url: '',
-                                                sizeStr: sizeMB,
-                                                isImage: isImg,
-                                                isVideo: isVid,
-                                                isText: isTxt,
-                                                isAudio: !!displayName.toLowerCase().match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
-                                                isDocument: !!displayName.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
-                                                hash: assetHash,
-                                                txHash: txHash,
-                                                blobAccount: finalIdentifier,
-                                                blobName: nameOnly
-                                            });
-                                            setIsPreviewModalOpen(true);
-                                        };
+                                    // Extract transaction hash specifically for Explorer link
+                                    const txHash = asset.transaction_hash ||
+                                        asset.tx_hash ||
+                                        asset.upload_tx_hash ||
+                                        asset.creation_tx_hash ||
+                                        asset.transactionHash ||
+                                        asset.blob_transaction_hash ||
+                                        asset.txHash ||
+                                        (asset.metadata && (
+                                            asset.metadata.transaction_hash ||
+                                            asset.metadata.tx_hash ||
+                                            asset.metadata.upload_tx_hash ||
+                                            asset.metadata.transactionHash
+                                        )) ||
+                                        '';
+
+                                    // Debug log for identifying hash fields if none found
+                                    if (!assetHash && index === 0) {
+                                        console.log("Asset structure debug (missing hash):", asset);
+                                    }
+                                    const handleOpenPreview = () => {
+                                        setSelectedAsset({
+                                            name: displayName,
+                                            url: '',
+                                            sizeStr: sizeMB,
+                                            isImage: isImg,
+                                            isVideo: isVid,
+                                            isText: isTxt,
+                                            isAudio: !!displayName.toLowerCase().match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
+                                            isDocument: !!displayName.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
+                                            hash: assetHash,
+                                            txHash: txHash,
+                                            blobAccount: finalIdentifier,
+                                            blobName: nameOnly
+                                        });
+                                        setIsPreviewModalOpen(true);
+                                    };
 
 
-                                        return (
-                                            <AssetRow
-                                                key={`${asset.blob_merkle_root}-${index}`}
-                                                asset={asset}
-                                                index={index}
-                                                displayName={displayName}
-                                                sizeMB={sizeMB}
-                                                isImg={isImg}
-                                                isVid={isVid}
-                                                isTxt={isTxt}
-                                                downloadUrl={downloadUrl}
-                                                handleOpenPreview={handleOpenPreview}
-                                                assetHash={assetHash}
-                                                txHash={txHash}
-                                                deleteBlobs={deleteBlobs}
-                                                fetchBlobs={fetchBlobs}
-                                                signAndSubmitTransaction={signAndSubmitTransaction}
-                                                account={account}
-                                                shelbyClient={shelbyClient}
-                                                setOptimisticDeletions={setOptimisticAssets}
-                                            />
-                                        );
-                                    })
+                                    return (
+                                        <AssetRow
+                                            key={`${asset.blob_merkle_root}-${index}`}
+                                            asset={asset}
+                                            index={index}
+                                            displayName={displayName}
+                                            sizeMB={sizeMB}
+                                            isImg={isImg}
+                                            isVid={isVid}
+                                            isTxt={isTxt}
+                                            downloadUrl={downloadUrl}
+                                            handleOpenPreview={handleOpenPreview}
+                                            assetHash={assetHash}
+                                            txHash={txHash}
+                                            deleteBlobs={deleteBlobs}
+                                            fetchBlobs={fetchBlobs}
+                                            signAndSubmitTransaction={signAndSubmitTransaction}
+                                            account={account}
+                                            shelbyClient={shelbyClient}
+                                            setOptimisticDeletions={setOptimisticAssets}
+                                        />
+                                    );
+                                })
                             })()
                         )}
                     </div>
@@ -566,6 +610,14 @@ export function Dashboard() {
                 accountAddress={account?.address.toString()}
                 onDelete={handleDeleteSelectedAsset}
             />
+
+            {/* Floating Action Button (Mobile) */}
+            <Link
+                href="/vault"
+                className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-gradient-to-br from-color-primary to-color-accent rounded-2xl flex items-center justify-center text-white shadow-[0_8px_32px_rgba(232,58,118,0.4)] z-[50] animate-in zoom-in-50 duration-500 hover:scale-110 active:scale-95 transition-transform"
+            >
+                <PlusCircle size={28} />
+            </Link>
         </section>
     );
 }
@@ -722,16 +774,20 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                     <div className="flex items-center gap-2">
                         <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
                     </div>
-                    <span className="md:hidden text-color-support/40 text-[10px] font-mono tracking-widest uppercase mt-1">
-                        {sizeMB} MB • SECURED
-                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="text-color-support/40 text-[10px] font-mono tracking-widest uppercase mt-0.5">
+                            {sizeMB} MB
+                        </span>
+                        <span className="text-color-support/20 text-[10px] mt-0.5">•</span>
+                        <span className="text-green-500/40 text-[10px] font-bold uppercase tracking-widest mt-0.5">SECURED</span>
+                    </div>
                 </div>
             </div>
 
             {/* Mobile 3-Dot Menu Button */}
             <div className="md:hidden relative z-10 shrink-0">
-                <button 
-                    className="p-3 -mr-2 text-color-support/50 hover:text-white transition-colors rounded-full hover:bg-white/10 active:scale-95"
+                <button
+                    className="p-3 -mr-2 text-color-support/40 hover:text-white transition-colors rounded-full hover:bg-white/10 active:scale-95"
                     onClick={(e) => {
                         e.stopPropagation();
                         setIsMenuOpen(true);
@@ -759,16 +815,11 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                         if (status === 'live') {
                             handleDownload();
                         } else {
-                            toast("File is being finalized on the network. Please retry in 30 seconds.", {
-                                icon: '⏳'
-                            });
+                            toast("File is being finalized... Please retry in 30 seconds.", { icon: '⏳' });
                         }
                     }}
                 >
                     <Download size={18} />
-                    <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">
-                        {status === 'live' ? 'Download' : 'Processing...'}
-                    </span>
                 </button>
             </div>
 
@@ -785,37 +836,92 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                     ) : (
                         <Trash2 size={18} />
                     )}
-                    <span className="md:hidden font-bold text-[11px] uppercase tracking-[0.2em]">Delete</span>
                 </button>
             </div>
 
-            {/* Mobile Options Modal */}
+            {/* Mobile Options Drawer */}
             {isMenuOpen && typeof window !== 'undefined' && createPortal(
-                <div className="fixed inset-0 z-[100] flex items-end justify-center md:hidden bg-black/60 backdrop-blur-sm" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }} onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); }}>
-                    <div className="bg-[#0A0A0A] border-t border-white/10 w-full rounded-t-[2rem] p-6 pb-10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-4 scale-y-110"></div>
-                        
-                        <div className="mb-2">
-                            <h3 className="text-white font-bold truncate text-lg pr-4">{displayName}</h3>
-                            <p className="text-color-support/60 text-xs font-mono mt-1">{sizeMB} MB • SECURED</p>
+                <div
+                    className="fixed inset-0 z-[110] flex items-end justify-center md:hidden bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+                    onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); }}
+                >
+                    <div
+                        className="bg-[#0A0A0A]/98 backdrop-blur-3xl border-t border-white/10 w-full rounded-t-[2.5rem] p-6 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] flex flex-col gap-4 animate-in slide-in-from-bottom duration-500 transform-gpu"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-4" onClick={() => setIsMenuOpen(false)}></div>
+
+                        <div className="mb-4 flex items-center gap-4 border-b border-white/5 pb-5">
+                            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 shadow-inner">
+                                {isImg ? <ImageIcon size={28} className="text-color-accent" /> : isVid ? <PackageOpen size={28} className="text-color-primary" /> : <FileText size={28} className="text-color-support" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h3 className="text-white font-bold truncate text-xl leading-snug">{displayName}</h3>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="px-2 py-0.5 rounded-md bg-white/5 text-color-support/40 text-[10px] font-mono tracking-widest uppercase border border-white/5">
+                                        {sizeMB} MB
+                                    </span>
+                                    <span className="text-color-support/20 text-[10px]">•</span>
+                                    <span className="text-color-support/40 text-[10px] font-bold uppercase tracking-widest text-[#22C55E]">SECURED</span>
+                                </div>
+                            </div>
                         </div>
 
-                        <button className="w-full p-4 flex items-center gap-4 bg-white/5 active:bg-white/10 hover:bg-white/10 rounded-2xl text-white transition-colors text-base font-bold" onClick={(e) => { setIsMenuOpen(false); handleOpenPreview(); }}>
-                            <div className="w-10 h-10 rounded-full bg-color-primary/20 flex items-center justify-center text-color-primary"><Eye size={18} /></div> Preview
-                        </button>
-                        <button className="w-full p-4 flex items-center gap-4 bg-white/5 active:bg-white/10 hover:bg-white/10 rounded-2xl text-white transition-colors text-base font-bold" onClick={(e) => { 
-                            setIsMenuOpen(false); 
-                            if (status === 'live') {
-                                handleDownload(e);
-                            } else {
-                                toast("File is being finalized... Please retry in 30 seconds.", { icon: '⏳' });
-                            }
-                        }}>
-                            <div className="w-10 h-10 rounded-full bg-color-accent/20 flex items-center justify-center text-color-accent"><Download size={18} /></div> {status === 'live' ? 'Download' : 'Processing...'}
-                        </button>
-                        <button className="w-full p-4 flex items-center gap-4 bg-red-500/10 active:bg-red-500/20 hover:bg-red-500/20 rounded-2xl text-red-500 transition-colors text-base font-bold mt-2" onClick={(e) => { setIsMenuOpen(false); handleDelete(e); }}>
-                            <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500"><Trash2 size={18} /></div> Delete
-                        </button>
+                        <div className="space-y-3">
+                            <button
+                                onClick={(e) => {
+                                    setIsMenuOpen(false);
+                                    handleOpenPreview();
+                                }}
+                                className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 text-white active:bg-white/10 transition-all active:scale-[0.98] group"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                                    <Eye size={22} />
+                                </div>
+                                <div className="text-left">
+                                    <span className="block font-bold text-sm uppercase tracking-widest">Preview Asset</span>
+                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">Instant data visualization</span>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={(e) => {
+                                    if (status === 'live') {
+                                        setIsMenuOpen(false);
+                                        handleDownload(e);
+                                    } else {
+                                        toast("File is being finalized... Please retry in 30 seconds.", { icon: '⏳' });
+                                    }
+                                }}
+                                className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all active:scale-[0.98] group ${status === 'live' ? 'bg-color-accent/5 border-color-accent/20 text-white hover:bg-color-accent/10' : 'bg-white/5 border-transparent text-white/20'}`}
+                            >
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${status === 'live' ? 'bg-color-accent/20 text-color-accent shadow-[0_0_20px_rgba(232,58,118,0.2)]' : 'bg-white/5 text-white/10'}`}>
+                                    {status === 'live' ? <Download size={22} /> : <Clock size={22} className="animate-pulse" />}
+                                </div>
+                                <div className="text-left">
+                                    <span className="block font-bold text-sm uppercase tracking-widest">{status === 'live' ? 'Download Payload' : 'Finalizing...'}</span>
+                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">Retrieve from protocol</span>
+                                </div>
+                            </button>
+
+                            <div className="pt-2">
+                                <button
+                                    onClick={(e) => {
+                                        setIsMenuOpen(false);
+                                        handleDelete(e);
+                                    }}
+                                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-red-500/5 border border-red-500/10 text-red-500 active:bg-red-500/10 active:scale-[0.98] transition-all group"
+                                >
+                                    <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-[0_0_20px_rgba(239,68,68,0.1)]">
+                                        <Trash2 size={22} />
+                                    </div>
+                                    <div className="text-left">
+                                        <span className="block font-bold text-sm uppercase tracking-widest text-red-400">Terminal Delete</span>
+                                        <span className="block text-[10px] text-red-500/40 mt-0.5 uppercase tracking-wider">Permanently remove from vault</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>,
                 document.body

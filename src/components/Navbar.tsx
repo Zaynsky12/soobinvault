@@ -1,8 +1,9 @@
 "use client";
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown, RefreshCw, PlusCircle } from 'lucide-react';
+import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown, RefreshCw, PlusCircle, Home, Vault, FileText } from 'lucide-react';
 import gsap from 'gsap';
 import Link from 'next/link';
 import { MagneticButton } from './ui/MagneticButton';
@@ -85,8 +86,8 @@ export default function Navbar(): React.ReactNode {
 
     const handleWalletClick = () => {
         if (connected) {
-            disconnect();
             lockVault();
+            disconnect();
         } else {
             setIsSelectorOpen(true);
         }
@@ -94,9 +95,11 @@ export default function Navbar(): React.ReactNode {
 
     const navLinks = [
         { name: 'Home', href: '/' },
-        { name: 'Vault', href: '/vault' },
-        { name: 'Dashboard', href: '/dashboard' },
+        { name: 'Upload', href: '/vault' },
+        { name: 'Vault', href: '/dashboard' },
     ];
+
+    const pathname = usePathname();
 
     const renderSettingsContent = () => (
         <div className="w-full h-full">
@@ -130,7 +133,7 @@ export default function Navbar(): React.ReactNode {
                             toast.success("Master Key copied and secured!");
                             setIsSettingsOpen(false);
                         }}
-                        className={`w-full px-4 py-3.5 flex items-center gap-3 text-sm rounded-xl transition-all ${
+                        className={`w-full px-4 py-2.5 flex items-center gap-3 text-sm rounded-xl transition-all ${
                             !isKeyBackedUp 
                                 ? 'text-white bg-color-primary/20 border border-color-primary/40 shadow-[0_0_15px_rgba(232,58,118,0.2)] animate-pulse hover:bg-color-primary/30' 
                                 : 'text-color-primary hover:bg-white/5 active:bg-white/10'
@@ -147,7 +150,7 @@ export default function Navbar(): React.ReactNode {
                         setIsSettingsOpen(false);
                         toast.success("Synchronizing with decentralized network...");
                     }}
-                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/70 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
+                    className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-white/70 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
                 >
                     <RefreshCw size={18} />
                     Sync Assets
@@ -164,7 +167,7 @@ export default function Navbar(): React.ReactNode {
                             }, 500);
                         }
                     }}
-                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
+                    className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
                 >
                     <Key size={18} />
                     Import Master Key
@@ -182,7 +185,7 @@ export default function Navbar(): React.ReactNode {
                         await ensureKey(true);
                         console.log(`[Vault] Create New Vault completed for ${addr}`);
                     }}
-                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
+                    className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
                 >
                     <PlusCircle size={18} />
                     Create New Vault
@@ -192,27 +195,28 @@ export default function Navbar(): React.ReactNode {
                     href={`https://explorer.aptoslabs.com/account/${account?.address}?network=mainnet`}
                     target="_blank"
                     rel="noreferrer"
-                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
+                    className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-white/50 hover:text-white hover:bg-white/5 active:bg-white/10 rounded-xl transition-all"
                 >
                     <Globe size={18} />
                     View on Explorer
                 </a>
             </div>
 
-            <div className="border-t border-white/5 p-2 mt-1">
-
-                <button 
-                    onClick={() => {
-                        disconnect();
-                        setIsSettingsOpen(false);
-                        lockVault();
-                    }}
-                    className="w-full px-4 py-3.5 flex items-center gap-3 text-sm text-white/30 hover:text-red-400 hover:bg-red-500/5 rounded-xl transition-all"
-                >
-                    <LogOut size={18} />
-                    Disconnect Wallet
-                </button>
-            </div>
+            {(connected && account) && (
+                <div className="border-t border-white/5 p-2 mt-1">
+                    <button 
+                        onClick={() => {
+                            lockVault();
+                            disconnect();
+                            setIsSettingsOpen(false);
+                        }}
+                        className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-white/30 hover:text-red-400 hover:bg-red-500/5 rounded-xl transition-all"
+                    >
+                        <LogOut size={18} />
+                        Disconnect Wallet
+                    </button>
+                </div>
+            )}
         </div>
     );
 
@@ -246,134 +250,152 @@ export default function Navbar(): React.ReactNode {
                         </button>
                     </div>
                 </div>
-            )}
-
-            <header className={`nav-container fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? 'py-4' : 'py-6'}`}>
-                <div className="container mx-auto px-6">
-                    <div className={`flex items-center justify-between mx-auto max-w-6xl rounded-full transition-all duration-500 px-6 py-3 ${isScrolled
-                        ? 'bg-[#0B1121]/70 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)]'
-                        : 'bg-transparent border border-transparent'
+            )}            <header className={`nav-container fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? 'pt-3 md:py-4' : 'pt-3 md:py-6'}`}>
+                <div className="container mx-auto md:px-6">
+                    <div className={`flex items-center justify-between mx-4 md:mx-auto max-w-4xl transition-all duration-500 px-4 md:px-6 py-2.5 md:py-3 rounded-full ${isScrolled
+                        ? 'bg-[#0B1121]/80 backdrop-blur-xl border border-white/10 md:shadow-[0_8px_32px_rgba(0,0,0,0.4)]'
+                        : 'bg-[#0B1121]/40 backdrop-blur-lg border border-white/5 shadow-lg'
                         }`}>
 
-                        {/* Logo */}
-                        <Link href="/" className="flex items-center gap-3 cursor-pointer group">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.4)] group-hover:shadow-[0_0_30px_rgba(251,179,204,0.6)] transition-all duration-300">
-                                <Image
-                                    src="/logo.png"
-                                    alt="ShelbyVault Logo"
-                                    width={40}
-                                    height={40}
-                                    className="rounded-xl"
-                                />
-                            </div>
-                            <span className="font-heading font-bold text-xl tracking-tight text-white">SoobinVault</span>
-                        </Link>
+                            {/* Logo */}
+                            <Link href="/" className="flex items-center gap-3 cursor-pointer group">
+                                <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.4)] group-hover:shadow-[0_0_30px_rgba(251,179,204,0.6)] transition-all duration-300">
+                                    <Image
+                                        src="/logo.png"
+                                        alt="ShelbyVault Logo"
+                                        width={36}
+                                        height={36}
+                                        className="rounded-xl w-full h-full p-1"
+                                    />
+                                </div>
+                                <span className="font-heading font-bold text-lg md:text-xl tracking-tight text-white">SoobinVault</span>
+                            </Link>
 
-                        {/* Desktop Links */}
-                        <nav className="hidden md:flex items-center gap-8">
-                            {navLinks.map((link) => (
-                                <Link
-                                    key={link.name}
-                                    href={link.href}
-                                    className="text-color-support/80 hover:text-white font-medium text-sm transition-colors duration-200 relative group"
-                                >
-                                    {link.name}
-                                    <span className="absolute -bottom-1 left-0 w-0 h-[2px] bg-color-accent transition-all duration-300 group-hover:w-full rounded-full"></span>
-                                </Link>
-                            ))}
-                        </nav>
+                            {/* Desktop Links - More Compact */}
+                            <nav className="hidden md:flex items-center gap-6">
+                                {navLinks.map((link) => (
+                                    <Link
+                                        key={link.name}
+                                        href={link.href}
+                                        className="text-white/60 hover:text-white font-bold text-[10px] uppercase tracking-widest transition-colors duration-200 relative group"
+                                    >
+                                        {link.name}
+                                        <span className="absolute -bottom-1 left-0 w-0 h-[2px] bg-color-accent transition-all duration-300 group-hover:w-full rounded-full"></span>
+                                    </Link>
+                                ))}
+                            </nav>
 
-                        <div className="flex items-center gap-4">
-                            {/* Desktop Actions */}
-                            <div className="hidden md:flex items-center gap-3">
-                                {connected && (
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                                            className={`p-2.5 rounded-xl border transition-all duration-300 ${isSettingsOpen ? 'bg-white/10 border-white/20 text-white' : 'bg-white/5 border-white/5 text-white/40 hover:text-white hover:border-white/10'}`}
-                                        >
-                                            <Settings size={20} className={isSettingsOpen ? 'rotate-90' : ''} />
-                                        </button>
+                            <div className="flex items-center gap-4">
+                                {/* Desktop Actions - Simplified to Mobile Style */}
+                                <div className="hidden md:flex items-center gap-3">
+                                    {connected && (
+                                        <div className="relative">
+                                            <button
+                                                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                                className={`p-2 rounded-xl border transition-all duration-300 ${isSettingsOpen ? 'bg-white/10 border-white/20 text-white' : 'bg-white/5 border-white/5 text-white/40 hover:text-white hover:border-white/10'}`}
+                                            >
+                                                <Settings size={18} className={isSettingsOpen ? 'rotate-90' : ''} />
+                                            </button>
 
-                                        {/* Settings Dropdown Desktop */}
-                                        {isSettingsOpen && (
-                                            <div className="absolute right-0 mt-4 w-72 bg-[#0B1121]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
-                                                {renderSettingsContent()}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                            {/* Settings Dropdown Desktop */}
+                                            {isSettingsOpen && (
+                                                <div className="absolute right-0 mt-4 w-72 bg-[#0B1121]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                                                    {renderSettingsContent()}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
-                                <MagneticButton
-                                    className="bg-color-primary/10 border border-color-primary/30 text-color-primary hover:bg-color-primary hover:border-color-primary hover:text-[#1A0D12] text-sm px-6 py-2.5 shadow-[0_0_20px_rgba(251,179,204,0.15)] hover:shadow-[0_0_30px_rgba(251,179,204,0.4)]"
-                                    onClick={handleWalletClick}
-                                >
-                                    {isLoading ? "Wait..." : (connected && account) ? `${account.address.toString().slice(0, 4)}...${account.address.toString().slice(-4)}` : "Connect Wallet"}
-                                </MagneticButton>
-                            </div>
+                                    <MagneticButton
+                                        className="bg-color-primary/10 border border-color-primary/30 text-color-primary text-[10px] px-4 py-2.5 font-bold uppercase tracking-widest shadow-[0_0_15px_rgba(232,58,118,0.1)] hover:bg-color-primary hover:text-white transition-all"
+                                        onClick={handleWalletClick}
+                                    >
+                                        {isLoading ? "Wait..." : (connected && account) ? `${account.address.toString().slice(0, 4)}...${account.address.toString().slice(-4)}` : "Connect"}
+                                    </MagneticButton>
+                                </div>
 
                             {/* Mobile Actions */}
-                            <div className="flex md:hidden items-center gap-2">
-                                {connected && (
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                                            className={`p-2 rounded-xl border transition-all duration-300 ${isSettingsOpen ? 'bg-white/10 border-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.1)]' : 'bg-white/5 border-transparent text-white/40'}`}
-                                        >
-                                            <Settings size={20} className={isSettingsOpen ? 'rotate-90' : ''} />
-                                        </button>
-                                        
-                                        {/* Settings Dropdown Mobile */}
-                                        {isSettingsOpen && (
-                                            <div className="fixed inset-x-6 top-[85px] max-h-[calc(100vh-120px)] overflow-y-auto bg-[#0B1121]/95 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl z-[60] animate-in fade-in zoom-in-95 duration-300 transform-gpu scrollbar-hide">
-                                                {renderSettingsContent()}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                <button
-                                    className="text-color-support hover:text-white p-2 bg-white/5 rounded-xl border border-transparent"
-                                    onClick={() => {
-                                        setMobileMenuOpen(!mobileMenuOpen);
-                                        setIsSettingsOpen(false);
-                                    }}
+                            <div className="md:hidden flex items-center gap-2">
+                                <MagneticButton
+                                    className="bg-color-primary/10 border border-color-primary/30 text-color-primary text-[10px] px-3 py-2 font-bold uppercase tracking-widest shadow-[0_0_15px_rgba(232,58,118,0.1)]"
+                                    onClick={handleWalletClick}
                                 >
-                                    {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Mobile Menu Dropdown */}
-                    <div className={`md:hidden absolute top-full left-6 right-6 mt-2 rounded-[2rem] bg-[#0B1121]/95 backdrop-blur-2xl border border-white/10 overflow-hidden transition-all duration-300 origin-top shadow-2xl ${mobileMenuOpen ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'
-                        }`}>
-                        <div className="p-6 flex flex-col gap-6">
-                            {navLinks.map((link) => (
-                                <Link
-                                    key={link.name}
-                                    href={link.href}
-                                    className="text-xl font-medium text-color-support hover:text-white"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                >
-                                    {link.name}
-                                </Link>
-                            ))}
-                            <div className="pt-6 border-t border-white/10 flex flex-col gap-4">
-                                <button
-                                    className="w-full bg-gradient-to-r from-color-primary to-color-accent text-white rounded-full py-4 font-bold shadow-[0_0_30px_rgba(232,58,118,0.3)]"
-                                    onClick={() => {
-                                        handleWalletClick();
-                                        setMobileMenuOpen(false);
-                                    }}
-                                >
-                                    {isLoading ? "Connecting..." : (connected && account) ? "Disconnect Wallet" : "Connect Wallet"}
-                                </button>
+                                    {isLoading ? "Wait..." : (connected && account) ? `${account.address.toString().slice(0, 3)}...${account.address.toString().slice(-3)}` : "Connect"}
+                                </MagneticButton>
+                                
+                                {/* Settings Dropdown Mobile - MOVED OUT OF HEADER TO TOP-LEVEL FRAGMENT BELOW */}
                             </div>
                         </div>
                     </div>
                 </div>
             </header>
+
+            {/* Mobile Settings Drawer (Premium Bottom Sheet Style) */}
+            {isSettingsOpen && (
+                <>
+                    {/* Backdrop for focus */}
+                    <div 
+                        className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] animate-in fade-in duration-300"
+                        onClick={() => setIsSettingsOpen(false)}
+                    />
+                    <div className="md:hidden fixed inset-x-0 bottom-0 z-[101] animate-in slide-in-from-bottom duration-500 transform-gpu">
+                        <div className="bg-[#0B1121]/95 backdrop-blur-3xl border-t border-white/10 rounded-t-[2.5rem] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[75vh]">
+                            {/* Handle Bar Area */}
+                            <div className="w-full flex justify-center py-4 cursor-grab active:cursor-grabbing" onClick={() => setIsSettingsOpen(false)}>
+                                <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+                            </div>
+                            
+                            {/* Scrollable Content */}
+                            <div className="overflow-y-auto pb-24 px-2 scrollbar-hide">
+                                <div className="text-center mb-4 px-6">
+                                    <h3 className="text-xl font-bold text-white tracking-tight">Security Settings</h3>
+                                    <p className="text-color-support/40 text-[10px] uppercase tracking-widest mt-1">Configure your zero-knowledge vault</p>
+                                </div>
+                                {renderSettingsContent()}
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* Premium Mobile Bottom Navigation (Google Drive Style) - Compact Height */}
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[100]">
+                <div className="bg-[#0B1121]/95 backdrop-blur-3xl border-t border-white/10 px-2 py-1.5 flex items-center justify-around shadow-[0_-15px_35px_rgba(0,0,0,0.6)] relative">
+                    <Link 
+                        href="/" 
+                        className={`flex flex-col items-center gap-0.5 p-1 rounded-2xl transition-all duration-300 ${pathname === '/' ? 'text-color-primary' : 'text-white/40'}`}
+                    >
+                        <Home size={20} className={pathname === '/' ? 'fill-current' : ''} />
+                        <span className="text-[9px] font-bold uppercase tracking-widest">Home</span>
+                    </Link>
+
+                    <Link 
+                        href="/vault" 
+                        className={`flex flex-col items-center gap-0.5 p-1 rounded-2xl transition-all duration-300 ${pathname === '/vault' ? 'text-color-primary' : 'text-white/40'}`}
+                    >
+                        <PlusCircle size={20} className={`${pathname === '/vault' ? 'text-color-primary drop-shadow-[0_0_10px_rgba(232,58,118,0.5)]' : 'text-color-accent'}`} />
+                        <span className="text-[9px] font-bold uppercase tracking-widest">Upload</span>
+                    </Link>
+
+                    <Link 
+                        href="/dashboard" 
+                        className={`flex flex-col items-center gap-0.5 p-1 rounded-2xl transition-all duration-300 ${pathname === '/dashboard' ? 'text-color-primary' : 'text-white/40'}`}
+                    >
+                        <FileText size={20} className={pathname === '/dashboard' ? 'fill-current' : ''} />
+                        <span className="text-[9px] font-bold uppercase tracking-widest">Vault</span>
+                    </Link>
+
+                    {(connected && account) && (
+                        <button 
+                            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                            className={`flex flex-col items-center gap-0.5 p-1 rounded-2xl transition-all duration-300 ${isSettingsOpen ? 'text-color-primary' : 'text-white/40'}`}
+                        >
+                            <Settings size={20} className={isSettingsOpen ? 'rotate-90' : ''} />
+                            <span className="text-[9px] font-bold uppercase tracking-widest">Settings</span>
+                        </button>
+                    )}
+                </div>
+            </nav>
         </>
     );
 }

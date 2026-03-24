@@ -57,83 +57,82 @@ export function WalletSelector({ isOpen, onClose }: WalletSelectorProps): React.
                 onClick={handleClose}
             />
 
-            {/* Modal */}
+            {/* Modal - Compact Version */}
             <div 
                 ref={modalRef}
-                className="relative w-full max-w-md bg-[#0B1121]/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-[0_24px_80px_rgba(0,0,0,0.5)] overflow-hidden"
+                className="relative w-full max-w-sm mx-auto bg-[#0B1121]/90 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-[0_24px_80px_rgba(0,0,0,0.6)] overflow-hidden"
             >
-                {/* Header */}
-                <div className="p-8 pb-4 flex items-center justify-between border-b border-white/5">
+                {/* Header - Compact */}
+                <div className="p-6 pb-3 flex items-center justify-between border-b border-white/5">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.3)]">
-                            <WalletIcon className="text-white" size={20} />
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_15px_rgba(232,58,118,0.3)]">
+                            <WalletIcon className="text-white" size={16} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-heading font-bold text-white tracking-tight">Connect Wallet</h2>
-                            <p className="text-xs text-color-support/60 font-medium">Select your preferred way to connect</p>
+                            <h2 className="text-lg font-heading font-bold text-white tracking-tight">Connect Wallet</h2>
+                            <p className="text-[10px] text-color-support/60 font-medium">Select your preferred way to connect</p>
                         </div>
                     </div>
                     <button 
                         onClick={handleClose}
-                        className="p-2 rounded-full hover:bg-white/5 text-color-support/60 hover:text-white transition-colors"
+                        className="p-1 px-2.5 rounded-full hover:bg-white/5 text-color-support/60 hover:text-white transition-colors"
                     >
-                        <X size={20} />
+                        <X size={18} />
                     </button>
                 </div>
 
-                {/* Wallet List */}
-                <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    <div className="space-y-3">
+                {/* Wallet List - Compact */}
+                <div className="p-4 max-h-[55vh] overflow-y-auto custom-scrollbar">
+                    <div className="space-y-2">
                         {wallets?.map((wallet: AdapterWallet) => (
                             <button
                                 key={wallet.name}
                                 onClick={() => onWalletClick(wallet.name)}
-                                className="w-full group relative flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300"
+                                className="w-full group relative flex items-center justify-between p-3.5 rounded-[1.25rem] bg-white/[0.03] border border-white/5 hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300 active:scale-[0.98]"
                             >
-                                <div className="flex items-center gap-4">
-                                    <div className="relative w-12 h-12 rounded-xl bg-white/5 p-2 flex items-center justify-center overflow-hidden">
+                                <div className="flex items-center gap-3">
+                                    <div className="relative w-10 h-10 rounded-xl bg-white/5 p-2 flex items-center justify-center overflow-hidden shrink-0">
                                         <img 
                                             src={wallet.icon} 
                                             alt={wallet.name} 
                                             className="w-full h-full object-contain"
                                         />
-                                        <div className="absolute inset-0 bg-gradient-to-tr from-color-primary/0 to-color-accent/0 group-hover:from-color-primary/10 group-hover:to-color-accent/10 transition-all duration-500" />
+                                        <div className="absolute inset-0 bg-gradient-to-tr from-color-primary/10 to-color-accent/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </div>
                                     <div className="text-left">
-                                        <h3 className="text-white font-bold tracking-tight">{wallet.name}</h3>
+                                        <h3 className="text-white font-bold tracking-tight text-sm">{wallet.name}</h3>
                                         {wallet.name === 'Aptos Connect' && (
-                                            <span className="text-[10px] uppercase tracking-widest text-color-accent font-bold">Social Login Enabled</span>
+                                            <span className="text-[8px] uppercase tracking-[0.15em] text-color-accent font-bold">Social Login Enabled</span>
                                         )}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-color-primary group-hover:text-white transition-all duration-300">
-                                        <ChevronRight size={16} className="transform group-hover:translate-x-0.5 transition-transform" />
+                                    <div className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-color-primary group-hover:text-white transition-all duration-300">
+                                        <ChevronRight size={14} className="transform group-hover:translate-x-0.5 transition-transform" />
                                     </div>
                                 </div>
                             </button>
                         ))}
 
                         {(!wallets || wallets.length === 0) && (
-                            <div className="text-center py-10">
-                                <p className="text-color-support/60 mb-4">No wallets detected</p>
+                            <div className="text-center py-6">
+                                <p className="text-color-support/60 text-xs mb-3">No wallets detected</p>
                                 <a 
                                     href="https://aptos.dev/guides/install-petra-wallet" 
                                     target="_blank" 
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 text-color-primary hover:text-color-accent font-bold transition-colors"
+                                    className="inline-flex items-center gap-2 text-color-primary hover:text-color-accent text-xs font-bold transition-colors"
                                 >
-                                    Get Petra Wallet <ExternalLink size={14} />
+                                    Get Petra Wallet <ExternalLink size={12} />
                                 </a>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="p-8 pt-4 border-t border-white/5 bg-white/[0.02]">
-                    <p className="text-center text-[10px] text-color-support/40 leading-relaxed">
-                        By connecting a wallet, you agree to our Terms of Service and acknowledge that you have read and understand our Privacy Policy.
+                <div className="p-5 pt-3 border-t border-white/5 bg-white/[0.02]">
+                    <p className="text-center text-[9px] text-color-support/40 leading-relaxed font-medium">
+                        Secure decentralized connection encrypted via Zero-Knowledge.
                     </p>
                 </div>
             </div>

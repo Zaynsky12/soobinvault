@@ -110,6 +110,15 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
         };
         loadPersistedKey();
     }, [account]);
+    // Reactive lock: Immediately clear encryptionKey if wallet is disconnected or account is lost
+    React.useEffect(() => {
+        if (!connected || !account) {
+            if (encryptionKey) {
+                console.log("[Vault] Wallet disconnected or account missing. Locking session automatically.");
+                setEncryptionKey(null);
+            }
+        }
+    }, [connected, account, encryptionKey]);
 
     const lockVault = () => {
         setEncryptionKey(null);

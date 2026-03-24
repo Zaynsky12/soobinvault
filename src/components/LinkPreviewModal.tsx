@@ -340,22 +340,33 @@ export function LinkPreviewModal({
                 <GlassCard className="w-full flex flex-col min-h-0 overflow-hidden bg-[#0A0A0A]/95 border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] rounded-[2rem] sm:rounded-3xl">
                     <div className="p-5 md:p-8 flex-1 flex flex-col overflow-y-auto custom-scrollbar relative z-10">
                         {/* Header */}
-                        <div className="flex-shrink-0 flex items-center justify-between mb-6">
-                            <div className="flex items-center gap-4 overflow-hidden">
-                                <div className="w-12 h-12 rounded-xl bg-color-primary/10 flex items-center justify-center border border-color-primary/20 shrink-0">
-                                    {decryptedData ? <Unlock className="text-color-primary" size={24} /> : <Lock className="text-color-support/40" size={24} />}
+                        <div className="flex-shrink-0 flex items-center justify-between mb-4 md:mb-6">
+                            <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
+                                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-color-primary/10 flex items-center justify-center border border-color-primary/20 shrink-0">
+                                    {decryptedData ? (
+                                        <>
+                                            <Unlock className="md:hidden text-color-primary" size={20} />
+                                            <Unlock className="hidden md:block text-color-primary" size={24} />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Lock className="md:hidden text-color-support/40" size={20} />
+                                            <Lock className="hidden md:block text-color-support/40" size={24} />
+                                        </>
+                                    )}
                                 </div>
                                 <div className="flex flex-col min-w-0">
-                                    <h2 className="text-xl font-bold text-white truncate leading-tight">
+                                    <h2 className="text-lg md:text-xl font-bold text-white truncate leading-tight">
                                         {isProcessing ? "Mendekripsi..." : (decryptedData ? decryptedData.name : "Vault Asset")}
                                     </h2>
-                                    <p className="text-xs text-color-support/60 uppercase tracking-widest mt-1">
-                                        {assetSizeStr} MB • {decryptedData ? "SECURED WITH AES-256-GCM" : "ENCRYPTED PAYLOAD"}
+                                    <p className="text-[10px] text-color-support/40 uppercase tracking-widest mt-0.5">
+                                        {assetSizeStr} MB • {decryptedData ? "SECURED" : "ENCRYPTED"}
                                     </p>
                                 </div>
                             </div>
-                            <button onClick={onClose} className="p-3 rounded-xl hover:bg-white/10 text-color-support transition-colors">
-                                <X size={24} />
+                            <button onClick={onClose} className="p-2 md:p-3 rounded-xl hover:bg-white/10 text-color-support transition-colors active:scale-90">
+                                <X className="md:hidden" size={20} />
+                                <X className="hidden md:block" size={24} />
                             </button>
                         </div>
 
@@ -370,46 +381,37 @@ export function LinkPreviewModal({
                                     <span className="text-color-primary font-mono text-xs tracking-[0.2em] uppercase animate-pulse">Decrypting...</span>
                                 </div>
                             ) : fetchError === 'DECRYPTION_FAILED' ? (
-                                <div className="flex flex-col items-center justify-center gap-6 md:gap-8 text-center px-6 md:px-12 py-10 md:py-16 w-full max-w-xl mx-auto">
-                                    <div className="relative group">
+                                <div className="flex flex-col items-center justify-center gap-6 text-center px-4 md:px-12 py-6 md:py-16 w-full max-w-xl mx-auto">
+                                    <div className="relative group scale-90 md:scale-100">
                                         <div className="absolute inset-0 bg-red-500/20 rounded-full blur-xl transition-all duration-500 animate-pulse" />
-                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-b from-red-500/10 to-[#0A0A0A] flex items-center justify-center border border-red-500/30 relative z-10 shadow-[0_0_30px_rgba(239,68,68,0.15)]">
-                                            <Lock size={40} className="text-red-400 md:w-12 md:h-12" strokeWidth={1.5} />
-                                            <div className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 w-8 h-8 md:w-10 md:h-10 rounded-full bg-red-500 flex items-center justify-center text-white border-4 border-[#0A0A0A] shadow-lg">
-                                                <X size={16} strokeWidth={3} className="md:w-5 md:h-5" />
+                                        <div className="w-20 h-20 rounded-full bg-gradient-to-b from-red-500/10 to-[#0A0A0A] flex items-center justify-center border border-red-500/30 relative z-10 shadow-[0_0_30px_rgba(239,68,68,0.15)]">
+                                            <Lock size={32} className="text-red-400" strokeWidth={1.5} />
+                                            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white border-4 border-[#0A0A0A] shadow-lg">
+                                                <X size={14} strokeWidth={3} />
                                             </div>
                                         </div>
                                     </div>
                                     
-                                    <div className="space-y-3 w-full">
-                                        <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Access Denied</h3>
-                                        <p className="text-color-support/70 text-sm md:text-base leading-relaxed max-w-md mx-auto">
-                                            Your current encryption key does not match this file. This naturally occurs when you access your vault from a <strong>different device, browser, or wallet</strong>.
+                                    <div className="space-y-2 w-full">
+                                        <h3 className="text-xl md:text-3xl font-bold text-white tracking-tight">Access Denied</h3>
+                                        <p className="text-color-support/60 text-xs md:text-base leading-relaxed max-w-sm mx-auto">
+                                            Encryption key mismatch. Import your <b>Master Key</b> in Settings to unlock this asset.
                                         </p>
                                         
-                                        <div className="mt-6 md:mt-8 p-5 md:p-6 rounded-3xl bg-gradient-to-br from-white/[0.03] to-white/[0.01] border border-white/10 text-left space-y-4 w-full backdrop-blur-sm">
-                                            <div className="flex items-center gap-3 border-b border-white/5 pb-3">
-                                                <div className="w-8 h-8 rounded-full bg-color-primary/10 flex items-center justify-center shrink-0">
-                                                    <Key size={16} className="text-color-primary" />
-                                                </div>
-                                                <h4 className="text-sm font-bold text-white uppercase tracking-wider">Action Required</h4>
+                                        <div className="mt-4 p-4 md:p-6 rounded-2xl bg-white/[0.03] border border-white/5 text-left space-y-3 w-full">
+                                            <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                                                <Key size={14} className="text-color-primary" />
+                                                <h4 className="text-[10px] md:text-xs font-bold text-white uppercase tracking-wider">Instructions</h4>
                                             </div>
                                             
-                                            <div className="space-y-4 pt-2">
-                                                <div className="flex gap-3">
-                                                    <div className="shrink-0 w-6 h-6 rounded-full bg-white/5 flex items-center justify-center text-xs font-bold text-color-support">1</div>
-                                                    <div>
-                                                        <p className="text-sm text-white font-medium mb-1">Open Settings Menu</p>
-                                                        <p className="text-xs text-color-support/60 leading-relaxed">Click the gear icon (<Settings size={12} className="inline" />) at the top of your screen.</p>
-                                                    </div>
+                                            <div className="space-y-3 pt-1">
+                                                <div className="flex gap-2 items-center">
+                                                    <div className="shrink-0 w-5 h-5 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold text-color-support">1</div>
+                                                    <p className="text-[11px] md:text-sm text-white/70">Click Settings (<Settings size={10} className="inline" />) in the navigation bar.</p>
                                                 </div>
-                                                
-                                                <div className="flex gap-3">
-                                                    <div className="shrink-0 w-6 h-6 rounded-full bg-color-primary/20 flex items-center justify-center text-xs font-bold text-color-primary border border-color-primary/30">2</div>
-                                                    <div>
-                                                        <p className="text-sm text-white font-medium mb-1">Select "Import Master Key"</p>
-                                                        <p className="text-xs text-color-support/60 leading-relaxed">Paste the original <b>Master Key</b> that you previously backed up from your primary device or browser.</p>
-                                                    </div>
+                                                <div className="flex gap-2 items-center">
+                                                    <div className="shrink-0 w-5 h-5 rounded-full bg-color-primary/20 flex items-center justify-center text-[10px] font-bold text-color-primary border border-color-primary/30">2</div>
+                                                    <p className="text-[11px] md:text-sm text-white/70">Select <b>Import Master Key</b> and paste your key.</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -422,9 +424,9 @@ export function LinkPreviewModal({
                                                 window.dispatchEvent(new CustomEvent('vault:openSettings'));
                                             }, 300);
                                         }}
-                                        className="mt-2 px-8 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all text-sm w-full sm:w-auto border border-white/10 hover:border-white/20 active:scale-95"
+                                        className="mt-2 px-8 py-4 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all text-xs w-full border border-white/10 active:scale-95 uppercase tracking-widest"
                                     >
-                                        Open Settings Now
+                                        Open Settings
                                     </button>
                                 </div>
                             ) : fetchError === 'INDEXING' ? (
@@ -487,10 +489,10 @@ export function LinkPreviewModal({
 
                         {/* Footer / Actions - Sticky or bottom flow */}
                         {fetchError !== 'DECRYPTION_FAILED' && (
-                            <div className="flex-shrink-0 mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-white/5 pt-8 mb-2">
+                            <div className="flex-shrink-0 mt-6 md:mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-white/5 pt-6 md:pt-8 mb-2">
                                 <button 
                                     onClick={onDelete || onClose} 
-                                    className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-500 font-medium transition-all order-2 sm:order-1 flex items-center justify-center gap-2 border border-red-500/20 hover:border-red-500/40"
+                                    className="w-full sm:w-auto px-8 py-4 md:py-3.5 rounded-2xl bg-red-500/5 hover:bg-red-500/10 text-red-500 font-bold transition-all order-2 sm:order-1 flex items-center justify-center gap-2 border border-red-500/10 uppercase text-xs tracking-widest"
                                 >
                                     <Trash2 size={18} />
                                     Delete
@@ -506,7 +508,7 @@ export function LinkPreviewModal({
                                         document.body.removeChild(a);
                                     }}
                                     disabled={!decryptedData}
-                                    className="w-full sm:w-auto px-10 py-3.5 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.02] active:scale-[0.98] text-white font-bold transition-all shadow-lg shadow-color-primary/20 disabled:opacity-50 order-1 sm:order-2"
+                                    className="w-full sm:w-auto px-10 py-4 md:py-3.5 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent hover:scale-[1.02] active:scale-[0.98] text-white font-bold transition-all shadow-lg shadow-color-primary/20 disabled:opacity-50 order-1 sm:order-2 uppercase text-xs tracking-widest"
                                 >
                                     <Download size={20} className="inline-block mr-2" />
                                     Download

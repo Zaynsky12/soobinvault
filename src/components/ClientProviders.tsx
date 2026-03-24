@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Footer } from "@/components/Footer";
+import { usePathname } from "next/navigation";
 import React from "react";
 import { ShelbyClient } from "@shelby-protocol/sdk/browser";
 import { ShelbyClientProvider } from "@shelby-protocol/react";
@@ -46,6 +47,9 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
         return globalShelbyClient;
     }, []);
 
+    const pathname = usePathname();
+    const isVaultPage = pathname === '/dashboard' || pathname === '/vault';
+
     return (
         <WalletProvider>
             {shelbyClient && (
@@ -73,7 +77,10 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
                         <main className="flex-grow">
                             {children}
                         </main>
-                        <Footer />
+                        {/* Hide footer on mobile for vault-related pages */}
+                        <div className={isVaultPage ? "hidden md:block" : ""}>
+                            <Footer />
+                        </div>
                     </VaultKeyProvider>
                 </ShelbyClientProvider>
             )}

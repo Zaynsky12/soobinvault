@@ -88,34 +88,34 @@ export function Hero() {
                 </svg>
             </div>
 
-            <div className="relative z-10 container mx-auto px-6 text-center max-w-4xl">
-                <div className="animate-in inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-[#111111]/80 border border-white/5 shadow-2xl mb-10">
+            <div className="relative z-10 container mx-auto px-6 text-center max-w-4xl py-12 md:py-20">
+                <div className="animate-in inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-[#111111]/80 border border-white/5 shadow-2xl mb-8 md:mb-10">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]" />
-                    <span className="text-xs font-mono font-medium text-color-support uppercase tracking-widest">Build on Shelby</span>
+                    <span className="text-[10px] md:text-xs font-mono font-medium text-color-support uppercase tracking-widest">Build on Shelby</span>
                 </div>
 
-                <h1 className="animate-in text-5xl md:text-7xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-color-support drop-shadow-lg leading-[1.1] tracking-tight">
+                <h1 className="animate-in text-4xl sm:text-5xl md:text-7xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-color-support drop-shadow-lg leading-tight md:leading-[1.1] tracking-tight">
                     Your Digital Legacy, <br className="hidden md:block" /> Locked with <span className="text-color-accent">Zero-Knowledge</span>.
                 </h1>
 
-                <p className="animate-in text-xl md:text-2xl text-[#A3A3A3] mb-12 max-w-3xl mx-auto font-normal leading-relaxed">
-                    Protect your private files with <span className="text-white font-semibold">Signer-Based Encryption</span> and mandatory <span className="text-color-accent">PIN Security</span>. Powered by Aptos & Shelby Protocol.
+                <p className="animate-in text-lg md:text-2xl text-[#A3A3A3] mb-10 md:mb-12 max-w-3xl mx-auto font-normal leading-relaxed px-4 md:px-0">
+                    Protect your private files with <span className="text-white font-semibold">Signer-Based Encryption</span> and mandatory <span className="text-color-accent">PIN Security</span>.
                 </p>
 
-                <div className="animate-in flex flex-col sm:flex-row items-center justify-center gap-4">
+                <div className="animate-in flex flex-col sm:flex-row items-center justify-center gap-4 px-4 md:px-0 max-w-sm mx-auto sm:max-w-none">
                     <MagneticButton
-                        className="bg-color-accent text-white w-full sm:w-auto text-lg font-bold shadow-[0_0_30px_-5px_#E83A76] hover:shadow-[0_0_50px_-5px_#E83A76] rounded-2xl"
+                        className="bg-color-accent text-white w-full sm:w-auto text-base md:text-lg font-bold shadow-[0_0_30px_-5px_#E83A76] hover:shadow-[0_0_50px_-5px_#E83A76] rounded-2xl py-4 sm:py-3"
                         onClick={handleWalletClick}
                     >
-                        {isLoading ? "Connecting..." : connected && account ? `Connected: ${account.address.toString().slice(0, 6)}...` : "Connect Wallet"}
+                        {isLoading ? "Connecting..." : connected && account ? `Connected: ${account.address.toString().slice(0, 4)}...` : "Connect Wallet"}
                     </MagneticButton>
                     <a
                         href="https://docs.shelby.xyz/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-color-support hover:text-white transition-colors duration-200 font-semibold px-8 py-4 w-full sm:w-auto glass-panel rounded-2xl hover:bg-white/10 relative overflow-hidden group flex items-center justify-center"
+                        className="text-color-support hover:text-white transition-colors duration-200 font-semibold px-8 py-4 w-full sm:w-auto glass-panel rounded-2xl hover:bg-white/10 relative overflow-hidden group flex items-center justify-center border border-white/5 bg-white/5"
                     >
-                        <span className="relative z-10">Explore Documentation</span>
+                        <span className="relative z-10 uppercase text-xs tracking-widest font-bold">Read Docs</span>
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                     </a>
                 </div>

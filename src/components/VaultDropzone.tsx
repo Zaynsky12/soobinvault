@@ -246,10 +246,10 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     };
 
     return (
-        <section id="vault" className="py-24 relative z-10 px-6">
-            <div className="container mx-auto max-w-4xl text-center mb-12">
-                <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">The Storage Vault</h2>
-                <p className="text-color-support text-xl font-light">Drag and drop your digital assets to encrypt and fracture them across the network.</p>
+        <section id="vault" className="py-20 md:py-24 relative z-10 px-6">
+            <div className="container mx-auto max-w-4xl text-center mb-8 md:mb-12">
+                <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white tracking-tight">The Storage Vault</h2>
+                <p className="text-color-support/70 text-base md:text-xl font-light max-w-2xl mx-auto">Drag & drop your digital assets to encrypt and fracture them across the global network.</p>
             </div>
 
             <div className="container mx-auto max-w-3xl relative">
@@ -262,7 +262,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className="w-full min-h-[450px] flex flex-col items-center justify-center p-12 border-2 border-dashed border-transparent relative z-10 transition-colors"
+                        className="w-full min-h-[350px] md:min-h-[450px] flex flex-col items-center justify-center p-6 md:p-12 border-2 border-dashed border-transparent relative z-10 transition-colors"
                         style={{ borderColor: isDragging ? 'rgba(251, 179, 204, 0.5)' : 'rgba(255, 255, 255, 0.15)' }}
                     >
                         <input
@@ -273,33 +273,35 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         />
 
                         {!encryptionKey ? (
-                            <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500">
-                                <div ref={iconRef} className="w-24 h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(232,58,118,0.2)] border border-color-primary/30">
-                                    <Lock size={48} strokeWidth={1.5} className="text-color-primary" />
+                            <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500 w-full px-4">
+                                <div ref={iconRef} className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(232,58,118,0.2)] border border-color-primary/30">
+                                    <Lock size={40} strokeWidth={1.5} className="md:hidden text-color-primary" />
+                                    <Lock size={48} strokeWidth={1.5} className="hidden md:block text-color-primary" />
                                 </div>
-                                <h3 className="text-3xl font-semibold mb-3 text-white">Vault Securely Locked</h3>
-                                <p className="text-color-support mb-8 text-lg">You must unlock the vault to encrypt and store new assets.</p>
+                                <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Vault Locked</h3>
+                                <p className="text-color-support/70 mb-8 text-sm md:text-lg">Unlock your vault to secure new assets.</p>
 
                                 <button
                                     onClick={(e) => { e.stopPropagation(); ensureKey(false); }}
-                                    className="mt-4 px-10 py-4 rounded-full bg-color-primary/20 border border-color-primary/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-primary hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate"
+                                    className="mt-4 px-10 py-4 rounded-full bg-color-primary/20 border border-color-primary/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-primary hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
                                 >
-                                    Unlock Secure Vault
+                                    Unlock Vault
                                 </button>
                             </div>
                         ) : uploadState === 'idle' && (
-                            <div className="flex flex-col items-center text-center">
-                                <div ref={iconRef} className="w-24 h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(251,179,204,0.2)]">
-                                    <UploadCloud size={48} strokeWidth={1.5} className="text-color-accent" />
+                            <div className="flex flex-col items-center text-center w-full px-4">
+                                <div ref={iconRef} className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(251,179,204,0.2)]">
+                                    <UploadCloud size={40} strokeWidth={1.5} className="md:hidden text-color-accent" />
+                                    <UploadCloud size={48} strokeWidth={1.5} className="hidden md:block text-color-accent" />
                                 </div>
-                                <h3 className="text-3xl font-semibold mb-3 text-white">Initialize Storage Protocol</h3>
-                                <p className="text-color-support mb-8 text-lg">Drag and drop any file here, or click to browse</p>
+                                <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Deploy Asset</h3>
+                                <p className="text-color-support/70 mb-8 text-sm md:text-lg">Drag & drop or tap to browse</p>
 
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="mt-4 px-10 py-4 rounded-full bg-color-accent/20 border border-color-accent/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate"
+                                    className="mt-4 px-10 py-4 rounded-full bg-color-accent/20 border border-color-accent/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
                                 >
-                                    Browse
+                                    Select Files
                                 </button>
                             </div>
                         )}
