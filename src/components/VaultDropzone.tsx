@@ -10,6 +10,7 @@ import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useUploadBlobs } from "@shelby-protocol/react";
 import { getFileType } from '../utils/file';
+import { Network } from "@aptos-labs/ts-sdk";
 
 interface VaultDropzoneProps {
     refetch?: () => void;
@@ -89,8 +90,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Wallet signing request (direct context):", tx);
-                        // Remove manual sender override and await to ensure adapter handles it
-                        const promise = signAndSubmitTransaction(tx);
+                        
+                        // Strip sender/sequenceNumber to let the wallet adapter handle it correctly
+                        // This fixes INVALID_AUTH_KEY for Keyless accounts that expect the adapter's format
+                        const { sender, sequence_number, ...cleanTx } = tx;
+
+                        const promise = signAndSubmitTransaction(cleanTx);
                         promise.then(res => { caughtResponse = res; });
                         return promise as any;
                     },
