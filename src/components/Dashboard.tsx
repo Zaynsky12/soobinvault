@@ -76,13 +76,11 @@ export function Dashboard() {
                 signer: {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
-                        console.log("[Shelby] Deletion request signature:", tx);
-                        if (!tx) return Promise.reject(new Error("Transaction payload is undefined"));
-                        if (typeof tx.serialize === 'function') {
-                            return signAndSubmitTransaction(tx);
-                        }
-                        if (tx.data && tx.data.function) {
-                            return signAndSubmitTransaction(tx.data);
+                        console.log("[Shelby] Signer triggered with:", tx);
+                        if (!tx || typeof tx !== 'object') return Promise.reject(new Error("Invalid payload"));
+                        const payload = (tx.data && typeof tx.data === 'object') ? tx.data : tx;
+                        if (payload && typeof payload === 'object' && 'function' in payload) {
+                             return signAndSubmitTransaction(payload);
                         }
                         return signAndSubmitTransaction(tx);
                     },
@@ -759,13 +757,11 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                 signer: {
                     account: account?.address.toString() || "",
                     signAndSubmitTransaction: (tx: any) => {
-                        console.log("[Shelby] Deletion request signature:", tx);
-                        if (!tx) return Promise.reject(new Error("Transaction payload is undefined"));
-                        if (typeof tx.serialize === 'function') {
-                            return signAndSubmitTransaction(tx);
-                        }
-                        if (tx.data && tx.data.function) {
-                            return signAndSubmitTransaction(tx.data);
+                        console.log("[Shelby] Signer triggered with:", tx);
+                        if (!tx || typeof tx !== 'object') return Promise.reject(new Error("Invalid payload"));
+                        const payload = (tx.data && typeof tx.data === 'object') ? tx.data : tx;
+                        if (payload && typeof payload === 'object' && 'function' in payload) {
+                             return signAndSubmitTransaction(payload);
                         }
                         return signAndSubmitTransaction(tx);
                     },
