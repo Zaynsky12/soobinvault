@@ -303,12 +303,16 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                 
                 // --- CUSTOM TOAST MESSAGE BASED ON WALLET TYPE ---
                 if (isSocialLogin) {
-                    toast("Social Login detected. Using a secure local session key for this vault.", { 
+                    toast("🔒 Social Login: Initializing secure local session key...", { 
                         id: toastId, icon: '🛡️', duration: 4000 
                     });
-                } else {
-                    toast("Signature failed. Using a secure local session key instead.", { 
+                } else if (force) {
+                    toast("Initializing a discrete local session key for this vault...", { 
                         id: toastId, icon: '🔑', duration: 4000 
+                    });
+                } else {
+                    toast("Master Key Signature skipped. Using Secure Local Session.", { 
+                        id: toastId, icon: '🔒', duration: 4000 
                     });
                 }
                 if (savedData) {
