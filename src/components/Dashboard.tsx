@@ -77,10 +77,11 @@ export function Dashboard() {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
-                        if (tx && typeof tx.serialize === 'function') {
+                        if (!tx) return Promise.reject(new Error("Transaction payload is undefined"));
+                        if (typeof tx.serialize === 'function') {
                             return signAndSubmitTransaction(tx);
                         }
-                        if (tx && tx.data && tx.data.function) {
+                        if (tx.data && tx.data.function) {
                             return signAndSubmitTransaction(tx.data);
                         }
                         return signAndSubmitTransaction(tx);
@@ -759,10 +760,11 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                     account: account?.address.toString() || "",
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
-                        if (tx && typeof tx.serialize === 'function') {
+                        if (!tx) return Promise.reject(new Error("Transaction payload is undefined"));
+                        if (typeof tx.serialize === 'function') {
                             return signAndSubmitTransaction(tx);
                         }
-                        if (tx && tx.data && tx.data.function) {
+                        if (tx.data && tx.data.function) {
                             return signAndSubmitTransaction(tx.data);
                         }
                         return signAndSubmitTransaction(tx);
