@@ -89,17 +89,15 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Wallet signing request (direct context):", tx);
-                        const promise = signAndSubmitTransaction({
-                            ...tx,
-                            sender: account.address.toString()
-                        });
-                        // Capture response when it resolves
+                        // Remove manual sender override and await to ensure adapter handles it
+                        const promise = signAndSubmitTransaction(tx);
                         promise.then(res => { caughtResponse = res; });
                         return promise as any;
                     },
                 },
                 blobs: pendingUploads.blobs,
-                expirationMicros: Date.now() * 1000 + 86400000000,
+                // 30 minutes instead of 24 hours to be safer with Keyless ephemeral keys
+                expirationMicros: Date.now() * 1000 + 1800000000,
             });
 
             console.log("[Shelby] Batch upload completed. Captured response:", caughtResponse);

@@ -77,10 +77,7 @@ export function Dashboard() {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
-                        return signAndSubmitTransaction({
-                            ...tx,
-                            sender: account.address.toString()
-                        });
+                        return signAndSubmitTransaction(tx);
                     },
                 } as any,
                 blobNames: [nameSuffix]
@@ -756,10 +753,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                     account: account?.address.toString() || "",
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
-                        return signAndSubmitTransaction({
-                            ...tx,
-                            sender: account?.address.toString()
-                        });
+                        return signAndSubmitTransaction(tx);
                     },
                 } as any,
                 blobNames: [nameSuffix]
