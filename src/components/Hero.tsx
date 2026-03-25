@@ -1,16 +1,20 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { MagneticButton } from "./ui/MagneticButton";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import { WalletSelector } from "./WalletSelector";
+import { useVaultKey } from "../context/VaultKeyContext";
 
 gsap.registerPlugin(ScrollTrigger);
 
 export function Hero() {
     const container = useRef<HTMLDivElement>(null);
-    const { connect, disconnect, connected, account, isLoading } = useWallet();
+    const { disconnect, connected, account, isLoading } = useWallet();
+    const { lockVault } = useVaultKey();
+    const [isSelectorOpen, setIsSelectorOpen] = useState(false);
 
     useEffect(() => {
         const ctx = gsap.context(() => {
@@ -52,9 +56,10 @@ export function Hero() {
 
     const handleWalletClick = () => {
         if (connected) {
+            lockVault();
             disconnect();
         } else {
-            connect("Petra" as any); // Type cast to prevent strict literal type issues if wallet names differ slightly
+            setIsSelectorOpen(true);
         }
     };
 
@@ -107,7 +112,7 @@ export function Hero() {
                         className="bg-color-accent text-white w-full sm:w-auto text-base md:text-lg font-bold shadow-[0_0_30px_-5px_#E83A76] hover:shadow-[0_0_50px_-5px_#E83A76] rounded-2xl py-4 sm:py-3"
                         onClick={handleWalletClick}
                     >
-                        {isLoading ? "Connecting..." : connected && account ? `Connected: ${account.address.toString().slice(0, 4)}...` : "Connect Wallet"}
+                        {isLoading ? "Wait..." : (connected && account) ? `${account.address.toString().slice(0, 4)}...${account.address.toString().slice(-4)}` : "Connect Wallet"}
                     </MagneticButton>
                     <a
                         href="https://docs.shelby.xyz/"
@@ -120,6 +125,8 @@ export function Hero() {
                     </a>
                 </div>
             </div>
+
+            <WalletSelector isOpen={isSelectorOpen} onClose={() => setIsSelectorOpen(false)} />
 
             {/* Ambient gradient glows - Reduced blur and removed blend modes for performance */}
             <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-color-primary/10 rounded-full blur-[80px] pointer-events-none will-change-transform" />
