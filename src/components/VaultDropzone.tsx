@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive } from 'lucide-react';
+import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ChevronRight } from 'lucide-react';
 import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -30,6 +30,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [successCount, setSuccessCount] = useState<number>(0);
     const [failCount, setFailCount] = useState<number>(0);
+
+    const [pendingUploads, setPendingUploads] = useState<{
+        blobs: { blobName: string, blobData: Uint8Array }[],
+        files: File[]
+    } | null>(null);
 
     const uploadBlobs = useUploadBlobs({});
 
@@ -67,191 +72,128 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setIsDragging(false);
     };
 
-    const uploadSingleFile = async (
-        droppedFile: File,
-        cryptoKey: CryptoKey,
-        index: number,
-        total: number
-    ): Promise<boolean> => {
-        setCurrentFile(droppedFile);
-        setCurrentIndex(index);
+    const handleDeploy = async () => {
+        if (!pendingUploads || !account) return;
 
-        const fileInfo = getFileType(droppedFile.name, droppedFile.type);
+        setUploadState('uploading');
+        setUploadStatusText("Awaiting wallet approval...");
+        setCurrentIndex(0);
 
-        if (fileInfo.isImage || fileInfo.isVideo) {
-            const url = URL.createObjectURL(droppedFile);
-            setPreviewUrl(prev => {
-                if (prev) URL.revokeObjectURL(prev);
-                return url;
-            });
-        } else {
-            setPreviewUrl(prev => {
-                if (prev) URL.revokeObjectURL(prev);
-                return null;
-            });
-        }
-
+        let txHash: string | undefined;
         try {
-            setUploadStatusText(`Performing AES-256-GCM encryption...`);
-            const encryptedData = await encryptFile(droppedFile, cryptoKey);
-
-            const encryptedNameBase64 = await encryptText(droppedFile.name, cryptoKey);
-            const safeEncryptedName = encryptedNameBase64.replace(/\//g, '_').replace(/\+/g, '-');
-            const encryptedBlobName = `${safeEncryptedName}.vault`;
-
-            setUploadStatusText(`Distributing encrypted fragments to nodes...`);
-
-            let txHash: string | undefined;
-            try {
-                console.log("[Shelby] Initiating upload. Signer address:", account!.address);
-                await uploadBlobs.mutateAsync({
-                    signer: {
-                        account: account!.address.toString(), 
-                        signAndSubmitTransaction: async (tx: any) => {
-                            console.log("[Shelby] Wallet requested to sign transaction:", tx);
-                            const finalTx = {
-                                ...tx,
-                                sender: account!.address.toString()
-                            };
-                            const response = await signAndSubmitTransaction(finalTx);
-                            console.log("[Shelby] Transaction response:", response);
-                            if (response && (response as any).hash) {
-                                txHash = (response as any).hash;
-                                setLastTxHash(txHash || null);
-                            } else {
-                                txHash = "unknown_hash";
-                            }
-                            return response;
-                        },
+            console.log("[Shelby] Initiating batch upload. Signer address:", account.address.toString());
+            await uploadBlobs.mutateAsync({
+                signer: {
+                    account: account.address.toString(),
+                    signAndSubmitTransaction: async (tx: any) => {
+                        console.log("[Shelby] Wallet requested to sign transaction:", tx);
+                        const finalTx = {
+                            ...tx,
+                            sender: account.address.toString()
+                        };
+                        const response = await signAndSubmitTransaction(finalTx);
+                        console.log("[Shelby] Transaction response:", response);
+                        if (response && (response as any).hash) {
+                            txHash = (response as any).hash;
+                            setLastTxHash(txHash || null);
+                        }
+                        return response;
                     },
-                    blobs: [{
-                        blobName: encryptedBlobName,
-                        blobData: encryptedData
-                    }],
-                    // 1 day expiration instead of 30 to avoid potential overflow/limit issues
-                    expirationMicros: Date.now() * 1000 + 86400000000, 
-                });
-            } catch (sdkError) {
-                console.error("[Shelby SDK Error]", sdkError);
-                const msg = sdkError instanceof Error
-                    ? sdkError.message
-                    : String(sdkError);
-                
-                toast.error(`Upload failed: ${msg.slice(0, 100)}...`, { id: 'upload-error' });
+                },
+                blobs: pendingUploads.blobs,
+                expirationMicros: Date.now() * 1000 + 86400000000,
+            });
 
-                const lowerMsg = msg.toLowerCase();
-
-                const isUserCancellation =
-                    msg.includes('user rejected') ||
-                    msg.includes('user denied') ||
-                    msg.includes('cancelled') ||
-                    msg.includes('canceled') ||
-                    msg.includes('4001');
-
-                if (isUserCancellation) {
-                    toast.error(`Cancelled: ${droppedFile.name}`);
-                    return false;
-                } else if (!txHash) {
-                    let errorMessage = sdkError instanceof Error ? sdkError.message : 'Upload failed.';
-                    try {
-                        const parsed = JSON.parse(errorMessage);
-                        if (parsed?.message) errorMessage = parsed.message;
-                        else if (parsed?.error) errorMessage = parsed.error;
-                    } catch (e) { /* Not JSON */ }
-
-                    if (errorMessage.toLowerCase().includes('not yet been marked successfully written')) {
-                        errorMessage = 'File is being processed by the network. Check your Dashboard in a few minutes.';
+            // Handle success events for each file
+            pendingUploads.files.forEach(file => {
+                window.dispatchEvent(new CustomEvent('vault:uploadSuccess', {
+                    detail: {
+                        name: file.name,
+                        size: file.size,
+                        txHash: txHash,
+                        timestamp: Date.now()
                     }
-                    toast.error(`${droppedFile.name}: ${errorMessage}`);
-                    return false;
-                } else {
-                    console.warn(`Spurious error ignored for ${droppedFile.name}. txHash: ${txHash}`, sdkError);
-                }
-            }
+                }));
+            });
 
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            window.dispatchEvent(new CustomEvent('vault:uploadSuccess', {
-                detail: {
-                    name: droppedFile.name,
-                    size: droppedFile.size,
-                    txHash: txHash,
-                    timestamp: Date.now()
-                }
-            }));
-
+            setSuccessCount(pendingUploads.files.length);
+            setUploadState('success');
+            setPendingUploads(null);
             if (refetch) refetch();
-            return true;
+            toast.success(`Successfully secured ${pendingUploads.files.length} assets!`);
 
-        } catch (error) {
-            let errorMessage = error instanceof Error ? error.message : 'Upload failed.';
-            try {
-                const parsed = JSON.parse(errorMessage);
-                if (parsed?.message) errorMessage = parsed.message;
-            } catch (e) { /* Not JSON */ }
-            toast.error(`${droppedFile.name}: ${errorMessage}`);
-            return false;
+        } catch (sdkError) {
+            console.error("[Shelby SDK Error]", sdkError);
+            const msg = sdkError instanceof Error ? sdkError.message : String(sdkError);
+            toast.error(`Upload failed: ${msg.slice(0, 100)}...`, { id: 'upload-error' });
+            setUploadState('idle'); // Allow retry
         }
     };
 
-    const startUploadQueue = async (files: File[]) => {
+    const prepareUploads = async (files: File[]) => {
         if (!account) {
             toast.error("Please connect your Aptos wallet first!");
             return;
         }
         if (files.length === 0) return;
 
-        setQueue(files);
-        setSuccessCount(0);
-        setFailCount(0);
-        setCurrentIndex(0);
         setUploadState('uploading');
-        setUploadStatusText("Awaiting wallet signature...");
-
+        setUploadStatusText("Initializing security protocol...");
+        setQueue(files);
+        
         const cryptoKey = await ensureKey();
         if (!cryptoKey) {
             setUploadState('idle');
             return;
         }
 
-        let successes = 0;
-        let failures = 0;
+        const blobs: { blobName: string, blobData: Uint8Array }[] = [];
+        const processedFiles: File[] = [];
 
-        for (let i = 0; i < files.length; i++) {
-            setUploadStatusText("Awaiting wallet signature...");
-            const ok = await uploadSingleFile(files[i], cryptoKey, i, files.length);
-            if (ok) successes++;
-            else failures++;
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                setCurrentFile(file);
+                setCurrentIndex(i);
+                setUploadStatusText(`Encrypting ${file.name} (${i + 1}/${files.length})...`);
+                
+                const encryptedData = await encryptFile(file, cryptoKey);
+                const encryptedNameBase64 = await encryptText(file.name, cryptoKey);
+                const safeEncryptedName = encryptedNameBase64.replace(/\//g, '_').replace(/\+/g, '-');
+                
+                blobs.push({
+                    blobName: `${safeEncryptedName}.vault`,
+                    blobData: encryptedData
+                });
+                processedFiles.push(file);
+
+                const fileInfo = getFileType(file.name, file.type);
+                if (fileInfo.isImage || fileInfo.isVideo) {
+                    const url = URL.createObjectURL(file);
+                    setPreviewUrl(url);
+                }
+            }
+
+            setPendingUploads({ blobs, files: processedFiles });
+            setUploadStatusText("Assets encrypted and ready for deployment.");
+        } catch (error) {
+            console.error("Encryption failed:", error);
+            toast.error("Failed to encrypt some files.");
+            setUploadState('idle');
         }
-
-        setSuccessCount(successes);
-        setFailCount(failures);
-
-        if (successes > 0) {
-            toast.success(`${successes} file${successes > 1 ? 's' : ''} uploaded successfully!`);
-        }
-
-        setUploadState('success');
-
-        // Clean up preview
-        setPreviewUrl(prev => {
-            if (prev) URL.revokeObjectURL(prev);
-            return null;
-        });
-        setCurrentFile(null);
     };
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(false);
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            startUploadQueue(Array.from(e.dataTransfer.files));
+            prepareUploads(Array.from(e.dataTransfer.files));
         }
     };
 
     const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            startUploadQueue(Array.from(e.target.files));
+            prepareUploads(Array.from(e.target.files));
         }
     };
 
@@ -266,6 +208,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setUploadState('idle');
         setUploadStatusText("Encrypting and distributing to nodes...");
         setLastTxHash(null);
+        setPendingUploads(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -377,44 +320,49 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </button>
                             </div>
                         )}
-
-                        {/* Uploading state */}
-                        {uploadState === 'uploading' && currentFile && (
+                                                {/* Uploading / Encrypting state */}
+                        {uploadState === 'uploading' && !pendingUploads && currentFile && (
                             <div className="w-full max-w-lg flex flex-col items-center">
                                 {renderPreview()}
-
-                                {/* File name */}
                                 <h3 className="text-xl font-medium mb-1 w-full text-center text-white break-all">{currentFile.name}</h3>
-
-                                {/* File X of N indicator */}
                                 {totalFiles > 1 && (
                                     <p className="text-color-primary/80 text-xs font-bold uppercase tracking-widest mb-2">
-                                        File {currentIndex + 1} of {totalFiles}
+                                        Batch Progress: {currentIndex + 1} / {totalFiles}
                                     </p>
                                 )}
-
                                 <p className="text-color-support text-sm mb-8 text-center w-full">{uploadStatusText}</p>
-
                                 <div className="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/10">
                                     <div ref={progressRef} className="h-full w-0 bg-gradient-to-r from-color-primary to-color-accent shadow-[0_0_10px_rgba(232,58,118,0.8)]" />
                                 </div>
+                            </div>
+                        )}
 
-                                {/* Overall progress dots for multi-file */}
-                                {totalFiles > 1 && (
-                                    <div className="flex gap-2 mt-4">
-                                        {queue.map((_, i) => (
-                                            <div
-                                                key={i}
-                                                className={`w-2 h-2 rounded-full transition-all duration-300 ${i < currentIndex
-                                                        ? 'bg-green-400'
-                                                        : i === currentIndex
-                                                            ? 'bg-color-primary animate-pulse'
-                                                            : 'bg-white/20'
-                                                    }`}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
+                        {/* Ready to Deploy state */}
+                        {uploadState === 'uploading' && pendingUploads && (
+                            <div className="flex flex-col items-center text-center px-4 animate-in fade-in zoom-in-95 duration-500">
+                                <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-color-primary/20 border border-color-primary/30 flex items-center justify-center mb-6 text-color-primary shadow-[0_0_30px_rgba(232,58,118,0.2)]">
+                                    <Shield size={32} strokeWidth={2} className="md:hidden" />
+                                    <Shield size={48} strokeWidth={2} className="hidden md:block" />
+                                </div>
+                                <h3 className="text-xl md:text-3xl font-semibold mb-2 text-white uppercase tracking-tight">Security Ready</h3>
+                                <p className="text-color-support text-xs md:text-lg mb-8 max-w-xs mx-auto font-light">
+                                    {pendingUploads.files.length} asset{pendingUploads.files.length > 1 ? 's' : ''} encrypted. Proceed to decentralized deployment?
+                                </p>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeploy(); }}
+                                    className="w-full sm:w-auto px-12 py-4 rounded-full bg-gradient-to-r from-color-primary to-color-accent text-white transition-all duration-300 font-bold shadow-[0_0_30px_rgba(232,58,118,0.3)] hover:scale-105 active:scale-95 uppercase text-xs tracking-widest relative overflow-hidden group"
+                                >
+                                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                                    <span className="relative flex items-center gap-2">
+                                        Confirm & Deploy <ChevronRight size={14} />
+                                    </span>
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); resetTarget(); }}
+                                    className="mt-6 text-white/30 hover:text-white/60 text-[10px] uppercase tracking-[0.2em] transition-colors"
+                                >
+                                    Cancel Batch
+                                </button>
                             </div>
                         )}
 
