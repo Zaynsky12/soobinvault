@@ -17,7 +17,7 @@ interface VaultDropzoneProps {
 }
 
 export function VaultDropzone({ refetch }: VaultDropzoneProps) {
-    const { account, signAndSubmitTransaction } = useWallet();
+    const { account, signAndSubmitTransaction, wallet } = useWallet();
     const { ensureKey, encryptionKey } = useVaultKey();
     const [isDragging, setIsDragging] = useState(false);
     const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success'>('idle');
@@ -91,11 +91,16 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Wallet signing request (direct context):", tx);
 
-                        // Strip sender/sequenceNumber to let the wallet adapter handle it correctly
-                        // This fixes INVALID_AUTH_KEY for Keyless accounts that expect the adapter's format
-                        const { sender, sequence_number, ...cleanTx } = tx;
+                        // Defensive transaction cleaning
+                        // We strip sequence_number to let the wallet handle it.
+                        // We keep sender if it matches the account, otherwise we let the wallet handle it.
+                        const { sequence_number, ...cleanTx } = tx;
+                        
+                        // For Aptos Connect / Keyless, having the sender is often safer or required
+                        // but for Petra/others, they might prefer it stripped if it conflicts.
+                        const finalTx = (wallet?.name === 'Aptos Connect') ? cleanTx : { ...cleanTx, sender: undefined };
 
-                        const promise = signAndSubmitTransaction(cleanTx);
+                        const promise = signAndSubmitTransaction(finalTx);
                         promise.then(res => { caughtResponse = res; });
                         return promise as any;
                     },
