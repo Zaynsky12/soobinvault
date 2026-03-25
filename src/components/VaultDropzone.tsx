@@ -89,20 +89,25 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 signer: {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
-                        console.log("[Shelby] Wallet signing request (direct context):", tx);
+                        console.log("[Shelby] Wallet signing request:", tx);
                         
+                        if (!tx) {
+                            console.error("[Shelby] Received undefined transaction from SDK");
+                            return Promise.reject(new Error("Transaction payload is undefined"));
+                        }
+
                         // If tx is a class instance with serialize, use it as is
-                        if (tx && typeof tx.serialize === 'function') {
+                        if (typeof tx.serialize === 'function') {
                             return signAndSubmitTransaction(tx);
                         }
 
                         // If it has a data property (SimpleTransaction payload), pass the payload directly
                         // This is often required for Aptos Connect to avoid auth key mismatches
-                        if (tx && tx.data && tx.data.function) {
+                        if (tx.data && tx.data.function) {
                             return signAndSubmitTransaction(tx.data);
                         }
 
-                        // Fallback to the original object
+                        // Fallback to the original object, but ensure it exists
                         return signAndSubmitTransaction(tx);
                     },
                 },
