@@ -75,12 +75,17 @@ export function Dashboard() {
             await deleteBlobs.mutateAsync({
                 signer: {
                     account: account.address.toString(),
-                    signAndSubmitTransaction: (tx: any) => {
+                    signAndSubmitTransaction: async (tx: any) => {
                         console.log("[Shelby] Signer triggered with:", tx);
-                        if (!tx || typeof tx !== 'object') return Promise.reject(new Error("Invalid payload"));
-                        const payload = (tx.data && typeof tx.data === 'object') ? tx.data : tx;
-                        if (payload && typeof payload === 'object' && 'function' in payload) {
-                             return signAndSubmitTransaction(payload);
+                        if (!tx || typeof tx !== 'object') throw new Error("Invalid payload");
+                        const rawData = tx.data || tx;
+                        if (rawData && typeof rawData === 'object' && ('function' in rawData || 'entry_function' in rawData)) {
+                             const purePayload = {
+                                 function: (rawData.function || rawData.entry_function || "").toString(),
+                                 type_arguments: rawData.type_arguments || [],
+                                 arguments: rawData.arguments || []
+                             };
+                             return signAndSubmitTransaction(purePayload as any);
                         }
                         return signAndSubmitTransaction(tx);
                     },

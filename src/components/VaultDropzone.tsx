@@ -88,25 +88,31 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             await uploadBlobs.mutateAsync({
                 signer: {
                     account: account.address.toString(),
-                    signAndSubmitTransaction: (tx: any) => {
+                    signAndSubmitTransaction: async (tx: any) => {
                         console.log("[Shelby] Signer triggered with:", tx);
                         
                         // Safety check for tx itself
                         if (!tx || typeof tx !== 'object') {
-                            return Promise.reject(new Error("Transaction payload is missing or invalid"));
+                            throw new Error("Transaction payload is missing or invalid");
                         }
 
-                        // Aptos Wallet Adapter expects either a RawTransaction class OR a payload object.
-                        // We cautiously extract the payload if it exists in 'data'.
-                        // We use a safe 'in' check by ensuring the target is an object first.
-                        const potentialPayload = tx.data && typeof tx.data === 'object' ? tx.data : tx;
+                        // Extract core payload properties to ensure a "Pure Object" for the adapter
+                        // This bypasses any Proxy or class-instance logic that might be triggering internal crashes
+                        const rawData = tx.data || tx;
                         
-                        if (potentialPayload && typeof potentialPayload === 'object' && 'function' in potentialPayload) {
-                            console.log("[Shelby] Submitting payload to adapter:", potentialPayload);
-                            return signAndSubmitTransaction(potentialPayload);
+                        if (rawData && typeof rawData === 'object' && ('function' in rawData || 'entry_function' in rawData)) {
+                            const purePayload = {
+                                function: (rawData.function || rawData.entry_function || "").toString(),
+                                type_arguments: rawData.type_arguments || [],
+                                arguments: rawData.arguments || []
+                            };
+                            
+                            console.log("[Shelby] Submitting Pure Payload to adapter:", purePayload);
+                            return signAndSubmitTransaction(purePayload as any);
                         }
 
-                        console.log("[Shelby] Falling back to original tx object:", tx);
+                        // Absolute fallback: pass exactly what was received but log it clearly
+                        console.log("[Shelby] Non-standard transaction format, passing as-is:", tx);
                         return signAndSubmitTransaction(tx);
                     },
                 },
