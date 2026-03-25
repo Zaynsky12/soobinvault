@@ -91,29 +91,23 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Signer triggered with:", tx);
                         
-                        if (!tx) {
-                            return Promise.reject(new Error("Transaction payload is missing"));
+                        // Safety check for tx itself
+                        if (!tx || typeof tx !== 'object') {
+                            return Promise.reject(new Error("Transaction payload is missing or invalid"));
                         }
 
                         // Aptos Wallet Adapter expects either a RawTransaction class OR a payload object.
-                        // If tx.data exists, it's likely a SimpleTransaction from Aptos SDK.
-                        // We extract the plain payload to be safe with all adapters (especially Keyless).
-                        const payload = (tx.data && typeof tx.data === 'object' && 'function' in tx.data) 
-                            ? tx.data 
-                            : tx;
-
-                        console.log("[Shelby] Submitting payload to adapter:", payload);
+                        // We cautiously extract the payload if it exists in 'data'.
+                        // We use a safe 'in' check by ensuring the target is an object first.
+                        const potentialPayload = tx.data && typeof tx.data === 'object' ? tx.data : tx;
                         
-                        try {
-                            // Ensure payload is an object for 'in' operator safety
-                            if (!payload || typeof payload !== 'object') {
-                                return Promise.reject(new Error("Invalid payload format - must be an object"));
-                            }
-                            return signAndSubmitTransaction(payload);
-                        } catch (e) {
-                            console.error("[Shelby] signAndSubmitTransaction immediate error:", e);
-                            throw e;
+                        if (potentialPayload && typeof potentialPayload === 'object' && 'function' in potentialPayload) {
+                            console.log("[Shelby] Submitting payload to adapter:", potentialPayload);
+                            return signAndSubmitTransaction(potentialPayload);
                         }
+
+                        console.log("[Shelby] Falling back to original tx object:", tx);
+                        return signAndSubmitTransaction(tx);
                     },
                 },
                 blobs: pendingUploads.blobs,
