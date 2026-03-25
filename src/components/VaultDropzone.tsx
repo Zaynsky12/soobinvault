@@ -102,18 +102,20 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             setUploadStatusText(`Distributing encrypted fragments to nodes...`);
 
             let txHash: string | undefined;
-
             try {
+                console.log("[Shelby] Initiating upload. Signer address:", account!.address);
                 await uploadBlobs.mutateAsync({
                     signer: {
-                        account: account!.address,
+                        account: account!, // Pass full account object
                         signAndSubmitTransaction: async (tx: any) => {
+                            console.log("[Shelby] Wallet requested to sign transaction:", tx);
                             // Keyless accounts (social login) require the sender to be explicitly defined
                             const finalTx = {
                                 ...tx,
                                 sender: account!.address
                             };
                             const response = await signAndSubmitTransaction(finalTx);
+                            console.log("[Shelby] Transaction response:", response);
                             if (response && (response as any).hash) {
                                 txHash = (response as any).hash;
                                 setLastTxHash(txHash || null);
@@ -127,12 +129,18 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         blobName: encryptedBlobName,
                         blobData: encryptedData
                     }],
-                    expirationMicros: Date.now() * 1000 + 86400000000 * 30,
+                    // 1 day expiration instead of 30 to avoid potential overflow/limit issues
+                    expirationMicros: Date.now() * 1000 + 86400000000, 
                 });
             } catch (sdkError) {
+                console.error("[Shelby SDK Error]", sdkError);
                 const msg = sdkError instanceof Error
-                    ? sdkError.message.toLowerCase()
-                    : String(sdkError).toLowerCase();
+                    ? sdkError.message
+                    : String(sdkError);
+                
+                toast.error(`Upload failed: ${msg.slice(0, 100)}...`, { id: 'upload-error' });
+
+                const lowerMsg = msg.toLowerCase();
 
                 const isUserCancellation =
                     msg.includes('user rejected') ||
