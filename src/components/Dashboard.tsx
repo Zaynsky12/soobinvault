@@ -22,7 +22,7 @@ if (typeof window !== 'undefined') {
 
 export function Dashboard() {
     const containerRef = useRef<HTMLDivElement>(null);
-    const { account, connected, signAndSubmitTransaction, wallet } = useWallet();
+    const { account, connected, signAndSubmitTransaction } = useWallet();
     const shelbyClient = useShelbyClient();
     const [assets, setAssets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -77,12 +77,8 @@ export function Dashboard() {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
-                        const { sequence_number, ...cleanTx } = tx;
-                        
-                        const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
-                        const finalTx = isSocialLogin ? cleanTx : { ...cleanTx, sender: undefined };
-                        
-                        return signAndSubmitTransaction(finalTx);
+                        const { sender, sequence_number, ...cleanTx } = tx;
+                        return signAndSubmitTransaction(cleanTx);
                     },
                 } as any,
                 blobNames: [nameSuffix]
@@ -592,7 +588,6 @@ export function Dashboard() {
                                             deleteBlobs={deleteBlobs}
                                             fetchBlobs={fetchBlobs}
                                             signAndSubmitTransaction={signAndSubmitTransaction}
-                                            wallet={wallet}
                                             account={account}
                                             shelbyClient={shelbyClient}
                                             setOptimisticDeletions={setOptimisticAssets}
@@ -648,7 +643,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
     const { ensureKey } = useVaultKey();
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -770,12 +765,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                     account: account?.address.toString() || "",
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
-                        const { sequence_number, ...cleanTx } = tx;
-                        
-                        const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
-                        const finalTx = isSocialLogin ? cleanTx : { ...cleanTx, sender: undefined };
-                        
-                        return signAndSubmitTransaction(finalTx);
+                        const { sender, sequence_number, ...cleanTx } = tx;
+                        return signAndSubmitTransaction(cleanTx);
                     },
                 } as any,
                 blobNames: [nameSuffix]
