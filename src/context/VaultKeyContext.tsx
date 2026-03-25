@@ -20,7 +20,7 @@ import { VaultPinOverlay } from '@/components/VaultPinOverlay';
 const SIGN_MESSAGE = "Unlock SoobinVault Session. Nonce: soobinvault-v1";
 
 export function VaultKeyProvider({ children }: { children: ReactNode }) {
-    const { signMessage, account, connected, wallet } = useWallet();
+    const { signMessage, account, connected } = useWallet();
     const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
 
     const [pinPromptConfig, setPinPromptConfig] = useState<{
@@ -136,16 +136,6 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
 
         const toastId = toast.loading("Waiting for wallet signature to derive session key...");
         try {
-            // --- SOCIAL LOGIN (APTOS CONNECT) HANDLING ---
-            // Aptos Connect often fails or redirect for signMessage, and it's not deterministic.
-            // We skip the signature and go straight to the secure random local key fallback.
-            const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
-            
-            if (isSocialLogin) {
-                console.log("[Vault] Social Login detected. Skipping signMessage and using local session key fallback.");
-                throw new Error("KEYLESS_FALLBACK_TRIGGER");
-            }
-
             // Request signature for deterministic key derivation
             let response;
             try {
@@ -282,7 +272,7 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             }
 
             // --- AUTO FALLBACK FOR KEYLESS/MULTIKEY ACCOUNTS ---
-            if (errorMsg === "KEYLESS_FALLBACK_TRIGGER" || errorMsg.toLowerCase().includes("multikey") || errorMsg.toLowerCase().includes("keyless")) {
+            if (errorMsg.toLowerCase().includes("multikey") || errorMsg.toLowerCase().includes("keyless")) {
                 console.warn("[Vault] Multikey signature extraction failed. Using secure random fallback.");
                 
                 // PREVENT DESTRUCTIVE OVERWRITES
