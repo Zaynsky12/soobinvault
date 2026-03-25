@@ -704,6 +704,17 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
 
             if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
             const encryptedBuffer = await response.arrayBuffer();
+            console.log(`[Dashboard] Fetched buffer for ${displayName}. Size: ${encryptedBuffer.byteLength} bytes. Status: ${response.status}`);
+
+            if (encryptedBuffer.byteLength === 0) {
+                toast.error("File content is empty. It may still be indexing or the upload was interrupted.", { id: downloadToastId, duration: 5000 });
+                return;
+            }
+
+            if (encryptedBuffer.byteLength < 28) { // Min size for IV + Tag
+                toast.error("Encrypted data is too small or corrupted.", { id: downloadToastId });
+                return;
+            }
 
             const cryptoKey = await ensureKey();
             if (!cryptoKey) {
