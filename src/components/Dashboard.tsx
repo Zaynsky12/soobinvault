@@ -75,19 +75,10 @@ export function Dashboard() {
             await deleteBlobs.mutateAsync({
                 signer: {
                     account: account.address.toString(),
-                    signAndSubmitTransaction: async (tx: any) => {
-                        console.log("[Shelby] Signer triggered with:", tx);
-                        if (!tx || typeof tx !== 'object') throw new Error("Invalid payload");
-                        const rawData = tx.data || tx;
-                        if (rawData && typeof rawData === 'object' && ('function' in rawData || 'entry_function' in rawData)) {
-                             const purePayload = {
-                                 function: (rawData.function || rawData.entry_function || "").toString(),
-                                 type_arguments: rawData.type_arguments || [],
-                                 arguments: rawData.arguments || []
-                             };
-                             return signAndSubmitTransaction(purePayload as any);
-                        }
-                        return signAndSubmitTransaction(tx);
+                    signAndSubmitTransaction: (tx: any) => {
+                        console.log("[Shelby] Deletion request signature:", tx);
+                        const { sender, sequence_number, ...cleanTx } = tx;
+                        return signAndSubmitTransaction(cleanTx);
                     },
                 } as any,
                 blobNames: [nameSuffix]
@@ -761,19 +752,10 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
             await deleteBlobs.mutateAsync({
                 signer: {
                     account: account?.address.toString() || "",
-                    signAndSubmitTransaction: async (tx: any) => {
-                        console.log("[Shelby] Signer triggered with:", tx);
-                        if (!tx || typeof tx !== 'object') throw new Error("Invalid payload");
-                        const rawData = tx.data || tx;
-                        if (rawData && typeof rawData === 'object' && ('function' in rawData || 'entry_function' in rawData)) {
-                             const purePayload = {
-                                 function: (rawData.function || rawData.entry_function || "").toString(),
-                                 type_arguments: rawData.type_arguments || [],
-                                 arguments: rawData.arguments || []
-                             };
-                             return signAndSubmitTransaction(purePayload as any);
-                        }
-                        return signAndSubmitTransaction(tx);
+                    signAndSubmitTransaction: (tx: any) => {
+                        console.log("[Shelby] Deletion request signature:", tx);
+                        const { sender, sequence_number, ...cleanTx } = tx;
+                        return signAndSubmitTransaction(cleanTx);
                     },
                 } as any,
                 blobNames: [nameSuffix]
