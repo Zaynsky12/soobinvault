@@ -89,26 +89,31 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 signer: {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
-                        console.log("[Shelby] Wallet signing request:", tx);
+                        console.log("[Shelby] Signer triggered with:", tx);
                         
                         if (!tx) {
-                            console.error("[Shelby] Received undefined transaction from SDK");
-                            return Promise.reject(new Error("Transaction payload is undefined"));
+                            return Promise.reject(new Error("Transaction payload is missing"));
                         }
 
-                        // If tx is a class instance with serialize, use it as is
-                        if (typeof tx.serialize === 'function') {
-                            return signAndSubmitTransaction(tx);
-                        }
+                        // Aptos Wallet Adapter expects either a RawTransaction class OR a payload object.
+                        // If tx.data exists, it's likely a SimpleTransaction from Aptos SDK.
+                        // We extract the plain payload to be safe with all adapters (especially Keyless).
+                        const payload = (tx.data && typeof tx.data === 'object' && 'function' in tx.data) 
+                            ? tx.data 
+                            : tx;
 
-                        // If it has a data property (SimpleTransaction payload), pass the payload directly
-                        // This is often required for Aptos Connect to avoid auth key mismatches
-                        if (tx.data && tx.data.function) {
-                            return signAndSubmitTransaction(tx.data);
+                        console.log("[Shelby] Submitting payload to adapter:", payload);
+                        
+                        try {
+                            // Ensure payload is an object for 'in' operator safety
+                            if (!payload || typeof payload !== 'object') {
+                                return Promise.reject(new Error("Invalid payload format - must be an object"));
+                            }
+                            return signAndSubmitTransaction(payload);
+                        } catch (e) {
+                            console.error("[Shelby] signAndSubmitTransaction immediate error:", e);
+                            throw e;
                         }
-
-                        // Fallback to the original object, but ensure it exists
-                        return signAndSubmitTransaction(tx);
                     },
                 },
                 blobs: pendingUploads.blobs,
