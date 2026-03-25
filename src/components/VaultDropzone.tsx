@@ -90,7 +90,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Wallet signing request (direct context):", tx);
-                        
+
                         // Strip sender/sequenceNumber to let the wallet adapter handle it correctly
                         // This fixes INVALID_AUTH_KEY for Keyless accounts that expect the adapter's format
                         const { sender, sequence_number, ...cleanTx } = tx;
@@ -147,7 +147,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setUploadState('uploading');
         setUploadStatusText("Initializing security protocol...");
         setQueue(files);
-        
+
         const cryptoKey = await ensureKey();
         if (!cryptoKey) {
             setUploadState('idle');
@@ -163,11 +163,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 setCurrentFile(file);
                 setCurrentIndex(i);
                 setUploadStatusText(`Encrypting ${file.name} (${i + 1}/${files.length})...`);
-                
+
                 const encryptedData = await encryptFile(file, cryptoKey);
                 const encryptedNameBase64 = await encryptText(file.name, cryptoKey);
                 const safeEncryptedName = encryptedNameBase64.replace(/\//g, '_').replace(/\+/g, '-');
-                
+
                 blobs.push({
                     blobName: `${safeEncryptedName}.vault`,
                     blobData: encryptedData
@@ -318,7 +318,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </div>
                                 <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Deploy Assets</h3>
                                 <p className="text-color-support/70 mb-2 text-sm md:text-lg">Drag &amp; drop or tap to browse</p>
-                                <p className="text-color-support/40 mb-8 text-xs font-mono tracking-tighter uppercase">Images • Videos • Documents</p>
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     className="mt-4 px-10 py-4 rounded-full bg-color-accent/20 border border-color-accent/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
@@ -327,7 +326,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </button>
                             </div>
                         )}
-                                                {/* Uploading / Encrypting state */}
+                        {/* Uploading / Encrypting state */}
                         {uploadState === 'uploading' && !pendingUploads && currentFile && (
                             <div className="w-full max-w-lg flex flex-col items-center">
                                 {renderPreview()}
@@ -364,7 +363,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         Confirm & Deploy <ChevronRight size={14} />
                                     </span>
                                 </button>
-                                <button 
+                                <button
                                     onClick={(e) => { e.stopPropagation(); resetTarget(); }}
                                     className="mt-6 text-white/30 hover:text-white/60 text-[10px] uppercase tracking-[0.2em] transition-colors"
                                 >
