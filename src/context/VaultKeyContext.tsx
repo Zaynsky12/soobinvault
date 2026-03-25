@@ -20,7 +20,7 @@ import { VaultPinOverlay } from '@/components/VaultPinOverlay';
 const SIGN_MESSAGE = "Unlock SoobinVault Session. Nonce: soobinvault-v1";
 
 export function VaultKeyProvider({ children }: { children: ReactNode }) {
-    const { signMessage, account, connected } = useWallet();
+    const { signMessage, account, connected, wallet } = useWallet();
     const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
 
     const [pinPromptConfig, setPinPromptConfig] = useState<{
@@ -134,8 +134,18 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             return null;
         }
 
-        const toastId = toast.loading("Waiting for wallet signature to derive session key...");
+        const toastId = toast.loading("Preparing vault encryption...");
         try {
+            // --- SOCIAL LOGIN (APTOS CONNECT) HANDLING ---
+            // Aptos Connect (Keyless) doesn't support signMessage well.
+            // We proactively skip it to avoid the "Failed to sign message" error popup.
+            const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
+            
+            if (isSocialLogin) {
+                console.log("[Vault] Social Login (Keyless) detected. Using Local Session Key to bypass signature requirement.");
+                throw new Error("SOCIAL_LOGIN_BYPASS_TRIGGER");
+            }
+
             // Request signature for deterministic key derivation
             let response;
             try {
@@ -271,18 +281,36 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                 }
             }
 
-            // --- AUTO FALLBACK FOR KEYLESS/MULTIKEY ACCOUNTS ---
-            if (errorMsg.toLowerCase().includes("multikey") || errorMsg.toLowerCase().includes("keyless")) {
-                console.warn("[Vault] Multikey signature extraction failed. Using secure random fallback.");
+            // --- AUTO FALLBACK FOR KEYLESS/SOCIAL LOGIN ACCOUNTS ---
+            const lowMsg = errorMsg.toLowerCase();
+            const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
+            
+            if (errorMsg === "SOCIAL_LOGIN_BYPASS_TRIGGER" || 
+                lowMsg.includes("multikey") || 
+                lowMsg.includes("keyless") || 
+                lowMsg.includes("failed to sign message") || 
+                lowMsg.includes("not supported")) {
+                
+                console.warn("[Vault] Standard signature not available. Using secure local session key.");
                 
                 // PREVENT DESTRUCTIVE OVERWRITES
-                // Only return early if WE ARE NOT forcing a new key and we already have one!
                 if (!force && encryptionKey) {
                     toast.success("Using existing local session key.", { id: toastId });
                     return encryptionKey;
                 }
                 
                 const savedData = localStorage.getItem(`soobin_vault_key_${account.address}`);
+                
+                // --- CUSTOM TOAST MESSAGE BASED ON WALLET TYPE ---
+                if (isSocialLogin) {
+                    toast("Social Login detected. Using a secure local session key for this vault.", { 
+                        id: toastId, icon: '🛡️', duration: 4000 
+                    });
+                } else {
+                    toast("Signature failed. Using a secure local session key instead.", { 
+                        id: toastId, icon: '🔑', duration: 4000 
+                    });
+                }
                 if (savedData) {
                     try {
                         let base64MasterKey = savedData;
@@ -341,11 +369,9 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
                     }
                 }
 
-                toast("Keyless/Multikey account detected. Generating a secure local session key...", { 
-                    id: toastId, 
-                    icon: '🚀',
-                    duration: 4000 
-                });
+                // ---------------------------------------------------
+                // NEW VAULT CASE (No saved data found for fallback)
+                // ---------------------------------------------------
                 
                 try {
                     const key = await window.crypto.subtle.generateKey(
