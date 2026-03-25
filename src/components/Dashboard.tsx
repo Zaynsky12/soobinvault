@@ -78,7 +78,8 @@ export function Dashboard() {
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
                         const { sender, sequence_number, ...cleanTx } = tx;
-                        return signAndSubmitTransaction(cleanTx);
+                        const finalPayload = JSON.parse(JSON.stringify(cleanTx));
+                        return signAndSubmitTransaction(finalPayload);
                     },
                 } as any,
                 blobNames: [nameSuffix]
@@ -755,7 +756,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
                         const { sender, sequence_number, ...cleanTx } = tx;
-                        return signAndSubmitTransaction(cleanTx);
+                        const finalPayload = JSON.parse(JSON.stringify(cleanTx));
+                        return signAndSubmitTransaction(finalPayload);
                     },
                 } as any,
                 blobNames: [nameSuffix]

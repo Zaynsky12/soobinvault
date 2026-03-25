@@ -91,18 +91,18 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Wallet signing request (direct context):", tx);
                         
-                        // Strip sender/sequenceNumber to let the wallet adapter handle it correctly
-                        // This fixes INVALID_AUTH_KEY for Keyless accounts that expect the adapter's format
+                        // Strip sender/sequenceNumber and deep clone to ensure pure payload
                         const { sender, sequence_number, ...cleanTx } = tx;
+                        const finalPayload = JSON.parse(JSON.stringify(cleanTx));
 
-                        const promise = signAndSubmitTransaction(cleanTx);
+                        const promise = signAndSubmitTransaction(finalPayload);
                         promise.then(res => { caughtResponse = res; });
                         return promise as any;
                     },
                 },
                 blobs: pendingUploads.blobs,
-                // 30 minutes instead of 24 hours to be safer with Keyless ephemeral keys
-                expirationMicros: Date.now() * 1000 + 1800000000,
+                // 1 hour instead of 30 minutes to be safer with ZK proof generation time
+                expirationMicros: Date.now() * 1000 + 3600000000,
             });
 
             console.log("[Shelby] Batch upload completed. Captured response:", caughtResponse);

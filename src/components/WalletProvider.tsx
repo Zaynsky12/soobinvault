@@ -27,7 +27,7 @@ export default function WalletProvider({ children }: { children: React.ReactNode
                 dappConfig={{
                     network: Network.TESTNET,
                     aptosApiKeys: { testnet: process.env.NEXT_PUBLIC_APTOS_API_KEY },
-                    aptosConnect: { dappId: "SoobinVault" }
+                    aptosConnect: { dappId: "soobinvault-app" }
                 }}
                 onError={(error) => {
                     console.log("Custom error handling", error);
