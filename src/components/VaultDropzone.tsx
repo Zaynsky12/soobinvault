@@ -91,13 +91,19 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Wallet signing request (direct context):", tx);
                         
-                        // Strip sender/sequenceNumber and deep clone to ensure pure payload
-                        const { sender, sequence_number, ...cleanTx } = tx;
-                        const finalPayload = JSON.parse(JSON.stringify(cleanTx));
+                        // If tx is a class instance with serialize, use it as is
+                        if (tx && typeof tx.serialize === 'function') {
+                            return signAndSubmitTransaction(tx);
+                        }
 
-                        const promise = signAndSubmitTransaction(finalPayload);
-                        promise.then(res => { caughtResponse = res; });
-                        return promise as any;
+                        // If it has a data property (SimpleTransaction payload), pass the payload directly
+                        // This is often required for Aptos Connect to avoid auth key mismatches
+                        if (tx && tx.data && tx.data.function) {
+                            return signAndSubmitTransaction(tx.data);
+                        }
+
+                        // Fallback to the original object
+                        return signAndSubmitTransaction(tx);
                     },
                 },
                 blobs: pendingUploads.blobs,

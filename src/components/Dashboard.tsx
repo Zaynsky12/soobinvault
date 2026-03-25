@@ -77,9 +77,13 @@ export function Dashboard() {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
-                        const { sender, sequence_number, ...cleanTx } = tx;
-                        const finalPayload = JSON.parse(JSON.stringify(cleanTx));
-                        return signAndSubmitTransaction(finalPayload);
+                        if (tx && typeof tx.serialize === 'function') {
+                            return signAndSubmitTransaction(tx);
+                        }
+                        if (tx && tx.data && tx.data.function) {
+                            return signAndSubmitTransaction(tx.data);
+                        }
+                        return signAndSubmitTransaction(tx);
                     },
                 } as any,
                 blobNames: [nameSuffix]
