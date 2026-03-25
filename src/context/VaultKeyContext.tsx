@@ -149,19 +149,15 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             // Request signature for deterministic key derivation
             let response;
             try {
+                // Simplified payload for maximum compatibility (prevents "Not Supported" in Petra)
                 response = await signMessage({
                     message: SIGN_MESSAGE,
-                    nonce: "soobinvault-v1",
-                    address: true,      // Include address
-                    application: false  // DO NOT include domain
+                    nonce: "soobinvault-v1"
                 } as any);
             } catch (initialError: any) {
-                console.warn("[Vault] Standard signMessage failed, trying fallback...", initialError);
-                // Fallback for strict wallets that reject customized payloads
-                response = await signMessage({
-                    message: SIGN_MESSAGE,
-                    nonce: "soobinvault-v1",
-                });
+                console.warn("[Vault] signMessage failed, trying basic string payload...", initialError);
+                // Last ditch effort for very legacy wallets
+                response = await signMessage(SIGN_MESSAGE as any);
             }
 
             // Extract signature - response.signature can be string or object depending on wallet
@@ -285,11 +281,14 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             const lowMsg = errorMsg.toLowerCase();
             const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
             
+            // Expanded fallback triggers to catch more wallet-specific signature errors
             if (errorMsg === "SOCIAL_LOGIN_BYPASS_TRIGGER" || 
                 lowMsg.includes("multikey") || 
                 lowMsg.includes("keyless") || 
                 lowMsg.includes("failed to sign message") || 
-                lowMsg.includes("not supported")) {
+                lowMsg.includes("signature failed") || 
+                lowMsg.includes("not supported") ||
+                lowMsg.includes("rejected")) {
                 
                 console.warn("[Vault] Standard signature not available. Using secure local session key.");
                 
