@@ -80,29 +80,33 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setCurrentIndex(0);
 
         let txHash: string | undefined;
+        let caughtResponse: any = null;
+
         try {
             console.log("[Shelby] Initiating batch upload. Signer address:", account.address.toString());
             await uploadBlobs.mutateAsync({
                 signer: {
                     account: account.address.toString(),
-                    signAndSubmitTransaction: async (tx: any) => {
-                        console.log("[Shelby] Wallet requested to sign transaction:", tx);
-                        const finalTx = {
+                    signAndSubmitTransaction: (tx: any) => {
+                        console.log("[Shelby] Wallet signing request (direct context):", tx);
+                        const promise = signAndSubmitTransaction({
                             ...tx,
                             sender: account.address.toString()
-                        };
-                        const response = await signAndSubmitTransaction(finalTx);
-                        console.log("[Shelby] Transaction response:", response);
-                        if (response && (response as any).hash) {
-                            txHash = (response as any).hash;
-                            setLastTxHash(txHash || null);
-                        }
-                        return response;
+                        });
+                        // Capture response when it resolves
+                        promise.then(res => { caughtResponse = res; });
+                        return promise as any;
                     },
                 },
                 blobs: pendingUploads.blobs,
                 expirationMicros: Date.now() * 1000 + 86400000000,
             });
+
+            console.log("[Shelby] Batch upload completed. Captured response:", caughtResponse);
+            if (caughtResponse && (caughtResponse as any).hash) {
+                txHash = (caughtResponse as any).hash;
+                setLastTxHash(txHash || null);
+            }
 
             // Handle success events for each file
             pendingUploads.files.forEach(file => {
@@ -110,7 +114,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     detail: {
                         name: file.name,
                         size: file.size,
-                        txHash: txHash,
+                        txHash: txHash || "unknown",
                         timestamp: Date.now()
                     }
                 }));
