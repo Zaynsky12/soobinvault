@@ -108,7 +108,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     signer: {
                         account: account!.address,
                         signAndSubmitTransaction: async (tx: any) => {
-                            const response = await signAndSubmitTransaction(tx);
+                            // Keyless accounts (social login) require the sender to be explicitly defined
+                            const finalTx = {
+                                ...tx,
+                                sender: account!.address
+                            };
+                            const response = await signAndSubmitTransaction(finalTx);
                             if (response && (response as any).hash) {
                                 txHash = (response as any).hash;
                                 setLastTxHash(txHash || null);

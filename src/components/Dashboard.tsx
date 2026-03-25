@@ -75,7 +75,10 @@ export function Dashboard() {
             await deleteBlobs.mutateAsync({
                 signer: {
                     account: account.address,
-                    signAndSubmitTransaction: (tx: any) => signAndSubmitTransaction(tx),
+                    signAndSubmitTransaction: (tx: any) => signAndSubmitTransaction({
+                        ...tx,
+                        sender: account.address
+                    }),
                 } as any,
                 blobNames: [nameSuffix]
             });
@@ -748,7 +751,10 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
             await deleteBlobs.mutateAsync({
                 signer: {
                     account: account?.address,
-                    signAndSubmitTransaction: (tx: any) => signAndSubmitTransaction(tx),
+                    signAndSubmitTransaction: (tx: any) => signAndSubmitTransaction({
+                        ...tx,
+                        sender: account?.address
+                    }),
                 } as any,
                 blobNames: [nameSuffix]
             });
