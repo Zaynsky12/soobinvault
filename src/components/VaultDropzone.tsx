@@ -106,13 +106,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 console.log("[Shelby] Initiating upload. Signer address:", account!.address);
                 await uploadBlobs.mutateAsync({
                     signer: {
-                        account: account!, // Pass full account object
+                        account: account!.address.toString(), 
                         signAndSubmitTransaction: async (tx: any) => {
                             console.log("[Shelby] Wallet requested to sign transaction:", tx);
-                            // Keyless accounts (social login) require the sender to be explicitly defined
                             const finalTx = {
                                 ...tx,
-                                sender: account!.address
+                                sender: account!.address.toString()
                             };
                             const response = await signAndSubmitTransaction(finalTx);
                             console.log("[Shelby] Transaction response:", response);

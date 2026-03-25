@@ -74,12 +74,12 @@ export function Dashboard() {
 
             await deleteBlobs.mutateAsync({
                 signer: {
-                    account: account, // Pass full account object
+                    account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
                         return signAndSubmitTransaction({
                             ...tx,
-                            sender: account.address
+                            sender: account.address.toString()
                         });
                     },
                 } as any,
@@ -753,12 +753,12 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
 
             await deleteBlobs.mutateAsync({
                 signer: {
-                    account: account, // Pass full account object
+                    account: account?.address.toString() || "",
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
                         return signAndSubmitTransaction({
                             ...tx,
-                            sender: account?.address
+                            sender: account?.address.toString()
                         });
                     },
                 } as any,
