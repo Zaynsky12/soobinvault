@@ -94,9 +94,9 @@ export default function Navbar(): React.ReactNode {
     };
 
     const navLinks = [
-        { name: 'Home', href: '/' },
-        { name: 'Upload', href: '/vault' },
-        { name: 'Vault', href: '/dashboard' },
+        { name: 'Home', href: '/', icon: Home },
+        { name: 'Upload', href: '/vault', icon: PlusCircle },
+        { name: 'Vault', href: '/dashboard', icon: FileText },
     ];
 
     const pathname = usePathname();
@@ -257,8 +257,77 @@ export default function Navbar(): React.ReactNode {
                         : 'bg-[#0B1121]/40 backdrop-blur-lg border border-white/5 shadow-lg'
                         }`}>
 
-                            {/* Logo */}
-                            <Link href="/" className="flex items-center gap-3 cursor-pointer group">
+                            {/* Desktop Sidebar - Left Side Fixed */}
+                            <div className="hidden md:flex fixed left-0 top-0 bottom-0 w-24 bg-[#0B1121]/40 backdrop-blur-2xl border-r border-white/5 flex-col items-center py-10 z-[60] shadow-[10px_0_30px_rgba(0,0,0,0.3)]">
+                                <Link href="/" className="mb-12 group relative">
+                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.4)] group-hover:shadow-[0_0_35px_rgba(232,58,118,0.6)] transition-all duration-500 group-hover:scale-110">
+                                        <Image
+                                            src="/logo.png"
+                                            alt="Logo"
+                                            width={50}
+                                            height={50}
+                                            className="rounded-xl w-full h-full p-1.5"
+                                        />
+                                    </div>
+                                    <div className="absolute left-full ml-4 px-3 py-1 bg-color-primary/90 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300 pointer-events-none whitespace-nowrap shadow-xl">
+                                        SoobinVault Home
+                                    </div>
+                                </Link>
+
+                                <div className="flex-1 flex flex-col gap-8 w-full px-4">
+                                    {navLinks.map((link) => {
+                                        const Icon = link.icon;
+                                        const isActive = pathname === link.href;
+                                        return (
+                                            <Link
+                                                key={link.name}
+                                                href={link.href}
+                                                className={`flex flex-col items-center gap-2 group relative py-3 rounded-2xl transition-all duration-300 ${
+                                                    isActive 
+                                                        ? 'bg-color-primary/10 text-color-primary shadow-[0_0_20px_rgba(232,58,118,0.1)] border border-color-primary/20' 
+                                                        : 'text-white/40 hover:text-white hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Icon size={22} className={isActive ? 'fill-current' : ''} />
+                                                <span className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100 transition-opacity">
+                                                    {link.name}
+                                                </span>
+                                                {isActive && (
+                                                    <div className="absolute left-0 w-1 h-8 bg-color-primary rounded-r-full shadow-[0_0_10px_rgba(232,58,118,0.8)]" />
+                                                )}
+                                            </Link>
+                                        );
+                                    })}
+
+                                    {(connected && account) && (
+                                        <button
+                                            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                            className={`flex flex-col items-center gap-2 group relative py-3 rounded-2xl transition-all duration-300 ${
+                                                isSettingsOpen 
+                                                    ? 'bg-white/10 text-white shadow-[0_0_20px_rgba(255,255,255,0.05)] border border-white/20' 
+                                                    : 'text-white/40 hover:text-white hover:bg-white/5'
+                                            }`}
+                                        >
+                                            <Settings size={22} className={isSettingsOpen ? 'rotate-90' : ''} />
+                                            <span className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100 transition-opacity">
+                                                Settings
+                                            </span>
+                                            {isSettingsOpen && (
+                                                <div className="absolute left-0 w-1 h-8 bg-white rounded-r-full shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
+                                            )}
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="mt-auto flex flex-col items-center gap-4 border-t border-white/5 pt-8 w-full px-4">
+                                    <div className="text-[8px] text-white/20 font-bold uppercase tracking-widest text-center leading-relaxed">
+                                        v2.4.0<br/>Secure
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Logo - Desktop Top (Simplified) */}
+                            <Link href="/" className="md:hidden flex items-center gap-3 cursor-pointer group">
                                 <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.4)] group-hover:shadow-[0_0_30px_rgba(251,179,204,0.6)] transition-all duration-300">
                                     <Image
                                         src="/logo.png"
@@ -271,18 +340,15 @@ export default function Navbar(): React.ReactNode {
                                 <span className="font-heading font-bold text-lg md:text-xl tracking-tight text-white">SoobinVault</span>
                             </Link>
 
-                            {/* Desktop Links - More Compact */}
-                            <nav className="hidden md:flex items-center gap-6">
-                                {navLinks.map((link) => (
-                                    <Link
-                                        key={link.name}
-                                        href={link.href}
-                                        className="text-white/60 hover:text-white font-bold text-[10px] uppercase tracking-widest transition-colors duration-200 relative group"
-                                    >
-                                        {link.name}
-                                        <span className="absolute -bottom-1 left-0 w-0 h-[2px] bg-color-accent transition-all duration-300 group-hover:w-full rounded-full"></span>
-                                    </Link>
-                                ))}
+                            <div className="hidden md:block">
+                                <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl border border-white/5 backdrop-blur-md">
+                                    <Shield size={14} className="text-color-primary" />
+                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">Zero Knowledge Network</span>
+                                </div>
+                            </div>
+
+                            {/* Desktop Links - DELETED in favor of Sidebar */}
+                            <nav className="hidden items-center gap-6">
                             </nav>
 
                             <div className="flex items-center gap-4">
@@ -297,9 +363,9 @@ export default function Navbar(): React.ReactNode {
                                                 <Settings size={18} className={isSettingsOpen ? 'rotate-90' : ''} />
                                             </button>
 
-                                            {/* Settings Dropdown Desktop */}
+                                            {/* Settings Dropdown Desktop - Position adjusted for Sidebar Layout */}
                                             {isSettingsOpen && (
-                                                <div className="absolute right-0 mt-4 w-72 bg-[#0B1121]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                                                <div className="absolute right-0 top-full mt-4 w-72 bg-[#0B1121]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 z-[70]">
                                                     {renderSettingsContent()}
                                                 </div>
                                             )}
