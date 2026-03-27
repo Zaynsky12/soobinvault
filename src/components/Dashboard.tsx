@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle, ShieldCheck, Globe } from 'lucide-react';
+import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle, ShieldCheck, Globe, Video, Music, FileSpreadsheet, Presentation, Archive, File as FileGeneral, Code2, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
@@ -589,6 +589,9 @@ export function Dashboard() {
                                             isImg={isImg}
                                             isVid={isVid}
                                             isTxt={isTxt}
+                                            isAudio={isAudio}
+                                            isDocument={isDocument}
+                                            fileInfo={fileInfo}
                                             isEncrypted={isEncrypted}
                                             downloadUrl={downloadUrl}
                                             handleOpenPreview={handleOpenPreview}
@@ -654,7 +657,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isEncrypted, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
     const { ensureKey } = useVaultKey();
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -825,11 +828,23 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isEn
                     {isImg ? (
                         <ImageIcon className="text-color-accent group-hover:text-white transition-colors" size={20} />
                     ) : isVid ? (
-                        <PackageOpen className="text-color-primary group-hover:text-white transition-colors" size={20} />
+                        <Video className="text-purple-400 group-hover:text-white transition-colors" size={20} />
+                    ) : isAudio ? (
+                        <Music className="text-blue-400 group-hover:text-white transition-colors" size={20} />
+                    ) : fileInfo?.isPdf ? (
+                        <FileText className="text-red-400 group-hover:text-white transition-colors" size={20} />
+                    ) : fileInfo?.isSpreadsheet ? (
+                        <FileSpreadsheet className="text-green-400 group-hover:text-white transition-colors" size={20} />
+                    ) : fileInfo?.isPresentation ? (
+                        <Presentation className="text-orange-400 group-hover:text-white transition-colors" size={20} />
+                    ) : fileInfo?.isArchive ? (
+                        <Archive className="text-yellow-400 group-hover:text-white transition-colors" size={20} />
                     ) : isTxt ? (
-                        <FileText className="text-color-support group-hover:text-white transition-colors" size={20} />
+                        <Code2 className="text-color-support group-hover:text-white transition-colors" size={20} />
+                    ) : isDocument ? (
+                        <BookOpen className="text-color-support group-hover:text-white transition-colors" size={20} />
                     ) : (
-                        <Database className="text-color-support/40 group-hover:text-white transition-colors" size={20} />
+                        <FileGeneral className="text-color-support/40 group-hover:text-white transition-colors" size={20} />
                     )}
                 </div>
                 <div className="flex flex-col min-w-0">

@@ -56,13 +56,16 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
     useEffect(() => {
         if (uploadState === 'uploading' && progressRef.current) {
+            // Force reset in case of previous animations
+            gsap.set(progressRef.current, { clearProps: "all" });
+            
             const anim = gsap.fromTo(progressRef.current,
-                { x: "-100%", width: "50%" },
-                { x: "200%", duration: 1.5, repeat: -1, ease: "power1.inOut" }
+                { left: "-50%", width: "50%", position: 'absolute' },
+                { left: "100%", duration: 1.2, repeat: -1, ease: "none" }
             );
             return () => { anim.kill(); };
         }
-    }, [uploadState, currentIndex]);
+    }, [uploadState, currentIndex, pendingUploads]);
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -84,19 +87,32 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         let txHash: string | undefined;
         let caughtResponse: any = null;
 
+        // Save a reference to the data before clearing pendingUploads
+        const backupBlobs = [...pendingUploads.blobs];
+        const backupFiles = [...pendingUploads.files];
+
         try {
             console.log("[Shelby] Initiating batch upload. Signer address:", account.address.toString());
+            
+            // Re-show progress bar & set status
+            setPendingUploads(null); 
+            // Keep currentFile and currentIndex from the last processed file 
+            // so the progress bar UI stays visible
+            setUploadStatusText("Awaiting wallet approval...");
+
             await uploadBlobs.mutateAsync({
                 signer: {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Wallet signing request (direct context):", tx);
 
+                        // Update status when wallet is reached
+                        setUploadStatusText("Submitting to network...");
+
                         // Defensive transaction cleaning
                         const { sequence_number, ...cleanTx } = tx;
 
                         // Social Login (Keyless) often requires the sender address for authorization
-                        // For standard wallets like Petra, we let the wallet handle the sender
                         const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
                         const finalTx = isSocialLogin ? cleanTx : { ...cleanTx, sender: undefined };
 
@@ -105,7 +121,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         return promise as any;
                     },
                 },
-                blobs: pendingUploads.blobs,
+                blobs: backupBlobs,
                 // 30 minutes instead of 24 hours to be safer with Keyless ephemeral keys
                 expirationMicros: Date.now() * 1000 + 1800000000,
             });
@@ -117,7 +133,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             }
 
             // Handle success events for each file
-            pendingUploads.files.forEach(file => {
+            backupFiles.forEach(file => {
                 window.dispatchEvent(new CustomEvent('vault:uploadSuccess', {
                     detail: {
                         name: file.name,
@@ -128,17 +144,16 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 }));
             });
 
-            setSuccessCount(pendingUploads.files.length);
+            setSuccessCount(backupFiles.length);
             setUploadState('success');
-            setPendingUploads(null);
-            if (refetch) refetch();
-            toast.success(`Successfully secured ${pendingUploads.files.length} assets!`);
-
         } catch (sdkError) {
             console.error("[Shelby SDK Error]", sdkError);
             const msg = sdkError instanceof Error ? sdkError.message : String(sdkError);
             toast.error(`Upload failed: ${msg.slice(0, 100)}...`, { id: 'upload-error' });
-            setUploadState('idle'); // Allow retry
+            
+            // If it failed, we restore pendingUploads to allow RETRY
+            setPendingUploads({ blobs: backupBlobs, files: backupFiles });
+            setUploadState('uploading'); // Keep in progress view but wait for user to click retry or cancel
         }
     };
 
@@ -353,8 +368,19 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 <h3 className="text-2xl md:text-3xl font-semibold mb-2 text-white tracking-tight">Deploy Assets</h3>
                                 <p className="text-color-support/70 mb-5 text-sm md:text-base">Drag &amp; drop or tap to browse</p>
 
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className={`px-10 py-4 mb-6 rounded-full text-white transition-all duration-700 font-bold shadow-lg animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest ${
+                                        encryptionEnabled
+                                            ? 'bg-color-accent/20 border border-color-accent/40 shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)]'
+                                            : 'bg-yellow-500/20 border border-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)] hover:bg-yellow-500/40 hover:scale-110 hover:shadow-[0_0_35px_rgba(234,179,8,0.4)]'
+                                    }`}
+                                >
+                                    Select Files
+                                </button>
+
                                 {/* Encryption Toggle */}
-                                <div className="flex items-center gap-3 mb-6 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                                <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
                                         className={`relative w-11 h-6 rounded-full transition-all duration-300 focus:outline-none ${
@@ -379,17 +405,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         </p>
                                     </div>
                                 </div>
-
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className={`px-10 py-4 rounded-full text-white transition-all duration-700 font-bold shadow-lg animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest ${
-                                        encryptionEnabled
-                                            ? 'bg-color-accent/20 border border-color-accent/40 shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)]'
-                                            : 'bg-yellow-500/20 border border-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)] hover:bg-yellow-500/40 hover:scale-110 hover:shadow-[0_0_35px_rgba(234,179,8,0.4)]'
-                                    }`}
-                                >
-                                    Select Files
-                                </button>
                             </div>
                         )}
                         {/* Uploading / Encrypting state */}
@@ -403,8 +418,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     </p>
                                 )}
                                 <p className="text-color-support text-sm mb-8 text-center w-full">{uploadStatusText}</p>
-                                <div className="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/10">
-                                    <div ref={progressRef} className="h-full w-0 bg-gradient-to-r from-color-primary to-color-accent shadow-[0_0_10px_rgba(232,58,118,0.8)]" />
+                                <div className="w-full h-3 bg-black/50 rounded-full overflow-hidden border border-white/10 relative">
+                                    <div ref={progressRef} className="h-full bg-gradient-to-r from-color-primary to-color-accent shadow-[0_0_10px_rgba(232,58,118,0.8)]" />
                                 </div>
                             </div>
                         )}

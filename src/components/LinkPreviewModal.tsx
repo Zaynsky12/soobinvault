@@ -133,21 +133,36 @@ export function LinkPreviewModal({
                 return;
             }
 
-            // --- ENCRYPTED: decrypt ---
+            // --- ENCRYPTED: decrypt ---            // 2. Decrypt
             const cryptoKey = await ensureKey();
             if (!cryptoKey) {
                 throw new Error("Signature required for decryption.");
             }
             
-            const { blob, metadata } = await decryptFile(rawBuffer, cryptoKey);
+            const { blob: decryptedBlob, metadata } = await decryptFile(rawBuffer, cryptoKey);
 
-            const url = URL.createObjectURL(blob);
+            // Re-wrap blob with correct MIME type detected from metadata name
+            const ext = metadata.name.split('.').pop()?.toLowerCase() || '';
+            const mimeMap: Record<string, string> = {
+                jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+                webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff',
+                ico: 'image/x-icon', avif: 'image/avif',
+                mp4: 'video/mp4', webm: 'video/webm', ogg: 'video/ogg', mov: 'video/quicktime',
+                mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', aac: 'audio/aac',
+                m4a: 'audio/mp4',
+                pdf: 'application/pdf',
+                txt: 'text/plain', md: 'text/plain', json: 'application/json',
+            };
+            const forcedMimeType = mimeMap[ext] || metadata.type;
+            const finalBlob = new Blob([decryptedBlob], { type: forcedMimeType });
+
+            const url = URL.createObjectURL(finalBlob);
             const name = metadata.name.toLowerCase();
 
             setDecryptedData({
                 url,
                 name: metadata.name,
-                type: metadata.type,
+                type: forcedMimeType,
                 isImage: !!name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/),
                 isVideo: !!name.match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/),
                 isText: !!name.match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/),
@@ -489,7 +504,14 @@ export function LinkPreviewModal({
                                         <img src={decryptedData.url} alt={decryptedData.name} className="max-w-full max-h-full object-contain" />
                                     )}
                                     {decryptedData.isVideo && (
-                                        <video src={decryptedData.url} controls className="max-w-full max-h-full" autoPlay />
+                                        <video 
+                                            src={decryptedData.url} 
+                                            controls 
+                                            className="max-w-full max-h-full" 
+                                            autoPlay 
+                                            muted 
+                                            playsInline 
+                                        />
                                     )}
                                     {decryptedData.isAudio && (
                                         <div className="flex flex-col items-center gap-6 p-12 glass-panel rounded-3xl border-white/10">
