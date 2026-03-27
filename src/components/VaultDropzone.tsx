@@ -368,36 +368,36 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 <h3 className="text-2xl md:text-3xl font-semibold mb-2 text-white tracking-tight">Deploy Assets</h3>
                                 <p className="text-color-support/70 mb-5 text-sm md:text-base">Drag &amp; drop or tap to browse</p>
 
-                                {/* Encryption Toggle */}
-                                <div className="flex items-center gap-3 mb-6 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                                {/* Encryption Toggle - More compact for user friendliness */}
+                                <div className="flex items-center gap-2.5 mb-6 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm scale-95 origin-center">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
-                                        className={`relative w-11 h-6 rounded-full transition-all duration-300 focus:outline-none ${
+                                        className={`relative w-9 h-5 rounded-full transition-all duration-300 focus:outline-none ${
                                             encryptionEnabled
-                                                ? 'bg-gradient-to-r from-color-primary to-color-accent shadow-[0_0_12px_rgba(232,58,118,0.5)]'
-                                                : 'bg-white/15'
+                                                ? 'bg-gradient-to-r from-color-primary to-color-accent shadow-[0_0_10px_rgba(232,58,118,0.4)]'
+                                                : 'bg-white/10'
                                         }`}
                                         aria-label="Toggle encryption"
                                     >
-                                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 ${
-                                            encryptionEnabled ? 'translate-x-5' : 'translate-x-0'
+                                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ${
+                                            encryptionEnabled ? 'translate-x-4' : 'translate-x-0'
                                         }`} />
                                     </button>
                                     <div className="text-left">
-                                        <p className={`text-xs font-bold uppercase tracking-widest transition-colors ${
+                                        <p className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${
                                             encryptionEnabled ? 'text-color-primary' : 'text-yellow-400'
                                         }`}>
                                             {encryptionEnabled ? 'Encryption ON' : 'Encryption OFF'}
                                         </p>
-                                        <p className="text-white/30 text-[10px]">
-                                            {encryptionEnabled ? 'Files are end-to-end encrypted' : 'Files are uploaded as plaintext'}
+                                        <p className="text-white/20 text-[9px]">
+                                            {encryptionEnabled ? 'End-to-end encrypted' : 'Plaintext upload'}
                                         </p>
                                     </div>
                                 </div>
 
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className={`px-10 py-4 rounded-full text-white transition-all duration-700 font-bold shadow-lg animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest ${
+                                    className={`px-10 py-3.5 rounded-full text-white transition-all duration-700 font-bold shadow-lg animate-glow-activate w-full sm:w-auto uppercase text-[10px] tracking-widest ${
                                         encryptionEnabled
                                             ? 'bg-color-accent/20 border border-color-accent/40 shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)]'
                                             : 'bg-yellow-500/20 border border-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)] hover:bg-yellow-500/40 hover:scale-110 hover:shadow-[0_0_35px_rgba(234,179,8,0.4)]'
