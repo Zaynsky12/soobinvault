@@ -210,7 +210,7 @@ export default function Navbar(): React.ReactNode {
                             disconnect();
                             setIsSettingsOpen(false);
                         }}
-                        className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-white/30 hover:text-red-400 hover:bg-red-500/5 rounded-xl transition-all"
+                        className="w-full px-4 py-2.5 flex items-center gap-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 rounded-xl transition-all"
                     >
                         <LogOut size={18} />
                         Disconnect Wallet
