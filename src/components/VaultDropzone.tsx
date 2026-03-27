@@ -368,19 +368,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 <h3 className="text-2xl md:text-3xl font-semibold mb-2 text-white tracking-tight">Deploy Assets</h3>
                                 <p className="text-color-support/70 mb-5 text-sm md:text-base">Drag &amp; drop or tap to browse</p>
 
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className={`px-10 py-4 mb-6 rounded-full text-white transition-all duration-700 font-bold shadow-lg animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest ${
-                                        encryptionEnabled
-                                            ? 'bg-color-accent/20 border border-color-accent/40 shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)]'
-                                            : 'bg-yellow-500/20 border border-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)] hover:bg-yellow-500/40 hover:scale-110 hover:shadow-[0_0_35px_rgba(234,179,8,0.4)]'
-                                    }`}
-                                >
-                                    Select Files
-                                </button>
-
                                 {/* Encryption Toggle */}
-                                <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                                <div className="flex items-center gap-3 mb-6 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
                                         className={`relative w-11 h-6 rounded-full transition-all duration-300 focus:outline-none ${
@@ -405,6 +394,17 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         </p>
                                     </div>
                                 </div>
+
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className={`px-10 py-4 rounded-full text-white transition-all duration-700 font-bold shadow-lg animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest ${
+                                        encryptionEnabled
+                                            ? 'bg-color-accent/20 border border-color-accent/40 shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)]'
+                                            : 'bg-yellow-500/20 border border-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)] hover:bg-yellow-500/40 hover:scale-110 hover:shadow-[0_0_35px_rgba(234,179,8,0.4)]'
+                                    }`}
+                                >
+                                    Select Files
+                                </button>
                             </div>
                         )}
                         {/* Uploading / Encrypting state */}
