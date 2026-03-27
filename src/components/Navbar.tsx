@@ -257,76 +257,98 @@ export default function Navbar(): React.ReactNode {
                         : 'bg-[#0B1121]/40 backdrop-blur-lg border border-white/5 shadow-lg'
                         }`}>
 
-                            {/* Desktop Sidebar - Left Side Fixed */}
-                            <div className="hidden md:flex fixed left-0 top-0 bottom-0 w-24 bg-[#0B1121]/40 backdrop-blur-2xl border-r border-white/5 flex-col items-center py-10 z-[60] shadow-[10px_0_30px_rgba(0,0,0,0.3)]">
-                                <Link href="/" className="mb-12 group relative">
-                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.4)] group-hover:shadow-[0_0_35px_rgba(232,58,118,0.6)] transition-all duration-500 group-hover:scale-110">
-                                        <Image
-                                            src="/logo.png"
-                                            alt="Logo"
-                                            width={50}
-                                            height={50}
-                                            className="rounded-xl w-full h-full p-1.5"
-                                        />
-                                    </div>
-                                    <div className="absolute left-full ml-4 px-3 py-1 bg-color-primary/90 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300 pointer-events-none whitespace-nowrap shadow-xl">
-                                        SoobinVault Home
-                                    </div>
-                                </Link>
+                            {/* Desktop Sidebar - Left Side Fixed (Lighthouse Style) */}
+                            <div className="hidden md:flex fixed left-0 top-0 bottom-0 w-64 bg-[#0B1121]/40 backdrop-blur-3xl border-r border-white/5 flex-col z-[60] shadow-[4px_0_24px_rgba(0,0,0,0.3)]">
+                                {/* Sidebar Header */}
+                                <div className="p-8 pb-10">
+                                    <Link href="/" className="flex items-center gap-3 cursor-pointer group">
+                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.4)] group-hover:shadow-[0_0_35px_rgba(232,58,118,0.6)] transition-all duration-500">
+                                            <Image
+                                                src="/logo.png"
+                                                alt="ShelbyVault Logo"
+                                                width={36}
+                                                height={36}
+                                                className="rounded-xl w-full h-full p-1"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="font-heading font-bold text-lg tracking-tight text-white leading-tight">SoobinVault</span>
+                                            <span className="text-[9px] font-bold text-color-primary uppercase tracking-[0.2em] opacity-80">Network</span>
+                                        </div>
+                                    </Link>
+                                </div>
 
-                                <div className="flex-1 flex flex-col gap-8 w-full px-4">
-                                    {navLinks.map((link) => {
-                                        const Icon = link.icon;
-                                        const isActive = pathname === link.href;
-                                        return (
-                                            <Link
-                                                key={link.name}
-                                                href={link.href}
-                                                className={`flex flex-col items-center gap-2 group relative py-3 rounded-2xl transition-all duration-300 ${
-                                                    isActive 
-                                                        ? 'bg-color-primary/10 text-color-primary shadow-[0_0_20px_rgba(232,58,118,0.1)] border border-color-primary/20' 
+                                {/* Sidebar Navigation Groups */}
+                                <div className="flex-1 px-4 space-y-8 overflow-y-auto custom-scrollbar">
+                                    <div className="space-y-1">
+                                        <p className="px-4 text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] mb-4">Main Menu</p>
+                                        {navLinks.map((link) => {
+                                            const Icon = link.icon;
+                                            const isActive = pathname === link.href;
+                                            return (
+                                                <Link
+                                                    key={link.name}
+                                                    href={link.href}
+                                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
+                                                        isActive 
+                                                            ? 'bg-color-primary/10 text-color-primary shadow-[0_0_15px_rgba(232,58,118,0.05)] border border-color-primary/10' 
+                                                            : 'text-white/40 hover:text-white hover:bg-white/5'
+                                                    }`}
+                                                >
+                                                    <div className={`transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-color-primary' : ''}`}>
+                                                        <Icon size={18} className={isActive ? 'fill-current' : ''} />
+                                                    </div>
+                                                    <span className="text-xs font-bold uppercase tracking-widest">
+                                                        {link.name}
+                                                    </span>
+                                                    {isActive && (
+                                                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-color-primary shadow-[0_0_10px_rgba(232,58,118,1)]" />
+                                                    )}
+                                                </Link>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {(connected && account) && (
+                                        <div className="space-y-1">
+                                            <p className="px-4 text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] mb-4">System</p>
+                                            <button
+                                                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
+                                                    isSettingsOpen 
+                                                        ? 'bg-white/10 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-white/10' 
                                                         : 'text-white/40 hover:text-white hover:bg-white/5'
                                                 }`}
                                             >
-                                                <Icon size={22} className={isActive ? 'fill-current' : ''} />
-                                                <span className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100 transition-opacity">
-                                                    {link.name}
+                                                <div className={`transition-all duration-500 ${isSettingsOpen ? 'rotate-90 text-white' : ''}`}>
+                                                    <Settings size={18} />
+                                                </div>
+                                                <span className="text-xs font-bold uppercase tracking-widest">
+                                                    Settings
                                                 </span>
-                                                {isActive && (
-                                                    <div className="absolute left-0 w-1 h-8 bg-color-primary rounded-r-full shadow-[0_0_10px_rgba(232,58,118,0.8)]" />
+                                                {isSettingsOpen && (
+                                                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,1)]" />
                                                 )}
-                                            </Link>
-                                        );
-                                    })}
-
-                                    {(connected && account) && (
-                                        <button
-                                            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                                            className={`flex flex-col items-center gap-2 group relative py-3 rounded-2xl transition-all duration-300 ${
-                                                isSettingsOpen 
-                                                    ? 'bg-white/10 text-white shadow-[0_0_20px_rgba(255,255,255,0.05)] border border-white/20' 
-                                                    : 'text-white/40 hover:text-white hover:bg-white/5'
-                                            }`}
-                                        >
-                                            <Settings size={22} className={isSettingsOpen ? 'rotate-90' : ''} />
-                                            <span className="text-[9px] font-bold uppercase tracking-widest opacity-60 group-hover:opacity-100 transition-opacity">
-                                                Settings
-                                            </span>
-                                            {isSettingsOpen && (
-                                                <div className="absolute left-0 w-1 h-8 bg-white rounded-r-full shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
-                                            )}
-                                        </button>
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
 
-                                <div className="mt-auto flex flex-col items-center gap-4 border-t border-white/5 pt-8 w-full px-4">
-                                    <div className="text-[8px] text-white/20 font-bold uppercase tracking-widest text-center leading-relaxed">
-                                        v2.4.0<br/>Secure
+                                {/* Sidebar Footer */}
+                                <div className="p-6 border-t border-white/5">
+                                    <div className="bg-black/20 p-4 rounded-2xl border border-white/5 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                            <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Aptos Mainnet</span>
+                                        </div>
+                                        <div className="text-[8px] text-white/20 font-bold uppercase tracking-[0.2em] leading-relaxed">
+                                            Zero-Knowledge Layer<br/>v2.4.0 • Secured
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Logo - Desktop Top (Simplified) */}
+                            {/* Mobile Logo Only */}
                             <Link href="/" className="md:hidden flex items-center gap-3 cursor-pointer group">
                                 <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.4)] group-hover:shadow-[0_0_30px_rgba(251,179,204,0.6)] transition-all duration-300">
                                     <Image
@@ -340,43 +362,22 @@ export default function Navbar(): React.ReactNode {
                                 <span className="font-heading font-bold text-lg md:text-xl tracking-tight text-white">SoobinVault</span>
                             </Link>
 
-                            <div className="hidden md:block">
+                            {/* Desktop Header Middle (Clean) */}
+                            <div className="hidden md:flex items-center gap-4 ml-64">
                                 <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl border border-white/5 backdrop-blur-md">
                                     <Shield size={14} className="text-color-primary" />
                                     <span className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">Zero Knowledge Network</span>
                                 </div>
                             </div>
 
-                            {/* Desktop Links - DELETED in favor of Sidebar */}
-                            <nav className="hidden items-center gap-6">
-                            </nav>
-
                             <div className="flex items-center gap-4">
-                                {/* Desktop Actions - Simplified to Mobile Style */}
+                                {/* Desktop Top Actions */}
                                 <div className="hidden md:flex items-center gap-3">
-                                    {connected && (
-                                        <div className="relative">
-                                            <button
-                                                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                                                className={`p-2 rounded-xl border transition-all duration-300 ${isSettingsOpen ? 'bg-white/10 border-white/20 text-white' : 'bg-white/5 border-white/5 text-white/40 hover:text-white hover:border-white/10'}`}
-                                            >
-                                                <Settings size={18} className={isSettingsOpen ? 'rotate-90' : ''} />
-                                            </button>
-
-                                            {/* Settings Dropdown Desktop - Position adjusted for Sidebar Layout */}
-                                            {isSettingsOpen && (
-                                                <div className="absolute right-0 top-full mt-4 w-72 bg-[#0B1121]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 z-[70]">
-                                                    {renderSettingsContent()}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
                                     <MagneticButton
-                                        className="bg-color-primary/10 border border-color-primary/30 text-color-primary text-[10px] px-4 py-2.5 font-bold uppercase tracking-widest shadow-[0_0_15px_rgba(232,58,118,0.1)] hover:bg-color-primary hover:text-white transition-all"
+                                        className="bg-color-primary/10 border border-color-primary/30 text-color-primary text-[10px] px-6 py-2.5 font-bold uppercase tracking-widest shadow-[0_0_15px_rgba(232,58,118,0.1)] hover:bg-color-primary hover:text-white transition-all rounded-xl"
                                         onClick={handleWalletClick}
                                     >
-                                        {isLoading ? "Wait..." : (connected && account) ? `${account.address.toString().slice(0, 4)}...${account.address.toString().slice(-4)}` : "Connect"}
+                                        {isLoading ? "Wait..." : (connected && account) ? `${account.address.toString().slice(0, 6)}...${account.address.toString().slice(-4)}` : "Connect Wallet"}
                                     </MagneticButton>
                                 </div>
 

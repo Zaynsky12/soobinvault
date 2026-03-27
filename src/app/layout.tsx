@@ -37,7 +37,7 @@ export default function RootLayout({
         </div>
 
         <ClientProviders>
-          <main className="flex-1 pb-24 md:pb-0 md:pl-24">
+          <main className="flex-1 pb-24 md:pb-0 md:pl-64">
             {children}
           </main>
         </ClientProviders>
