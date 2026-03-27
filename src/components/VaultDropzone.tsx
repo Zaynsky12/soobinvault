@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ChevronRight } from 'lucide-react';
+import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ChevronRight, ShieldOff } from 'lucide-react';
 import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -20,6 +20,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const { account, signAndSubmitTransaction, wallet } = useWallet();
     const { ensureKey, encryptionKey } = useVaultKey();
     const [isDragging, setIsDragging] = useState(false);
+    const [encryptionEnabled, setEncryptionEnabled] = useState(true);
     const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success'>('idle');
     const [uploadStatusText, setUploadStatusText] = useState<string>("Encrypting and distributing to nodes...");
     const [lastTxHash, setLastTxHash] = useState<string | null>(null);
@@ -149,47 +150,74 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         if (files.length === 0) return;
 
         setUploadState('uploading');
-        setUploadStatusText("Initializing security protocol...");
         setQueue(files);
-
-        const cryptoKey = await ensureKey();
-        if (!cryptoKey) {
-            setUploadState('idle');
-            return;
-        }
 
         const blobs: { blobName: string, blobData: Uint8Array }[] = [];
         const processedFiles: File[] = [];
 
         try {
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                setCurrentFile(file);
-                setCurrentIndex(i);
-                setUploadStatusText(`Encrypting ${file.name} (${i + 1}/${files.length})...`);
-
-                const encryptedData = await encryptFile(file, cryptoKey);
-                const encryptedNameBase64 = await encryptText(file.name, cryptoKey);
-                const safeEncryptedName = encryptedNameBase64.replace(/\//g, '_').replace(/\+/g, '-');
-
-                blobs.push({
-                    blobName: `${safeEncryptedName}.vault`,
-                    blobData: encryptedData
-                });
-                processedFiles.push(file);
-
-                const fileInfo = getFileType(file.name, file.type);
-                if (fileInfo.isImage || fileInfo.isVideo) {
-                    const url = URL.createObjectURL(file);
-                    setPreviewUrl(url);
+            if (encryptionEnabled) {
+                // --- ENCRYPTED PATH ---
+                setUploadStatusText("Initializing security protocol...");
+                const cryptoKey = await ensureKey();
+                if (!cryptoKey) {
+                    setUploadState('idle');
+                    return;
                 }
-            }
 
-            setPendingUploads({ blobs, files: processedFiles });
-            setUploadStatusText("Assets encrypted and ready for deployment.");
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    setCurrentFile(file);
+                    setCurrentIndex(i);
+                    setUploadStatusText(`Encrypting ${file.name} (${i + 1}/${files.length})...`);
+
+                    const encryptedData = await encryptFile(file, cryptoKey);
+                    const encryptedNameBase64 = await encryptText(file.name, cryptoKey);
+                    const safeEncryptedName = encryptedNameBase64.replace(/\//g, '_').replace(/\+/g, '-');
+
+                    blobs.push({
+                        blobName: `${safeEncryptedName}.vault`,
+                        blobData: encryptedData
+                    });
+                    processedFiles.push(file);
+
+                    const fileInfo = getFileType(file.name, file.type);
+                    if (fileInfo.isImage || fileInfo.isVideo) {
+                        const url = URL.createObjectURL(file);
+                        setPreviewUrl(url);
+                    }
+                }
+
+                setPendingUploads({ blobs, files: processedFiles });
+                setUploadStatusText("Assets encrypted and ready for deployment.");
+            } else {
+                // --- PLAINTEXT PATH ---
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    setCurrentFile(file);
+                    setCurrentIndex(i);
+                    setUploadStatusText(`Preparing ${file.name} (${i + 1}/${files.length})...`);
+
+                    const rawBuffer = await file.arrayBuffer();
+                    blobs.push({
+                        blobName: file.name,
+                        blobData: new Uint8Array(rawBuffer)
+                    });
+                    processedFiles.push(file);
+
+                    const fileInfo = getFileType(file.name, file.type);
+                    if (fileInfo.isImage || fileInfo.isVideo) {
+                        const url = URL.createObjectURL(file);
+                        setPreviewUrl(url);
+                    }
+                }
+
+                setPendingUploads({ blobs, files: processedFiles });
+                setUploadStatusText("Assets ready for deployment (no encryption).");
+            }
         } catch (error) {
-            console.error("Encryption failed:", error);
-            toast.error("Failed to encrypt some files.");
+            console.error("File preparation failed:", error);
+            toast.error("Failed to prepare some files.");
             setUploadState('idle');
         }
     };
@@ -317,14 +345,48 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         ) : uploadState === 'idle' && (
                             <div className="flex flex-col items-center text-center w-full px-4">
                                 <div ref={iconRef} className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(251,179,204,0.2)]">
-                                    <UploadCloud size={40} strokeWidth={1.5} className="md:hidden text-color-accent" />
-                                    <UploadCloud size={48} strokeWidth={1.5} className="hidden md:block text-color-accent" />
+                                    {encryptionEnabled
+                                        ? <><UploadCloud size={40} strokeWidth={1.5} className="md:hidden text-color-accent" /><UploadCloud size={48} strokeWidth={1.5} className="hidden md:block text-color-accent" /></>
+                                        : <><ShieldOff size={40} strokeWidth={1.5} className="md:hidden text-yellow-400" /><ShieldOff size={48} strokeWidth={1.5} className="hidden md:block text-yellow-400" /></>
+                                    }
                                 </div>
-                                <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Deploy Assets</h3>
-                                <p className="text-color-support/70 mb-2 text-sm md:text-lg">Drag &amp; drop or tap to browse</p>
+                                <h3 className="text-2xl md:text-3xl font-semibold mb-2 text-white tracking-tight">Deploy Assets</h3>
+                                <p className="text-color-support/70 mb-5 text-sm md:text-base">Drag &amp; drop or tap to browse</p>
+
+                                {/* Encryption Toggle */}
+                                <div className="flex items-center gap-3 mb-6 px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
+                                        className={`relative w-11 h-6 rounded-full transition-all duration-300 focus:outline-none ${
+                                            encryptionEnabled
+                                                ? 'bg-gradient-to-r from-color-primary to-color-accent shadow-[0_0_12px_rgba(232,58,118,0.5)]'
+                                                : 'bg-white/15'
+                                        }`}
+                                        aria-label="Toggle encryption"
+                                    >
+                                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 ${
+                                            encryptionEnabled ? 'translate-x-5' : 'translate-x-0'
+                                        }`} />
+                                    </button>
+                                    <div className="text-left">
+                                        <p className={`text-xs font-bold uppercase tracking-widest transition-colors ${
+                                            encryptionEnabled ? 'text-color-primary' : 'text-yellow-400'
+                                        }`}>
+                                            {encryptionEnabled ? 'Encryption ON' : 'Encryption OFF'}
+                                        </p>
+                                        <p className="text-white/30 text-[10px]">
+                                            {encryptionEnabled ? 'Files are end-to-end encrypted' : 'Files are uploaded as plaintext'}
+                                        </p>
+                                    </div>
+                                </div>
+
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="mt-4 px-10 py-4 rounded-full bg-color-accent/20 border border-color-accent/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
+                                    className={`px-10 py-4 rounded-full text-white transition-all duration-700 font-bold shadow-lg animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest ${
+                                        encryptionEnabled
+                                            ? 'bg-color-accent/20 border border-color-accent/40 shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)]'
+                                            : 'bg-yellow-500/20 border border-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)] hover:bg-yellow-500/40 hover:scale-110 hover:shadow-[0_0_35px_rgba(234,179,8,0.4)]'
+                                    }`}
                                 >
                                     Select Files
                                 </button>
@@ -354,9 +416,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     <Shield size={32} strokeWidth={2} className="md:hidden" />
                                     <Shield size={48} strokeWidth={2} className="hidden md:block" />
                                 </div>
-                                <h3 className="text-xl md:text-3xl font-semibold mb-2 text-white uppercase tracking-tight">Security Ready</h3>
+                                <h3 className="text-xl md:text-3xl font-semibold mb-2 text-white uppercase tracking-tight">
+                                    {encryptionEnabled ? 'Security Ready' : 'Ready to Deploy'}
+                                </h3>
                                 <p className="text-color-support text-xs md:text-lg mb-8 max-w-xs mx-auto font-light">
-                                    {pendingUploads.files.length} asset{pendingUploads.files.length > 1 ? 's' : ''} encrypted. Proceed to decentralized deployment?
+                                    {pendingUploads.files.length} asset{pendingUploads.files.length > 1 ? 's' : ''} {encryptionEnabled ? 'encrypted.' : 'prepared (no encryption).'} Proceed to decentralized deployment?
                                 </p>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); handleDeploy(); }}

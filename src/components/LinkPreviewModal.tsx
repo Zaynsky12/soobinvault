@@ -27,6 +27,7 @@ interface LinkPreviewModalProps {
     shelbyClient?: any;
     accountAddress?: string;
     onDelete?: () => void;
+    isEncrypted?: boolean;
 }
 
 export function LinkPreviewModal({
@@ -49,7 +50,8 @@ export function LinkPreviewModal({
     blobName,
     shelbyClient,
     accountAddress,
-    onDelete
+    onDelete,
+    isEncrypted = true,
 }: LinkPreviewModalProps) {
     const [copied, setCopied] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
@@ -94,20 +96,50 @@ export function LinkPreviewModal({
                 chunks.push(value);
             }
             const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-            const encryptedBuffer = new Uint8Array(totalLength);
+            const rawBuffer = new Uint8Array(totalLength);
             let offset = 0;
             for (const chunk of chunks) {
-                encryptedBuffer.set(chunk, offset);
+                rawBuffer.set(chunk, offset);
                 offset += chunk.length;
             }
 
-            // 2. Decrypt
+            if (!isEncrypted) {
+                // --- PLAINTEXT: build blob URL directly ---
+                const ext = assetName.split('.').pop()?.toLowerCase() || '';
+                const mimeMap: Record<string, string> = {
+                    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+                    webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp',
+                    mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+                    mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', aac: 'audio/aac',
+                    m4a: 'audio/mp4', ogg: 'audio/ogg',
+                    pdf: 'application/pdf',
+                    txt: 'text/plain', md: 'text/plain', json: 'application/json',
+                };
+                const mimeType = mimeMap[ext] || 'application/octet-stream';
+                const blob = new Blob([rawBuffer], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const name = assetName.toLowerCase();
+                setDecryptedData({
+                    url,
+                    name: assetName,
+                    type: mimeType,
+                    isImage: !!name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/),
+                    isVideo: !!name.match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/),
+                    isText: !!name.match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|log|env|csv|sql|ini|cfg|conf)$/),
+                    isAudio: !!name.match(/\.(mp3|wav|flac|aac|m4a|opus|wma)$/),
+                    isDocument: !!name.match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
+                });
+                setIsProcessing(false);
+                return;
+            }
+
+            // --- ENCRYPTED: decrypt ---
             const cryptoKey = await ensureKey();
             if (!cryptoKey) {
                 throw new Error("Signature required for decryption.");
             }
             
-            const { blob, metadata } = await decryptFile(encryptedBuffer, cryptoKey);
+            const { blob, metadata } = await decryptFile(rawBuffer, cryptoKey);
 
             const url = URL.createObjectURL(blob);
             const name = metadata.name.toLowerCase();
@@ -130,12 +162,14 @@ export function LinkPreviewModal({
 
             if (is404 && retryCount < 3) {
                 const delay = 2000 * (retryCount + 1);
-                console.log(`Retrying decryption in ${delay}ms... (Attempt ${retryCount + 2})`);
+                console.log(`Retrying in ${delay}ms... (Attempt ${retryCount + 2})`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return runDecryptionWithRetry(retryCount + 1);
             }
 
-            if (isDecryptionError) {
+            if (!isEncrypted) {
+                setFetchError(is404 ? 'INDEXING' : errorMsg);
+            } else if (isDecryptionError) {
                 setFetchError('DECRYPTION_FAILED');
             } else if (is404) {
                 setFetchError('INDEXING');
@@ -144,7 +178,7 @@ export function LinkPreviewModal({
             }
             setIsProcessing(false);
         }
-    }, [blobName, blobAccount, shelbyClient, accountAddress, ensureKey]);
+    }, [blobName, blobAccount, shelbyClient, accountAddress, ensureKey, isEncrypted, assetName]);
 
     useEffect(() => {
         if (isOpen) {
@@ -358,10 +392,10 @@ export function LinkPreviewModal({
                                 </div>
                                 <div className="flex flex-col min-w-0">
                                     <h2 className="text-lg md:text-xl font-bold text-white truncate leading-tight">
-                                        {isProcessing ? "Decrypting..." : (decryptedData ? decryptedData.name : "Vault Asset")}
+                                        {isProcessing ? (isEncrypted ? 'Decrypting...' : 'Loading...') : (decryptedData ? decryptedData.name : 'Vault Asset')}
                                     </h2>
                                     <p className="text-[10px] text-color-support/40 uppercase tracking-widest mt-0.5">
-                                        {assetSizeStr} MB • {decryptedData ? "SECURED" : "ENCRYPTED"}
+                                        {assetSizeStr} MB • {isEncrypted ? (decryptedData ? 'DECRYPTED' : 'ENCRYPTED') : 'PUBLIC'}
                                     </p>
                                 </div>
                             </div>
@@ -379,7 +413,9 @@ export function LinkPreviewModal({
                                         <div className="w-16 h-16 rounded-full border-4 border-color-primary/20 border-t-color-primary animate-spin" />
                                         <Lock size={20} className="absolute inset-0 m-auto text-color-primary animate-pulse" />
                                     </div>
-                                    <span className="text-color-primary font-mono text-xs tracking-[0.2em] uppercase animate-pulse">Decrypting...</span>
+                                    <span className="text-color-primary font-mono text-xs tracking-[0.2em] uppercase animate-pulse">
+                                        {isEncrypted ? 'Decrypting...' : 'Loading...'}
+                                    </span>
                                 </div>
                             ) : fetchError === 'DECRYPTION_FAILED' ? (
                                 <div className="flex flex-col items-center justify-center gap-6 text-center px-4 md:px-12 py-6 md:py-16 w-full max-w-xl mx-auto">
@@ -475,7 +511,7 @@ export function LinkPreviewModal({
                                         <div className="flex flex-col items-center gap-6 p-12 text-center">
                                             <FileIcon size={64} className="text-color-support/20" />
                                             <div>
-                                                <h3 className="text-xl font-bold text-white mb-2">Decrypted File</h3>
+                                                <h3 className="text-xl font-bold text-white mb-2">{isEncrypted ? 'Decrypted File' : 'File Asset'}</h3>
                                                 <p className="text-color-support/60 text-sm">Preview not available for this format.</p>
                                             </div>
                                         </div>

@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle } from 'lucide-react';
+import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle, ShieldCheck, Globe } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
@@ -45,6 +45,7 @@ export function Dashboard() {
         txHash: string;
         blobAccount: string;
         blobName: string;
+        isEncrypted: boolean;
     } | null>(null);
 
     const [decryptedNames, setDecryptedNames] = useState<Record<string, string>>({});
@@ -569,11 +570,14 @@ export function Dashboard() {
                                             hash: assetHash,
                                             txHash: txHash,
                                             blobAccount: finalIdentifier,
-                                            blobName: nameOnly
+                                            blobName: nameOnly,
+                                            isEncrypted,
                                         });
                                         setIsPreviewModalOpen(true);
                                     };
 
+
+                                    const isEncrypted = nameOnly.endsWith('.vault');
 
                                     return (
                                         <AssetRow
@@ -585,6 +589,7 @@ export function Dashboard() {
                                             isImg={isImg}
                                             isVid={isVid}
                                             isTxt={isTxt}
+                                            isEncrypted={isEncrypted}
                                             downloadUrl={downloadUrl}
                                             handleOpenPreview={handleOpenPreview}
                                             assetHash={assetHash}
@@ -635,6 +640,7 @@ export function Dashboard() {
                 shelbyClient={shelbyClient}
                 accountAddress={account?.address.toString()}
                 onDelete={handleDeleteSelectedAsset}
+                isEncrypted={selectedAsset?.isEncrypted ?? true}
             />
 
             {/* Floating Action Button (Mobile) */}
@@ -648,7 +654,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isEncrypted, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
     const { ensureKey } = useVaultKey();
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -699,7 +705,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
             return;
         }
 
-        const downloadToastId = toast.loading(`Decrypting ${displayName}...`);
+        const downloadToastId = toast.loading(isEncrypted ? `Decrypting ${displayName}...` : `Downloading ${displayName}...`);
 
         try {
             const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
@@ -708,40 +714,51 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
             });
 
             if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
-            const encryptedBuffer = await response.arrayBuffer();
-            console.log(`[Dashboard] Fetched buffer for ${displayName}. Size: ${encryptedBuffer.byteLength} bytes. Status: ${response.status}`);
+            const buffer = await response.arrayBuffer();
+            console.log(`[Dashboard] Fetched buffer for ${displayName}. Size: ${buffer.byteLength} bytes.`);
 
-            if (encryptedBuffer.byteLength === 0) {
+            if (buffer.byteLength === 0) {
                 toast.error("File content is empty. It may still be indexing or the upload was interrupted.", { id: downloadToastId, duration: 5000 });
                 return;
             }
 
-            if (encryptedBuffer.byteLength < 28) { // Min size for IV + Tag
-                toast.error("Encrypted data is too small or corrupted.", { id: downloadToastId });
-                return;
+            if (isEncrypted) {
+                // --- ENCRYPTED: need to decrypt first ---
+                if (buffer.byteLength < 28) {
+                    toast.error("Encrypted data is too small or corrupted.", { id: downloadToastId });
+                    return;
+                }
+                const cryptoKey = await ensureKey();
+                if (!cryptoKey) {
+                    toast.error("Decryption key required for download.", { id: downloadToastId });
+                    return;
+                }
+                const { blob, metadata } = await decryptFile(buffer, cryptoKey);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = metadata.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                // --- PLAINTEXT: direct download ---
+                const blob = new Blob([buffer]);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = displayName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             }
-
-            const cryptoKey = await ensureKey();
-            if (!cryptoKey) {
-                toast.error("Decryption key required for download.", { id: downloadToastId });
-                return;
-            }
-
-            const { blob, metadata } = await decryptFile(encryptedBuffer, cryptoKey);
-
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = metadata.name;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
 
             toast.success('Downloaded!', { id: downloadToastId });
         } catch (err) {
             console.error('Download failed:', err);
-            toast.error('Failed to decrypt and download.', { id: downloadToastId });
+            toast.error(isEncrypted ? 'Failed to decrypt and download.' : 'Failed to download.', { id: downloadToastId });
         }
     };
 
@@ -824,7 +841,15 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                             {sizeMB} MB
                         </span>
                         <span className="text-color-support/20 text-[10px] mt-0.5">•</span>
-                        <span className="text-green-500/40 text-[10px] font-bold uppercase tracking-widest mt-0.5">SECURED</span>
+                        {isEncrypted ? (
+                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mt-0.5 text-green-400">
+                                <ShieldCheck size={10} /> Encrypted
+                            </span>
+                        ) : (
+                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mt-0.5 text-yellow-400">
+                                <Globe size={10} /> Public
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
@@ -907,7 +932,15 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, down
                                         {sizeMB} MB
                                     </span>
                                     <span className="text-color-support/20 text-[10px]">•</span>
-                                    <span className="text-color-support/40 text-[10px] font-bold uppercase tracking-widest text-[#22C55E]">SECURED</span>
+                                    {isEncrypted ? (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-green-400">
+                                            <ShieldCheck size={10} /> Encrypted
+                                        </span>
+                                    ) : (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-yellow-400">
+                                            <Globe size={10} /> Public
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>
