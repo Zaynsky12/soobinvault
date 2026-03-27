@@ -369,7 +369,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 <p className="text-color-support/70 mb-5 text-sm md:text-base">Drag &amp; drop or tap to browse</p>
 
                                 {/* Encryption Toggle - More compact for user friendliness */}
-                                <div className="flex items-center gap-2.5 mb-6 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm scale-95 origin-center">
+                                <div className="flex items-center gap-2.5 mb-4 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm scale-95 origin-center">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
                                         className={`relative w-9 h-5 rounded-full transition-all duration-300 focus:outline-none ${
