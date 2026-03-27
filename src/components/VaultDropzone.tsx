@@ -397,7 +397,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className={`px-10 py-3.5 rounded-full text-white transition-all duration-700 font-bold shadow-lg animate-glow-activate w-full sm:w-auto uppercase text-[10px] tracking-widest ${
+                                    className={`px-12 py-4 md:px-16 md:py-5 rounded-full text-white transition-all duration-700 font-bold shadow-lg animate-glow-activate w-full sm:w-auto uppercase text-[10px] md:text-sm tracking-widest ${
                                         encryptionEnabled
                                             ? 'bg-color-accent/20 border border-color-accent/40 shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)]'
                                             : 'bg-yellow-500/20 border border-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)] hover:bg-yellow-500/40 hover:scale-110 hover:shadow-[0_0_35px_rgba(234,179,8,0.4)]'
