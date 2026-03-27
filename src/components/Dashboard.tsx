@@ -111,6 +111,8 @@ export function Dashboard() {
                 account: account.address.toString(),
             });
 
+            console.log(`[Dashboard] Fetched ${blobs?.length || 0} blobs from network:`, blobs);
+
             // Sort assets by descent order (latest first) based on official SDK field and indexer fields
             const sortedBlobs = (blobs || []).sort((a: any, b: any) => {
                 const timeA = a.creationMicros || a.timestamp || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
@@ -500,11 +502,17 @@ export function Dashboard() {
                                     const isAudio = fileInfo.isAudio;
                                     const isDocument = fileInfo.isDocument;
 
-                                    // Robust extraction of identifier and name from indexer "@identifier/path" format
-                                    if (index === 0) console.log('[Debug] Asset structure:', JSON.stringify(asset, null, 2));
-
-                                    // Use extracted identifier or fallback to account address
                                     const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
+                                    const isEncrypted = nameOnly.endsWith('.vault');
+
+                                    if (index === 0 || !isEncrypted) {
+                                        console.log(`[Dashboard] processing asset ${index}:`, {
+                                            displayName,
+                                            isEncrypted,
+                                            sizeMB,
+                                            type: fileInfo
+                                        });
+                                    }
                                     // Ensure the identifier has the 0x prefix if it appears to be a raw hex address
                                     let finalIdentifier = identifier;
                                     const isHex = /^[0-9a-fA-F]+$/.test(finalIdentifier);
@@ -575,9 +583,6 @@ export function Dashboard() {
                                         });
                                         setIsPreviewModalOpen(true);
                                     };
-
-
-                                    const isEncrypted = nameOnly.endsWith('.vault');
 
                                     return (
                                         <AssetRow
