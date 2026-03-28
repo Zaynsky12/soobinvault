@@ -214,6 +214,10 @@ export function LinkPreviewModal({
 
     const fetchAsset = async () => {
         if (!assetUrl && !onFetch) return;
+        if (isEncrypted) {
+            console.log('[LinkPreviewModal] isEncrypted is true, skipping direct fetchAsset path.');
+            return;
+        }
 
         setIsFetching(true);
         setFetchError(null);
@@ -284,6 +288,17 @@ export function LinkPreviewModal({
             if (isText) {
                 const text = await rawBlob.text();
                 setTextContent(text);
+                // Also set decryptedData for text files to ensure the render logic works
+                setDecryptedData({
+                    url: URL.createObjectURL(rawBlob),
+                    name: assetName,
+                    type: 'text/plain',
+                    isImage: false,
+                    isVideo: false,
+                    isText: true,
+                    isAudio: false,
+                    isDocument: false,
+                });
                 return;
             }
 
@@ -309,6 +324,18 @@ export function LinkPreviewModal({
             const typedBlob = new Blob([rawBlob], { type: forcedMimeType });
             const url = URL.createObjectURL(typedBlob);
             setBlobUrl(url);
+
+            // CRITICAL: Update decryptedData for non-encrypted files so the UI renders them!
+            setDecryptedData({
+                url,
+                name: assetName,
+                type: forcedMimeType,
+                isImage: !!assetName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/),
+                isVideo: !!assetName.toLowerCase().match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/),
+                isText: !!assetName.toLowerCase().match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/),
+                isAudio: !!assetName.toLowerCase().match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
+                isDocument: !!assetName.toLowerCase().match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
+            });
         } catch (error: any) {
             console.error('[LinkPreviewModal] Fetch error:', error);
             // If 401/not-found style errors from SDK
@@ -323,10 +350,10 @@ export function LinkPreviewModal({
     };
 
     useEffect(() => {
-        if (isOpen && assetUrl) {
+        if (isOpen && assetUrl && !isEncrypted) {
             fetchAsset();
         }
-    }, [isOpen, assetUrl]);
+    }, [isOpen, assetUrl, isEncrypted]);
 
     useEffect(() => {
         if (isOpen) {

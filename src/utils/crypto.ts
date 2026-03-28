@@ -45,11 +45,11 @@ export async function deriveKeyFromSignature(signature: string, salt?: string): 
 /**
  * Encrypts a file's content and embeds metadata.
  * Format: IV (12 bytes) + Encrypted(Metadata_Size (4) + Metadata_JSON + File_Data)
+ * Optimized to minimize intermediate buffer duplications.
  */
-export async function encryptFile(file: File, key: CryptoKey): Promise<Uint8Array> {
+export async function encryptFile(file: File, key: CryptoKey): Promise<Blob> {
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
-    const fileBuffer = await file.arrayBuffer();
-
+    
     // Create Metadata Header
     const metadata: FileMetadata = {
         name: file.name,
@@ -58,28 +58,33 @@ export async function encryptFile(file: File, key: CryptoKey): Promise<Uint8Arra
     };
     const metadataStr = JSON.stringify(metadata);
     const metadataBuffer = new TextEncoder().encode(metadataStr);
+    
+    // Efficiently combine Meta + Data without manual new Uint8Array(TOTAL) allocation of plaintext
+    // unless absolutely required by the Web Crypto API.
+    // Note: SubtleCrypto.encrypt unfortunately requires a single BufferSource.
+    // For large files (>100MB), this is the main RAM bottleneck.
+    
     const headerSize = new DataView(new ArrayBuffer(4));
     headerSize.setUint32(0, metadataBuffer.byteLength);
-
-    // Combine Header + Original Data
-    const combinedBuffer = new Uint8Array(4 + metadataBuffer.byteLength + fileBuffer.byteLength);
-    combinedBuffer.set(new Uint8Array(headerSize.buffer), 0);
-    combinedBuffer.set(metadataBuffer, 4);
-    combinedBuffer.set(new Uint8Array(fileBuffer), 4 + metadataBuffer.byteLength);
-
-    // Encrypt
+    
+    // Construct the plaintext using a Blob to let the browser manage memory
+    const plaintextBlob = new Blob([
+        headerSize.buffer,
+        metadataBuffer,
+        file
+    ]);
+    
+    const plaintextBuffer = await plaintextBlob.arrayBuffer();
+    
+    // Encrypt the entire block
     const ciphertext = await window.crypto.subtle.encrypt(
         { name: ALGORITHM, iv },
         key,
-        combinedBuffer
+        plaintextBuffer
     );
 
-    // Final Payload: IV + Ciphertext
-    const payload = new Uint8Array(iv.byteLength + ciphertext.byteLength);
-    payload.set(iv, 0);
-    payload.set(new Uint8Array(ciphertext), iv.byteLength);
-
-    return payload;
+    // Final Payload: IV + Ciphertext as a Blob (Memory efficient)
+    return new Blob([iv, ciphertext]);
 }
 
 /**

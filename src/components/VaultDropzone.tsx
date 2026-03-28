@@ -34,7 +34,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const [failCount, setFailCount] = useState<number>(0);
 
     const [pendingUploads, setPendingUploads] = useState<{
-        blobs: { blobName: string, blobData: Uint8Array }[],
+        blobs: { blobName: string, blobData: Blob }[],
         files: File[]
     } | null>(null);
 
@@ -100,6 +100,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             // so the progress bar UI stays visible
             setUploadStatusText("Awaiting wallet approval...");
 
+            // Convert Blobs to Uint8Arrays right before calling the SDK to minimize RAM dwell time
+            const blobsForSdk = await Promise.all(backupBlobs.map(async (b) => ({
+                blobName: b.blobName,
+                blobData: new Uint8Array(await b.blobData.arrayBuffer())
+            })));
+
             await uploadBlobs.mutateAsync({
                 signer: {
                     account: account.address.toString(),
@@ -121,7 +127,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         return promise as any;
                     },
                 },
-                blobs: backupBlobs,
+                blobs: blobsForSdk,
                 // 30 minutes instead of 24 hours to be safer with Keyless ephemeral keys
                 expirationMicros: Date.now() * 1000 + 1800000000,
             });
@@ -139,7 +145,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         name: file.name,
                         size: file.size,
                         txHash: txHash || "unknown",
-                        timestamp: Date.now()
+                        timestamp: Date.now(),
+                        isEncrypted: encryptionEnabled
                     }
                 }));
             });
@@ -167,7 +174,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setUploadState('uploading');
         setQueue(files);
 
-        const blobs: { blobName: string, blobData: Uint8Array }[] = [];
+        const blobs: { blobName: string, blobData: Blob }[] = [];
         const processedFiles: File[] = [];
 
         try {
@@ -186,13 +193,13 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     setCurrentIndex(i);
                     setUploadStatusText(`Encrypting ${file.name} (${i + 1}/${files.length})...`);
 
-                    const encryptedData = await encryptFile(file, cryptoKey);
+                    const encryptedBlob = await encryptFile(file, cryptoKey);
                     const encryptedNameBase64 = await encryptText(file.name, cryptoKey);
                     const safeEncryptedName = encryptedNameBase64.replace(/\//g, '_').replace(/\+/g, '-');
 
                     blobs.push({
                         blobName: `${safeEncryptedName}.vault`,
-                        blobData: encryptedData
+                        blobData: encryptedBlob
                     });
                     processedFiles.push(file);
 
@@ -213,10 +220,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     setCurrentIndex(i);
                     setUploadStatusText(`Preparing ${file.name} (${i + 1}/${files.length})...`);
 
-                    const rawBuffer = await file.arrayBuffer();
+                    // Use Blob for plaintext to avoid large ArrayBuffer allocation early
+                    const fileBlob = new Blob([file]);
+                    
                     blobs.push({
                         blobName: file.name,
-                        blobData: new Uint8Array(rawBuffer)
+                        blobData: fileBlob
                     });
                     processedFiles.push(file);
 

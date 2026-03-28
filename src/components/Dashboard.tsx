@@ -28,7 +28,31 @@ export function Dashboard() {
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [optimisticAssets, setOptimisticAssets] = useState<any[]>([]);
+    const [isClient, setIsClient] = useState(false);
     const { ensureKey, encryptionKey, importKeyManual, lockVault } = useVaultKey();
+
+    // Effect for hydration
+    useEffect(() => {
+        setIsClient(true);
+        const saved = localStorage.getItem('soobinvault_optimistic_assets');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                const now = Date.now();
+                // Filter out assets older than 30 minutes (network indexing can be slow)
+                const fresh = parsed.filter((a: any) => (now - (a.timestamp || 0)) < 1800000); // 1,800,000ms = 30 mins
+                setOptimisticAssets(fresh);
+            } catch (e) {
+                console.error("Failed to parse optimistic assets from localStorage", e);
+            }
+        }
+    }, []);
+
+    // Effect to save optimistic assets to localStorage
+    useEffect(() => {
+        if (!isClient) return;
+        localStorage.setItem('soobinvault_optimistic_assets', JSON.stringify(optimisticAssets));
+    }, [optimisticAssets, isClient]);
 
     // Modal State
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -170,11 +194,17 @@ export function Dashboard() {
                     name: e.detail.name,
                     size: e.detail.size,
                     transaction_hash: e.detail.txHash,
-                    timestamp: e.detail.timestamp,
+                    timestamp: e.detail.timestamp || Date.now(),
+                    isEncrypted: e.detail.isEncrypted,
                     isOptimistic: true,
                     status: 'syncing'
                 };
-                setOptimisticAssets(prev => [newAsset, ...prev]);
+                setOptimisticAssets(prev => {
+                    // Avoid duplicates in optimistic state
+                    const exists = prev.some(a => a.transaction_hash === newAsset.transaction_hash || a.name === newAsset.name);
+                    if (exists) return prev;
+                    return [newAsset, ...prev];
+                });
             }
             fetchBlobs();
         };
@@ -382,31 +412,12 @@ export function Dashboard() {
                                 <Lock size={48} className="mb-4 opacity-50" />
                                 <p>Connect your Petra Wallet to view your secure Vault.</p>
                             </div>
-                        ) : !encryptionKey ? (
-                            <div className="p-20 text-center flex flex-col items-center justify-center bg-[#050505] m-6 rounded-[2.5rem] border border-color-primary/20 shadow-[0_0_50px_rgba(232,58,118,0.05)] relative overflow-hidden group">
-                                <div className="absolute inset-0 bg-gradient-to-br from-color-primary/5 via-transparent to-color-accent/5 opacity-50" />
-                                <div className="relative z-10 w-full flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
-                                    <div className="w-24 h-24 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center mb-8 mx-auto shadow-[0_0_40px_rgba(232,58,118,0.2)] border border-color-primary/30">
-                                        <Lock size={48} className="text-color-primary" />
-                                    </div>
-                                    <h3 className="text-3xl font-bold text-white mb-4 tracking-tight">Vault Securely Locked</h3>
-                                    <p className="text-color-support/60 mb-10 max-w-sm mx-auto font-light leading-relaxed text-lg">
-                                        Your session has been locked for your security. Unlock the vault to decrypt and view your files.
-                                    </p>
-                                    <button
-                                        onClick={() => ensureKey(false)}
-                                        className="px-10 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold uppercase tracking-widest text-xs hover:scale-105 transition-all w-full max-w-xs shadow-[0_0_30px_rgba(255,255,255,0.05)]"
-                                    >
-                                        Unlock Secure Vault
-                                    </button>
-                                </div>
-                            </div>
-                        ) : isLoading ? (
+                        ) : isLoading && assets.length === 0 ? (
                             <div className="p-12 text-center text-color-support flex flex-col items-center">
                                 <div className="w-8 h-8 rounded-full border-t-2 border-b-2 border-color-primary animate-spin mb-4" />
                                 <p>Decrypting records and fetching from network nodes...</p>
                             </div>
-                        ) : assets.length === 0 ? (
+                        ) : assets.length === 0 && optimisticAssets.length === 0 ? (
                             <div className="p-20 text-center flex flex-col items-center justify-center bg-[#050505] m-6 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
                                 <div className="absolute inset-0 bg-gradient-to-br from-color-primary/5 via-transparent to-color-accent/5" />
                                 <div className="relative z-10">
@@ -565,10 +576,10 @@ export function Dashboard() {
                                     if (!assetHash && index === 0) {
                                         console.log("Asset structure debug (missing hash):", asset);
                                     }
-                                    const handleOpenPreview = () => {
+                                    const handleOpenPreviewLocal = () => {
                                         setSelectedAsset({
                                             name: displayName,
-                                            url: '',
+                                            url: downloadUrl || '',
                                             sizeStr: sizeMB,
                                             isImage: isImg,
                                             isVideo: isVid,
@@ -599,7 +610,9 @@ export function Dashboard() {
                                             fileInfo={fileInfo}
                                             isEncrypted={isEncrypted}
                                             downloadUrl={downloadUrl}
-                                            handleOpenPreview={handleOpenPreview}
+                                            blobAccount={finalIdentifier}
+                                            blobName={nameOnly}
+                                            handleOpenPreview={handleOpenPreviewLocal}
                                             assetHash={assetHash}
                                             txHash={txHash}
                                             deleteBlobs={deleteBlobs}
@@ -662,8 +675,8 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, downloadUrl, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
-    const { ensureKey } = useVaultKey();
+function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, downloadUrl, blobAccount, blobName, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
+    const { ensureKey, encryptionKey } = useVaultKey();
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -716,14 +729,41 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
         const downloadToastId = toast.loading(isEncrypted ? `Decrypting ${displayName}...` : `Downloading ${displayName}...`);
 
         try {
-            const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
-            const response = await fetch(downloadUrl!, {
-                headers: { 'Authorization': `Bearer ${apiKey.trim()}` }
-            });
+            let buffer: ArrayBuffer;
 
-            if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
-            const buffer = await response.arrayBuffer();
-            console.log(`[Dashboard] Fetched buffer for ${displayName}. Size: ${buffer.byteLength} bytes.`);
+            if (isEncrypted && blobAccount && blobName) {
+                // Use SDK for encrypted files to ensure proper protocol handling
+                const shelbyBlob = await shelbyClient.download({
+                    account: blobAccount,
+                    blobName: blobName
+                });
+
+                const reader = shelbyBlob.readable.getReader();
+                const chunks: Uint8Array[] = [];
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                }
+                const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
+                const rawBuffer = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of chunks) {
+                    rawBuffer.set(chunk, offset);
+                    offset += chunk.length;
+                }
+                buffer = rawBuffer.buffer;
+            } else {
+                const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
+                const response = await fetch(downloadUrl!, {
+                    headers: { 'Authorization': `Bearer ${apiKey.trim()}` }
+                });
+
+                if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+                buffer = await response.arrayBuffer();
+            }
+
+            console.log(`[Dashboard] Download fetched buffer for ${displayName}. Size: ${buffer.byteLength} bytes.`);
 
             if (buffer.byteLength === 0) {
                 toast.error("File content is empty. It may still be indexing or the upload was interrupted.", { id: downloadToastId, duration: 5000 });
@@ -819,10 +859,18 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
     };
 
 
+    const handleOpenPreviewLocal = () => {
+        if (isEncrypted && !encryptionKey) {
+            ensureKey(true);
+            return;
+        }
+        handleOpenPreview();
+    };
+
     return (
         <div
             className={`asset-row flex items-center justify-between md:grid md:grid-cols-12 gap-4 p-5 md:p-6 transition-all duration-500 relative overflow-hidden border-b border-white/5 last:border-0 hover:bg-white/[0.03] cursor-pointer group ${status !== 'live' ? 'opacity-80' : ''}`}
-            onClick={handleOpenPreview}
+            onClick={handleOpenPreviewLocal}
         >
             {/* Hover Background Artifact */}
             <div className="absolute inset-0 bg-gradient-to-r from-color-primary/[0.03] via-transparent to-color-accent/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -830,7 +878,9 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
             {/* Asset Identity */}
             <div className="flex-1 min-w-0 md:col-span-6 flex items-center gap-4 relative z-10 pr-2 md:pr-0">
                 <div className="w-12 h-12 rounded-xl glass-panel bg-[#050505] flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
-                    {isImg ? (
+                    {isEncrypted && !encryptionKey ? (
+                        <Lock className="text-color-primary animate-pulse" size={20} />
+                    ) : isImg ? (
                         <ImageIcon className="text-color-accent group-hover:text-white transition-colors" size={20} />
                     ) : isVid ? (
                         <Video className="text-purple-400 group-hover:text-white transition-colors" size={20} />
@@ -854,7 +904,9 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 </div>
                 <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-2">
-                        <span className="text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300">{displayName}</span>
+                        <span className={`text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300 ${isEncrypted && !encryptionKey ? 'blur-[4px] select-none opacity-50' : ''}`}>
+                            {isEncrypted && !encryptionKey ? "Encrypted Vault Asset" : displayName}
+                        </span>
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                         <span className="text-color-support/40 text-[10px] font-mono tracking-widest uppercase mt-0.5">
@@ -862,8 +914,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         </span>
                         <span className="text-color-support/20 text-[10px] mt-0.5">•</span>
                         {isEncrypted ? (
-                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mt-0.5 text-green-400">
-                                <ShieldCheck size={10} /> Encrypted
+                            <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mt-0.5 ${encryptionKey ? 'text-green-400' : 'text-color-primary'}`}>
+                                <ShieldCheck size={10} /> {encryptionKey ? 'Decrypted' : 'Locked'}
                             </span>
                         ) : (
                             <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mt-0.5 text-yellow-400">
@@ -892,16 +944,23 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 <span className="text-white/80 font-mono text-xs tracking-widest">{sizeMB} MB</span>
             </div>
 
-            {/* Download Button (Desktop Only) */}
+            {/* Download/Lock Button (Desktop Only) */}
             <div className="hidden w-full md:col-span-2 relative z-10 md:flex md:justify-center items-center mt-4 md:mt-0">
                 <button
-                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all duration-700 shadow-lg ${status === 'live'
-                        ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate'
+                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all duration-700 shadow-lg ${
+                        isEncrypted && !encryptionKey 
+                            ? 'bg-color-primary/10 border border-color-primary/30 text-color-primary hover:bg-color-primary hover:text-white'
+                        : status === 'live'
+                            ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate'
                         : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed border border-white/5'
                         } ${status === 'live' && asset.isOptimistic ? 'animate-bounce-short' : ''}`}
-                    title={status === 'live' ? "Download Payload" : "File sedang dalam proses finalisasi..."}
+                    title={isEncrypted && !encryptionKey ? "Unlock to Download" : status === 'live' ? "Download Payload" : "File sedang dalam proses finalisasi..."}
                     onClick={(e) => {
                         e.stopPropagation();
+                        if (isEncrypted && !encryptionKey) {
+                            ensureKey(true);
+                            return;
+                        }
                         if (status === 'live') {
                             handleDownload();
                         } else {
@@ -909,7 +968,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         }
                     }}
                 >
-                    <Download size={18} />
+                    {isEncrypted && !encryptionKey ? <Lock size={18} /> : <Download size={18} />}
                 </button>
             </div>
 
@@ -942,48 +1001,59 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-4" onClick={() => setIsMenuOpen(false)}></div>
 
                         <div className="mb-4 flex items-center gap-4 border-b border-white/5 pb-5">
-                            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 shadow-inner">
-                                {isImg ? <ImageIcon size={28} className="text-color-accent" /> : isVid ? <PackageOpen size={28} className="text-color-primary" /> : <FileText size={28} className="text-color-support" />}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <h3 className="text-white font-bold truncate text-xl leading-snug">{displayName}</h3>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className="px-2 py-0.5 rounded-md bg-white/5 text-color-support/40 text-[10px] font-mono tracking-widest uppercase border border-white/5">
-                                        {sizeMB} MB
-                                    </span>
-                                    <span className="text-color-support/20 text-[10px]">•</span>
-                                    {isEncrypted ? (
-                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-green-400">
-                                            <ShieldCheck size={10} /> Encrypted
-                                        </span>
-                                    ) : (
-                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-yellow-400">
-                                            <Globe size={10} /> Public
-                                        </span>
-                                    )}
+                                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 shadow-inner">
+                                    {isEncrypted && !encryptionKey ? <Lock size={28} className="text-color-primary animate-pulse" /> : isImg ? <ImageIcon size={28} className="text-color-accent" /> : isVid ? <PackageOpen size={28} className="text-color-primary" /> : <FileText size={28} className="text-color-support" />}
                                 </div>
-                            </div>
+                                <div className="min-w-0 flex-1">
+                                    <h3 className={`text-white font-bold truncate text-xl leading-snug ${isEncrypted && !encryptionKey ? 'blur-[6px] select-none opacity-50' : ''}`}>
+                                        {isEncrypted && !encryptionKey ? "Encrypted Asset" : displayName}
+                                    </h3>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="px-2 py-0.5 rounded-md bg-white/5 text-color-support/40 text-[10px] font-mono tracking-widest uppercase border border-white/5">
+                                            {sizeMB} MB
+                                        </span>
+                                        <span className="text-color-support/20 text-[10px]">•</span>
+                                        {isEncrypted ? (
+                                            <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest ${encryptionKey ? 'text-green-400' : 'text-color-primary'}`}>
+                                                <ShieldCheck size={10} /> {encryptionKey ? 'Decrypted' : 'Locked'}
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-yellow-400">
+                                                <Globe size={10} /> Public
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
                         </div>
 
                         <div className="space-y-3">
                             <button
                                 onClick={(e) => {
                                     setIsMenuOpen(false);
-                                    handleOpenPreview();
+                                    if (isEncrypted && !encryptionKey) {
+                                        ensureKey(true);
+                                    } else {
+                                        handleOpenPreview();
+                                    }
                                 }}
                                 className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 text-white active:bg-white/10 transition-all active:scale-[0.98] group"
                             >
-                                <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
-                                    <Eye size={22} />
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${isEncrypted && !encryptionKey ? 'bg-color-primary/10 text-color-primary' : 'bg-blue-500/10 text-blue-400'}`}>
+                                    {isEncrypted && !encryptionKey ? <Lock size={22} /> : <Eye size={22} />}
                                 </div>
                                 <div className="text-left">
-                                    <span className="block font-bold text-sm uppercase tracking-widest">Preview Asset</span>
-                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">Instant data visualization</span>
+                                    <span className="block font-bold text-sm uppercase tracking-widest">{isEncrypted && !encryptionKey ? 'Unlock Asset' : 'Preview Asset'}</span>
+                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">{isEncrypted && !encryptionKey ? 'Authorize to view content' : 'Instant data visualization'}</span>
                                 </div>
                             </button>
 
                             <button
                                 onClick={(e) => {
+                                    if (isEncrypted && !encryptionKey) {
+                                        setIsMenuOpen(false);
+                                        ensureKey(true);
+                                        return;
+                                    }
                                     if (status === 'live') {
                                         setIsMenuOpen(false);
                                         handleDownload(e);
@@ -991,14 +1061,14 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                         toast("File is being finalized... Please retry in 30 seconds.", { icon: '⏳' });
                                     }
                                 }}
-                                className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all active:scale-[0.98] group ${status === 'live' ? 'bg-color-accent/5 border-color-accent/20 text-white hover:bg-color-accent/10' : 'bg-white/5 border-transparent text-white/20'}`}
+                                className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all active:scale-[0.98] group ${isEncrypted && !encryptionKey ? 'bg-color-primary/5 border-color-primary/10 text-white' : status === 'live' ? 'bg-color-accent/5 border-color-accent/20 text-white hover:bg-color-accent/10' : 'bg-white/5 border-transparent text-white/20'}`}
                             >
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${status === 'live' ? 'bg-color-accent/20 text-color-accent shadow-[0_0_20px_rgba(232,58,118,0.2)]' : 'bg-white/5 text-white/10'}`}>
-                                    {status === 'live' ? <Download size={22} /> : <Clock size={22} className="animate-pulse" />}
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${isEncrypted && !encryptionKey ? 'bg-color-primary/20 text-color-primary shadow-[0_0_20px_rgba(232,58,118,0.2)]' : status === 'live' ? 'bg-color-accent/20 text-color-accent shadow-[0_0_20px_rgba(232,58,118,0.2)]' : 'bg-white/5 text-white/10'}`}>
+                                    {isEncrypted && !encryptionKey ? <Lock size={22} /> : status === 'live' ? <Download size={22} /> : <Clock size={22} className="animate-pulse" />}
                                 </div>
                                 <div className="text-left">
-                                    <span className="block font-bold text-sm uppercase tracking-widest">{status === 'live' ? 'Download Payload' : 'Finalizing...'}</span>
-                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">Retrieve from protocol</span>
+                                    <span className="block font-bold text-sm uppercase tracking-widest">{isEncrypted && !encryptionKey ? 'Unlock & Download' : status === 'live' ? 'Download Payload' : 'Finalizing...'}</span>
+                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">{isEncrypted && !encryptionKey ? 'Decrypt session key' : 'Retrieve from protocol'}</span>
                                 </div>
                             </button>
 
