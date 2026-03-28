@@ -113,7 +113,7 @@ export function Dashboard() {
                 blobNames: [nameSuffix]
             });
 
-            toast.success(`${selectedAsset.name} deleted successfully! Refreshing list...`, { id: 'delete-blob-modal' });
+            toast.success(`${selectedAsset.name} successfully removed from vault.`, { id: 'delete-blob-modal' });
 
             setIsPreviewModalOpen(false);
 
@@ -846,7 +846,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 blobNames: [nameSuffix]
             });
 
-            toast.success(`${displayName} deleted successfully! Refreshing list in 3 seconds...`, { id: 'delete-blob' });
+            toast.success(`${displayName} successfully removed from vault.`, { id: 'delete-blob' });
 
             // Wait for 3 seconds before refreshing to ensure the network has finalized the state
             setTimeout(() => {
