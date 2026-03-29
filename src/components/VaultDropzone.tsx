@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ChevronRight, ShieldOff } from 'lucide-react';
+import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, Unlock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ShieldCheck, ChevronRight, ShieldOff, Calendar, Clock, Coins, Check, Folder, ArrowDown } from 'lucide-react';
 import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -16,14 +16,24 @@ interface VaultDropzoneProps {
     refetch?: () => void;
 }
 
+const DURATION_OPTIONS = [
+    { label: '7 Days', value: 7 * 24 * 60 * 60 * 1000000, months: 0.25 },
+    { label: '1 Month', value: 30 * 24 * 60 * 60 * 1000000, months: 1 },
+    { label: '3 Months', value: 90 * 24 * 60 * 60 * 1000000, months: 3 },
+    { label: '6 Months', value: 180 * 24 * 60 * 60 * 1000000, months: 6 },
+    { label: '1 Year', value: 365 * 24 * 60 * 60 * 1000000, months: 12 },
+];
+
 export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const { account, signAndSubmitTransaction, wallet } = useWallet();
     const { ensureKey, encryptionKey } = useVaultKey();
     const [isDragging, setIsDragging] = useState(false);
-    const [encryptionEnabled, setEncryptionEnabled] = useState(true);
+    const [encryptionEnabled, setEncryptionEnabled] = useState(false);
     const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success'>('idle');
     const [uploadStatusText, setUploadStatusText] = useState<string>("Encrypting and distributing to nodes...");
     const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+    const [selectedDuration, setSelectedDuration] = useState(DURATION_OPTIONS[1]); // Default 1 Month
+    const [totalSize, setTotalSize] = useState<number>(0);
 
     // Multi-file queue state
     const [queue, setQueue] = useState<File[]>([]);
@@ -128,8 +138,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     },
                 },
                 blobs: blobsForSdk,
-                // 30 minutes instead of 24 hours to be safer with Keyless ephemeral keys
-                expirationMicros: Date.now() * 1000 + 1800000000,
+                expirationMicros: Date.now() * 1000 + selectedDuration.value,
             });
 
             console.log("[Shelby] Batch upload completed. Captured response:", caughtResponse);
@@ -173,6 +182,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
         setUploadState('uploading');
         setQueue(files);
+        
+        const sumSize = files.reduce((acc, f) => acc + f.size, 0);
+        setTotalSize(sumSize);
 
         const blobs: { blobName: string, blobData: Blob }[] = [];
         const processedFiles: File[] = [];
@@ -272,6 +284,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setUploadStatusText("Encrypting and distributing to nodes...");
         setLastTxHash(null);
         setPendingUploads(null);
+        setTotalSize(0);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -322,6 +335,14 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         );
     };
 
+    const getEstimatedCost = () => {
+        if (totalSize === 0) return "0.000";
+        // Simple formula: Size (MB) * Duration (Months) * 0.0001 APT
+        const sizeMB = totalSize / (1024 * 1024);
+        const cost = sizeMB * selectedDuration.months * 0.0001;
+        return cost.toFixed(4);
+    };
+
     return (
         <section id="vault" className="py-20 md:py-24 relative z-10 px-6">
             <div className="container mx-auto max-w-4xl text-center mb-8 md:mb-12">
@@ -329,7 +350,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 <p className="text-color-support/70 text-base md:text-xl font-light max-w-2xl mx-auto">Drag &amp; drop your digital assets to encrypt and fracture them across the global network.</p>
             </div>
 
-            <div className="container mx-auto max-w-3xl relative">
+            <div className="container mx-auto max-w-2xl relative">
                 <GlassCard
                     className={`transition-all duration-500 overflow-hidden relative bg-[#111827]/80 backdrop-blur-2xl hover:scale-[1.02] hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(251,179,204,0.3)] ${isDragging ? 'border-color-primary shadow-[0_0_50px_rgba(251,179,204,0.3)] bg-color-primary/10 scale-[1.03]' : 'border-white/10'
                         }`}
@@ -339,8 +360,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className="w-full min-h-[350px] md:min-h-[450px] flex flex-col items-center justify-center p-6 md:p-12 border-2 border-dashed border-transparent relative z-10 transition-colors"
-                        style={{ borderColor: isDragging ? 'rgba(251, 179, 204, 0.5)' : 'rgba(255, 255, 255, 0.15)' }}
+                        className={`w-full min-h-[300px] md:min-h-[400px] flex flex-col items-center justify-center p-5 md:p-10 relative z-10 transition-colors rounded-3xl ${isDragging ? 'bg-color-primary/5 shadow-[inset_0_0_100px_rgba(232,58,118,0.1)]' : 'bg-transparent'}`}
                     >
                         <input
                             type="file"
@@ -367,53 +387,75 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </button>
                             </div>
                         ) : uploadState === 'idle' && (
-                            <div className="flex flex-col items-center text-center w-full px-4">
-                                <div ref={iconRef} className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(251,179,204,0.2)]">
+                            <div className="flex flex-col items-center text-center w-full max-w-lg mx-auto px-1 md:px-4">
+                                
+                                {/* Top SoobinVault Glass Icon */}
+                                <div 
+                                    className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center mb-3 md:mb-4 transition-transform duration-500 ${
+                                        encryptionEnabled 
+                                            ? 'bg-gradient-to-b from-[#3a1c3b] to-[#1A0D12] border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.2)]'
+                                            : 'glass-panel bg-[#1A0D12]/80 border border-white/10'
+                                    }`}
+                                >
                                     {encryptionEnabled
-                                        ? <><UploadCloud size={40} strokeWidth={1.5} className="md:hidden text-color-accent" /><UploadCloud size={48} strokeWidth={1.5} className="hidden md:block text-color-accent" /></>
-                                        : <><ShieldOff size={40} strokeWidth={1.5} className="md:hidden text-yellow-400" /><ShieldOff size={48} strokeWidth={1.5} className="hidden md:block text-yellow-400" /></>
+                                        ? <ShieldCheck size={28} strokeWidth={2} className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.6)]" />
+                                        : <Shield size={28} strokeWidth={2} className="text-white/40" />
                                     }
                                 </div>
-                                <h3 className="text-2xl md:text-3xl font-semibold mb-2 text-white tracking-tight">Deploy Assets</h3>
-                                <p className="text-color-support/70 mb-5 text-sm md:text-base">Drag &amp; drop or tap to browse</p>
 
-                                {/* Encryption Toggle - More compact for user friendliness */}
-                                <div className="flex items-center gap-2.5 mb-4 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm scale-95 origin-center">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
-                                        className={`relative w-9 h-5 rounded-full transition-all duration-300 focus:outline-none ${
-                                            encryptionEnabled
-                                                ? 'bg-gradient-to-r from-color-primary to-color-accent shadow-[0_0_10px_rgba(232,58,118,0.4)]'
-                                                : 'bg-white/10'
-                                        }`}
-                                        aria-label="Toggle encryption"
-                                    >
-                                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ${
-                                            encryptionEnabled ? 'translate-x-4' : 'translate-x-0'
-                                        }`} />
-                                    </button>
-                                    <div className="text-left">
-                                        <p className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                                            encryptionEnabled ? 'text-color-primary' : 'text-yellow-400'
-                                        }`}>
-                                            {encryptionEnabled ? 'Encryption ON' : 'Encryption OFF'}
-                                        </p>
-                                        <p className="text-white/20 text-[9px]">
-                                            {encryptionEnabled ? 'End-to-end encrypted' : 'Plaintext upload'}
-                                        </p>
-                                    </div>
+                                <h3 className="text-xl md:text-3xl font-bold mb-1 md:mb-2 text-white tracking-tight">Deploy Assets</h3>
+                                <p className="text-color-support/80 mb-4 md:mb-6 text-xs md:text-sm">Drag and drop your files, or select from your device.</p>
+
+                                {/* Visual Dashed Dropzone Indicator */}
+                                <div className={`w-[85%] max-w-xs md:max-w-[420px] h-16 md:h-20 rounded-xl border-2 border-dashed mb-5 md:mb-6 flex flex-col items-center justify-center transition-all duration-300 pointer-events-none mx-auto ${isDragging ? 'border-color-primary bg-color-primary/10 scale-105' : 'border-white/20 bg-black/20'}`}>
+                                    <ArrowDown size={24} strokeWidth={1.5} className={`transition-all duration-300 ${isDragging ? 'text-color-primary animate-bounce' : 'text-white/40'}`} />
                                 </div>
 
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className={`px-12 py-4 md:px-16 md:py-5 rounded-full text-white transition-all duration-700 font-bold shadow-lg animate-glow-activate w-full sm:w-auto uppercase text-[10px] md:text-sm tracking-widest ${
+                                    className={`w-[85%] max-w-xs md:max-w-[420px] py-3.5 md:py-4 rounded-full transition-all duration-500 font-bold uppercase text-[11px] md:text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98] mb-5 md:mb-6 mx-auto ${
                                         encryptionEnabled
-                                            ? 'bg-color-accent/20 border border-color-accent/40 shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-accent hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)]'
-                                            : 'bg-yellow-500/20 border border-yellow-500/40 shadow-[0_0_20px_rgba(234,179,8,0.2)] hover:bg-yellow-500/40 hover:scale-110 hover:shadow-[0_0_35px_rgba(234,179,8,0.4)]'
+                                            ? 'bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 border border-yellow-200 text-yellow-950 shadow-[0_5px_30px_rgba(250,204,21,0.7)] hover:shadow-[0_10px_40px_rgba(250,204,21,0.9)] scale-105 animate-pulse-slow'
+                                            : 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)]'
                                     }`}
                                 >
                                     Select Files
                                 </button>
+
+                                {/* Checkbox-Style Encryption Toggle */}
+                                <div 
+                                    onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
+                                    className="w-full max-w-xs md:max-w-[420px] mx-auto flex items-center justify-center gap-3 cursor-pointer group px-2"
+                                >
+                                    {/* Checkbox square */}
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 shrink-0 ${
+                                        encryptionEnabled 
+                                            ? 'bg-color-primary border-color-primary text-white shadow-[0_0_10px_rgba(232,58,118,0.4)]' 
+                                            : 'border-white/40 bg-transparent group-hover:border-white/60'
+                                    }`}>
+                                        {encryptionEnabled && <Check size={14} strokeWidth={3} />}
+                                    </div>
+
+                                    {/* Lock Icon */}
+                                    {encryptionEnabled ? (
+                                        <Lock 
+                                            size={20} 
+                                            className="shrink-0 text-yellow-400 fill-yellow-400/20 drop-shadow-[0_0_12px_rgba(250,204,21,0.9)] transition-all duration-300 scale-110"
+                                        />
+                                    ) : (
+                                        <Unlock 
+                                            size={18} 
+                                            className="shrink-0 text-yellow-500/80 transition-colors duration-300 group-hover:text-yellow-400" 
+                                        />
+                                    )}
+
+                                    {/* Text */}
+                                    <span className={`text-[12px] md:text-sm tracking-wide transition-colors ${
+                                        encryptionEnabled ? 'text-white font-medium' : 'text-white/60 group-hover:text-white/80'
+                                    }`}>
+                                        Encrypt file before upload
+                                    </span>
+                                </div>
                             </div>
                         )}
                         {/* Uploading / Encrypting state */}
@@ -436,30 +478,77 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         {/* Ready to Deploy state */}
                         {uploadState === 'uploading' && pendingUploads && (
                             <div className="flex flex-col items-center text-center px-4 animate-in fade-in zoom-in-95 duration-500">
-                                <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-color-primary/20 border border-color-primary/30 flex items-center justify-center mb-6 text-color-primary shadow-[0_0_30px_rgba(232,58,118,0.2)]">
+                                <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-color-primary/20 border border-color-primary/30 flex items-center justify-center mb-6 text-color-primary shadow-[0_0_30px_rgba(232,58,118,0.2)]">
                                     <Shield size={32} strokeWidth={2} className="md:hidden" />
-                                    <Shield size={48} strokeWidth={2} className="hidden md:block" />
+                                    <Shield size={40} strokeWidth={2} className="hidden md:block" />
                                 </div>
-                                <h3 className="text-xl md:text-3xl font-semibold mb-2 text-white uppercase tracking-tight">
-                                    {encryptionEnabled ? 'Security Ready' : 'Ready to Deploy'}
+                                <h3 className="text-xl md:text-2xl font-semibold mb-6 text-white tracking-tight">
+                                    {encryptionEnabled ? 'Deploy Encrypted Assets' : 'Deploy Assets'}
                                 </h3>
-                                <p className="text-color-support text-xs md:text-lg mb-8 max-w-xs mx-auto font-light">
-                                    {pendingUploads.files.length} asset{pendingUploads.files.length > 1 ? 's' : ''} {encryptionEnabled ? 'encrypted.' : 'prepared (no encryption).'} Proceed to decentralized deployment?
-                                </p>
+                                
+                                {/* Storage Duration Selection */}
+                                <div className="w-full max-w-2xl flex flex-col gap-2 md:gap-3 mb-6 md:mb-8 text-left">
+                                    {/* Estimated Cost Box */}
+                                    <div className="bg-gradient-to-r from-color-primary/10 to-transparent border border-color-primary/30 rounded-xl md:rounded-2xl p-3.5 md:p-5 flex justify-between items-center gap-2 md:gap-0 transition-all hover:bg-color-primary/15 relative overflow-hidden group">
+                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-color-primary rounded-l-2xl" />
+                                        <div className="pl-2 shrink min-w-0 pr-2">
+                                            <h4 className="text-white font-semibold text-xs md:text-base tracking-wide flex items-center gap-1.5 md:gap-2 truncate">
+                                                <Coins size={14} className="text-color-primary shrink-0" />
+                                                <span className="truncate">Estimated Storage Cost</span>
+                                            </h4>
+                                            <p className="text-color-support/60 text-[10px] md:text-xs mt-0.5 md:mt-1 font-light truncate">For {selectedDuration.label.toLowerCase()} storage</p>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <p className="text-color-primary font-bold text-base md:text-xl flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                                ~ {getEstimatedCost()} <span className="text-[10px] md:text-sm text-color-primary/70 font-semibold tracking-wider">APT</span>
+                                            </p>
+                                            <p className="text-color-support/60 text-[9px] md:text-xs mt-1 md:mt-1.5 uppercase tracking-widest whitespace-nowrap">Payload: {(totalSize / (1024 * 1024)).toFixed(2)} MB</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Storage Duration Row */}
+                                    <div className="bg-white/5 border border-white/10 rounded-xl md:rounded-2xl p-3.5 md:p-5 flex justify-between items-center backdrop-blur-md gap-2 md:gap-0">
+                                        <div className="scrollbar-hide shrink min-w-0 pr-2">
+                                            <h4 className="text-white font-semibold text-xs md:text-base tracking-wide flex items-center gap-1.5 md:gap-2 truncate">
+                                                <Calendar size={14} className="text-color-support/70 shrink-0" />
+                                                <span className="truncate">Storage Duration</span>
+                                            </h4>
+                                            <p className="text-color-support/60 text-[10px] md:text-xs mt-0.5 md:mt-1 font-light truncate">How long to keep files on network</p>
+                                        </div>
+                                        <div className="relative group shrink-0">
+                                            <select 
+                                                value={selectedDuration.label}
+                                                onChange={(e) => {
+                                                    const opt = DURATION_OPTIONS.find(o => o.label === e.target.value);
+                                                    if (opt) setSelectedDuration(opt);
+                                                }}
+                                                className="w-24 md:w-48 appearance-none bg-black/40 border border-white/10 text-white text-[11px] md:text-sm font-medium rounded-lg md:rounded-xl px-2.5 md:px-3 py-2 md:py-3 pr-6 md:pr-8 outline-none focus:border-color-primary/50 cursor-pointer hover:bg-black/60 transition-colors"
+                                            >
+                                                {DURATION_OPTIONS.map(opt => (
+                                                    <option key={opt.label} value={opt.label} className="bg-gray-900 text-white py-2">{opt.label}</option>
+                                                ))}
+                                            </select>
+                                            <div className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 pointer-events-none text-color-support/60 group-hover:text-white transition-colors">
+                                                <ChevronRight size={12} className="rotate-90 md:w-4 md:h-4" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <button
                                     onClick={(e) => { e.stopPropagation(); handleDeploy(); }}
-                                    className="w-full sm:w-auto px-12 py-4 rounded-full bg-gradient-to-r from-color-primary to-color-accent text-white transition-all duration-300 font-bold shadow-[0_0_30px_rgba(232,58,118,0.3)] hover:scale-105 active:scale-95 uppercase text-xs tracking-widest relative overflow-hidden group"
+                                    className="w-full max-w-2xl px-12 py-4 rounded-xl bg-gradient-to-r from-color-primary to-color-accent text-white transition-all duration-300 font-bold shadow-[0_0_30px_rgba(232,58,118,0.3)] hover:scale-[1.02] active:scale-95 text-sm tracking-widest relative overflow-hidden group"
                                 >
                                     <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                                    <span className="relative flex items-center gap-2">
-                                        Confirm & Deploy <ChevronRight size={14} />
+                                    <span className="relative flex items-center justify-center gap-2">
+                                        Deploy {pendingUploads.files.length} Asset{pendingUploads.files.length !== 1 ? 's' : ''} <UploadCloud size={18} />
                                     </span>
                                 </button>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); resetTarget(); }}
-                                    className="mt-6 text-white/30 hover:text-white/60 text-[10px] uppercase tracking-[0.2em] transition-colors"
+                                    className="mt-6 text-white/30 hover:text-white/60 text-[10px] md:text-xs uppercase tracking-[0.2em] transition-colors pb-4"
                                 >
-                                    Cancel Batch
+                                    Cancel & Return
                                 </button>
                             </div>
                         )}
@@ -510,6 +599,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-color-primary/30 blur-[120px] rounded-full pointer-events-none transition-opacity duration-500 ${isDragging ? 'opacity-100' : 'opacity-0'}`} />
 
                 </GlassCard>
+
+
             </div>
         </section>
     );

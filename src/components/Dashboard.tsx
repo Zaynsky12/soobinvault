@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle, ShieldCheck, Globe, Video, Music, FileSpreadsheet, Presentation, Archive, File as FileGeneral, Code2, BookOpen } from 'lucide-react';
+import { Lock, FileText, LayoutGrid, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle, ShieldCheck, Globe, Video, Music, FileSpreadsheet, Presentation, Archive, File as FileGeneral, Code2, BookOpen, UploadCloud } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
@@ -73,6 +73,69 @@ export function Dashboard() {
     } | null>(null);
 
     const [decryptedNames, setDecryptedNames] = useState<Record<string, string>>({});
+    const [currentCategory, setCurrentCategory] = useState<string>('All');
+
+    // Compute unified assets, counts and filtered list
+    const { combinedAssets, filteredAssets, counts } = React.useMemo(() => {
+        const sortedReal = [...assets].sort((a, b) => {
+            const timeA = a.timestamp || a.creationMicros || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
+            const timeB = b.timestamp || b.creationMicros || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
+            if (timeA && timeB) return Number(timeB) - Number(timeA);
+            return 0;
+        });
+
+        // Dedup assets
+        const combined = [...optimisticAssets, ...sortedReal]
+            .filter((asset, index, self) => {
+                const tx = asset.transaction_hash || asset.tx_hash || asset.upload_tx_hash;
+                const name = asset.blobNameSuffix || asset.name;
+
+                return self.findIndex(a => {
+                    const aTx = a.transaction_hash || a.tx_hash || a.upload_tx_hash;
+                    const aName = a.blobNameSuffix || a.name;
+                    return (tx && aTx && tx === aTx) || (name && aName && name === aName);
+                }) === index;
+            });
+
+        // Calculate counts and perform filtering
+        const all = combined.length;
+        let imagesCount = 0, videosCount = 0, docsCount = 0;
+
+        const filtered = combined.filter(asset => {
+            const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || asset.blob_id || asset.blobId || (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) || '';
+            const nameStr = typeof asset.name === 'string' ? asset.name : '';
+            const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
+            const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+            const decryptedName = decryptedNames[nameOnly];
+            const nameToSearch = decryptedName || nameOnly || '';
+            const fileType = getFileType(nameToSearch);
+
+            // Update category counts
+            if (fileType.isImage) imagesCount++;
+            else if (fileType.isVideo) videosCount++;
+            else if (fileType.isDocument) docsCount++;
+
+            // Apply category filter
+            if (currentCategory === 'Image' && !fileType.isImage) return false;
+            if (currentCategory === 'Video' && !fileType.isVideo) return false;
+            if (currentCategory === 'Document' && !fileType.isDocument) return false;
+
+            // Apply search query filter
+            const query = (searchQuery || '').toLowerCase().trim();
+            if (!query) return true;
+
+            const matchesName = String(nameToSearch).toLowerCase().includes(query);
+            const matchesHash = assetHash && String(assetHash).toLowerCase().includes(query);
+
+            return matchesName || matchesHash;
+        });
+
+        return {
+            combinedAssets: combined,
+            filteredAssets: filtered,
+            counts: { all, images: imagesCount, videos: videosCount, docs: docsCount }
+        };
+    }, [assets, optimisticAssets, decryptedNames, searchQuery, currentCategory]);
 
     // Deletion Hook
     const deleteBlobs = useDeleteBlobs({
@@ -103,10 +166,10 @@ export function Dashboard() {
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
                         const { sequence_number, ...cleanTx } = tx;
-                        
+
                         const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
                         const finalTx = isSocialLogin ? cleanTx : { ...cleanTx, sender: undefined };
-                        
+
                         return signAndSubmitTransaction(finalTx);
                     },
                 } as any,
@@ -343,70 +406,77 @@ export function Dashboard() {
                     </div>
                 </div>
 
-                <div className="hidden md:flex flex-col md:flex-row justify-between items-start md:items-end mb-0 md:mb-12 md:border-b border-white/5 md:pb-8 md:mt-0 mt-48">
-                    <div className="hidden md:flex flex-col items-start">
-                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-4 transition-all duration-500 ${connected
-                            ? 'bg-green-500/10 border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
-                            : 'bg-red-500/10 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
-                            }`}>
-                            <span className={`w-2 h-2 rounded-full transition-all duration-500 ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-500'
-                                }`} />
-                            <span className={`text-[10px] font-bold uppercase tracking-[0.15em] transition-colors duration-500 ${connected ? 'text-green-400' : 'text-red-400'
-                                }`}>
-                                Vault Protocol {connected ? 'Active' : 'Inactive'}
-                            </span>
-                        </div>
-                        <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 text-white tracking-tight leading-none text-center md:text-left">{connected ? 'My Vault' : 'Your Vault'}</h2>
-                        <p className="text-color-support/60 text-base sm:text-lg font-normal max-w-md leading-relaxed text-center md:text-left mx-auto md:mx-0">Orchestrate and monitor your distributed assets across the decentralized infrastructure.</p>
-                    </div>
+                <div className="assets-container p-0 md:p-0 overflow-hidden border-none bg-transparent md:bg-[#0A0A0A]/60 md:backdrop-blur-3xl rounded-[2.5rem] max-w-4xl mx-auto md:shadow-2xl relative">
 
-                    <div className="w-full md:w-auto flex flex-col sm:flex-row items-center md:items-end gap-3 md:gap-4 mt-6 md:mt-0">
-                        {/* Desktop Only Stats & Search */}
-                        <div className="hidden md:flex flex-col md:flex-row items-end gap-4">
-                            <div className="dash-stat flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start w-full sm:w-auto md:min-w-[140px] px-6 py-4 rounded-2xl glass-panel bg-[#0A0A0A]/40 border-white/5 relative overflow-hidden group hover:border-color-primary/30 transition-all duration-500">
-                                <div className="absolute top-0 right-0 w-full h-[1px] bg-gradient-to-r from-transparent via-color-primary/20 to-transparent" />
-                                <span className="text-[10px] text-color-support/40 uppercase tracking-[0.15em] font-bold block md:mb-2">Total Assets</span>
-                                <span className="text-2xl md:text-3xl font-mono text-white tracking-tighter group-hover:text-color-primary transition-colors">{isLoading ? "..." : assets.length}</span>
+                    {/* Integrated Desktop Header (Search & Tabs) */}
+                    <div className="hidden md:block mx-6 pt-10 pb-0">
+                        {/* Elegant Search Bar */}
+                        <div className="relative mb-8 group/search">
+                            <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none text-color-support/40 group-focus-within/search:text-color-primary transition-colors">
+                                <Search size={20} />
                             </div>
+                            <input
+                                type="text"
+                                placeholder="Search your assets..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full bg-[#0A0A0A]/60 border border-white/5 rounded-2xl py-5 pl-16 pr-16 text-white text-lg outline-none focus:border-color-primary/30 focus:ring-1 focus:ring-color-primary/20 focus:bg-[#0A0A0A] transition-all placeholder:text-color-support/20 font-medium shadow-inner"
+                            />
+                            <button
+                                onClick={() => fetchBlobs()}
+                                disabled={isLoading}
+                                className={`absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/5 border border-white/10 text-color-support/40 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center group/sync ${isLoading ? 'opacity-50' : ''}`}
+                                title="Refresh Records"
+                            >
+                                <RefreshCw size={18} className={`transition-transform duration-1000 ${isLoading ? 'animate-spin' : 'group-hover/sync:rotate-180'}`} />
+                            </button>
+                        </div>
 
-                            <div className="dash-stat w-full md:min-w-[400px] relative flex items-center group/search">
-                                <div className="relative flex-grow">
-                                    <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none text-color-support/30 group-focus-within/search:text-color-primary transition-colors">
-                                        <Search size={18} />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        placeholder="Search Vault..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full bg-[#0A0A0A]/60 border border-white/10 rounded-2xl py-4 pl-14 pr-24 text-white text-sm outline-none focus:border-color-primary/40 focus:bg-[#0A0A0A]/80 transition-all glass-panel placeholder:text-color-support/20 font-medium"
-                                    />
+                        {/* Filter Tabs with Icons & Counts */}
+                        <div className="flex items-center justify-center gap-20 border-b border-white/5">
+                            {[
+                                { id: 'All', icon: LayoutGrid, count: counts.all },
+                                { id: 'Image', icon: ImageIcon, count: counts.images },
+                                { id: 'Video', icon: Video, count: counts.videos },
+                                { id: 'Document', icon: FileText, count: counts.docs }
+                            ].map((tab) => {
+                                const isActive = currentCategory === tab.id;
+                                const Icon = tab.icon;
+                                return (
                                     <button
-                                        onClick={() => fetchBlobs()}
-                                        disabled={isLoading}
-                                        className={`absolute right-2 top-2 bottom-2 px-4 rounded-xl border border-white/10 bg-white/5 text-color-support/50 hover:text-white hover:border-white/20 hover:bg-white/10 transition-all flex items-center justify-center gap-2 group/sync ${isLoading ? 'opacity-50' : ''}`}
-                                        title="Manual Sync"
+                                        key={tab.id}
+                                        onClick={() => {
+                                            setCurrentCategory(tab.id);
+                                            // Reset search query if clicking categories to avoid conflict unless searching
+                                            if (searchQuery && !['image', 'video', 'document'].includes(searchQuery.toLowerCase())) {
+                                                // Keep search query if it's text, but if it was a category chip reset it
+                                            }
+                                        }}
+                                        className={`relative pb-6 flex items-center gap-3 group transition-all ${isActive ? 'text-color-primary' : 'text-color-support/40 hover:text-white'}`}
                                     >
-                                        <RefreshCw size={16} className={`transition-transform duration-700 ${isLoading ? 'animate-spin' : 'group-hover/sync:rotate-180'}`} />
-                                        <span className="text-[10px] font-bold uppercase tracking-widest">Sync</span>
+                                        <Icon size={18} className={`${isActive ? 'text-color-primary' : 'text-color-support/30 group-hover:text-white/60'}`} />
+                                        <span className="text-[11px] font-black uppercase tracking-[0.2em]">
+                                            {tab.id} <span className="opacity-40 font-mono ml-1">({tab.count})</span>
+                                        </span>
+                                        {isActive && (
+                                            <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-gradient-to-r from-color-primary to-color-accent rounded-full shadow-[0_0_15px_rgba(232,58,118,0.5)]" />
+                                        )}
                                     </button>
-                                </div>
-                            </div>
+                                );
+                            })}
                         </div>
                     </div>
-                </div>
 
-                <GlassCard className="assets-container p-0 md:p-0 overflow-hidden border-none md:border md:border-white/5 bg-transparent md:bg-[#050505]/90 backdrop-blur-3xl rounded-3xl">
                     {/* Table Header (Desktop Only) */}
-                    <div className="hidden md:grid grid-cols-12 gap-4 p-5 border-b border-white/5 text-color-support/40 text-[10px] font-bold uppercase tracking-[0.2em] bg-[#0A0A0A]">
-                        <div className="col-span-6">Asset Name</div>
-                        <div className="col-span-2">Capacity</div>
-                        <div className="col-span-2 text-center">Download</div>
-                        <div className="col-span-2 text-right">DELETE</div>
+                    <div className="hidden md:grid grid-cols-12 gap-4 mx-6 px-10 py-6 border-b border-white/5 text-color-support/30 text-[10px] font-bold uppercase tracking-[0.25em] bg-black/20 rounded-t-2xl">
+                        <div className="col-span-5">Asset Name</div>
+                        <div className="col-span-2 text-center">Capacity</div>
+                        <div className="col-span-2 text-center">Status</div>
+                        <div className="col-span-3 text-center">Actions</div>
                     </div>
 
                     {/* Asset Rows/List */}
-                    <div className="md:divide-y md:divide-white/5 min-h-[200px] md:max-w-none max-w-2xl mx-auto divide-y divide-white/5 bg-white/[0.02] border border-white/10 rounded-2xl md:bg-transparent md:border-none md:rounded-none relative shadow-2xl">
+                    <div className="md:divide-y md:divide-white/5 min-h-[200px] md:max-w-none max-w-2xl mx-auto divide-y divide-white/5 bg-[#0D0D0D]/40 border border-white/5 rounded-2xl md:rounded-t-none md:rounded-b-2xl relative shadow-2xl mx-6 mb-10 mt-2 md:mx-6 md:mb-10 md:mt-0 overflow-hidden">
                         {!account ? (
                             <div className="p-12 text-center text-color-support/60 flex flex-col items-center">
                                 <Lock size={48} className="mb-4 opacity-50" />
@@ -437,68 +507,13 @@ export function Dashboard() {
                                 </div>
                             </div>
                         ) : (
-                            (() => {
-                                const sortedReal = [...assets].sort((a, b) => {
-                                    const timeA = a.timestamp || a.creationMicros || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
-                                    const timeB = b.timestamp || b.creationMicros || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
-                                    if (timeA && timeB) return Number(timeB) - Number(timeA);
-                                    return 0;
-                                });
-
-                                // Optimistic assets (just uploaded) always go to the top
-                                const combined = [...optimisticAssets, ...sortedReal]
-                                    .filter((asset, index, self) => {
-                                        const tx = asset.transaction_hash || asset.tx_hash || asset.upload_tx_hash;
-                                        const name = asset.blobNameSuffix || asset.name;
-
-                                        return self.findIndex(a => {
-                                            const aTx = a.transaction_hash || a.tx_hash || a.upload_tx_hash;
-                                            const aName = a.blobNameSuffix || a.name;
-                                            return (tx && aTx && tx === aTx) || (name && aName && name === aName);
-                                        }) === index;
-                                    });
-
-                                const filteredAssets = combined.filter(asset => {
-                                    const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || asset.blob_id || asset.blobId || (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) || '';
-                                    const nameStr = typeof asset.name === 'string' ? asset.name : '';
-                                    const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
-                                    const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
-
-                                    const decryptedName = decryptedNames[nameOnly];
-                                    const nameToSearch = decryptedName || nameOnly || '';
-                                    const fileType = getFileType(nameToSearch);
-
-                                    const query = (searchQuery || '').toLowerCase().trim();
-                                    if (!query) return true;
-
-                                    const matchesName = String(nameToSearch).toLowerCase().includes(query);
-                                    const matchesHash = assetHash && String(assetHash).toLowerCase().includes(query);
-                                    
-                                    // Category matching
-                                    const isImageQuery = query === 'image' || query === 'photo' || query === 'pic' || query === 'img';
-                                    const isVideoQuery = query === 'video' || query === 'movie' || query === 'clip' || query === 'vid';
-                                    const isAudioQuery = query === 'audio' || query === 'music' || query === 'song' || query === 'mp3';
-                                    const isDocQuery = query === 'document' || query === 'doc' || query === 'pdf' || query === 'file';
-
-                                    const matchesCategory = 
-                                        (isImageQuery && fileType.isImage) ||
-                                        (isVideoQuery && fileType.isVideo) ||
-                                        (isAudioQuery && fileType.isAudio) ||
-                                        (isDocQuery && fileType.isDocument);
-
-                                    return matchesName || matchesHash || matchesCategory;
-                                });
-
-                                if (filteredAssets.length === 0 && (searchQuery || '').trim() !== '') {
-                                    return (
-                                        <div className="p-16 text-center flex flex-col items-center justify-center opacity-70 w-full animate-in fade-in duration-500">
-                                            <Search size={48} className="mb-4 opacity-30 text-white" />
-                                            <p className="text-color-support/60 text-lg">No assets found matching <span className="text-white font-bold">"{searchQuery}"</span></p>
-                                        </div>
-                                    );
-                                }
-
-                                return filteredAssets.map((asset, index) => {
+                            filteredAssets.length === 0 && (searchQuery || '').trim() !== '' ? (
+                                <div className="p-16 text-center flex flex-col items-center justify-center opacity-70 w-full animate-in fade-in duration-500">
+                                    <Search size={48} className="mb-4 opacity-30 text-white" />
+                                    <p className="text-color-support/60 text-lg">No assets found matching <span className="text-white font-bold">"{searchQuery}"</span></p>
+                                </div>
+                            ) : (
+                                filteredAssets.map((asset, index) => {
                                     const nameStr = typeof asset.name === 'string' ? asset.name : '';
                                     const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
                                     const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
@@ -625,16 +640,12 @@ export function Dashboard() {
                                         />
                                     );
                                 })
-                            })()
+                            )
                         )}
                     </div>
 
-                    {/* Pagination / Footer */}
-                    <div className="p-6 border-t border-white/5 flex justify-between items-center bg-black/30">
-                        <span className="text-sm text-color-support/50 font-medium">Viewing secure assets on the decentralized network.</span>
-                    </div>
-                </GlassCard>
-
+                    <div className="pb-8" />
+                </div>
             </div>
 
             {/* Link Preview Modal */}
@@ -836,10 +847,10 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
                         const { sequence_number, ...cleanTx } = tx;
-                        
+
                         const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
                         const finalTx = isSocialLogin ? cleanTx : { ...cleanTx, sender: undefined };
-                        
+
                         return signAndSubmitTransaction(finalTx);
                     },
                 } as any,
@@ -869,61 +880,115 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
 
     return (
         <div
-            className={`asset-row flex items-center justify-between md:grid md:grid-cols-12 gap-4 p-5 md:p-6 transition-all duration-500 relative overflow-hidden border-b border-white/5 last:border-0 hover:bg-white/[0.03] cursor-pointer group ${status !== 'live' ? 'opacity-80' : ''}`}
+            className={`asset-row flex items-center justify-between md:grid md:grid-cols-12 gap-4 px-4 md:px-10 py-4 md:py-6 transition-all duration-500 relative overflow-hidden border-b border-white/5 last:border-0 hover:bg-white/[0.02] cursor-pointer group ${status !== 'live' ? 'opacity-80' : ''}`}
             onClick={handleOpenPreviewLocal}
         >
             {/* Hover Background Artifact */}
-            <div className="absolute inset-0 bg-gradient-to-r from-color-primary/[0.03] via-transparent to-color-accent/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-r from-color-primary/[0.01] via-transparent to-color-accent/[0.01] opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
             {/* Asset Identity */}
-            <div className="flex-1 min-w-0 md:col-span-6 flex items-center gap-4 relative z-10 pr-2 md:pr-0">
-                <div className="w-12 h-12 rounded-xl glass-panel bg-[#050505] flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
+            <div className="flex-1 min-w-0 md:col-span-5 flex items-center gap-5 relative z-10 pr-2 md:pr-0">
+                <div className="w-14 h-14 rounded-2xl bg-[#080808] flex items-center justify-center shadow-xl group-hover:scale-105 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
                     {isEncrypted && !encryptionKey ? (
-                        <Lock className="text-color-primary animate-pulse" size={20} />
+                        <Lock className="text-color-primary animate-pulse" size={22} />
                     ) : isImg ? (
-                        <ImageIcon className="text-color-accent group-hover:text-white transition-colors" size={20} />
+                        <ImageIcon className="text-yellow-500 group-hover:text-yellow-400 transition-colors" size={22} />
                     ) : isVid ? (
-                        <Video className="text-purple-400 group-hover:text-white transition-colors" size={20} />
+                        <Video className="text-purple-400 group-hover:text-purple-300 transition-colors" size={22} />
                     ) : isAudio ? (
-                        <Music className="text-blue-400 group-hover:text-white transition-colors" size={20} />
-                    ) : fileInfo?.isPdf ? (
-                        <FileText className="text-red-400 group-hover:text-white transition-colors" size={20} />
-                    ) : fileInfo?.isSpreadsheet ? (
-                        <FileSpreadsheet className="text-green-400 group-hover:text-white transition-colors" size={20} />
-                    ) : fileInfo?.isPresentation ? (
-                        <Presentation className="text-orange-400 group-hover:text-white transition-colors" size={20} />
-                    ) : fileInfo?.isArchive ? (
-                        <Archive className="text-yellow-400 group-hover:text-white transition-colors" size={20} />
-                    ) : isTxt ? (
-                        <Code2 className="text-color-support group-hover:text-white transition-colors" size={20} />
+                        <Music className="text-blue-400 group-hover:text-blue-300 transition-colors" size={22} />
                     ) : isDocument ? (
-                        <BookOpen className="text-color-support group-hover:text-white transition-colors" size={20} />
+                        <FileText className="text-emerald-400 group-hover:text-emerald-300 transition-colors" size={22} />
                     ) : (
-                        <FileGeneral className="text-color-support/40 group-hover:text-white transition-colors" size={20} />
+                        <FileGeneral className="text-color-support/40 transition-colors" size={22} />
                     )}
                 </div>
                 <div className="flex flex-col min-w-0">
-                    <div className="flex items-center gap-2">
-                        <span className={`text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300 ${isEncrypted && !encryptionKey ? 'blur-[4px] select-none opacity-50' : ''}`}>
-                            {isEncrypted && !encryptionKey ? "Encrypted Vault Asset" : displayName}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                        <span className="text-color-support/40 text-[10px] font-mono tracking-widest uppercase mt-0.5">
+                    <span className={`text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300 ${isEncrypted && !encryptionKey ? 'blur-[5px] select-none opacity-50' : ''}`}>
+                        {isEncrypted && !encryptionKey ? "Encrypted Vault Asset" : displayName}
+                    </span>
+
+                    {/* Mobile Subtitle (Size & Status) */}
+                    <div className="flex items-center gap-2 mt-1.5 md:hidden">
+                        <span className="px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-color-support/40 text-[9px] uppercase font-mono tracking-widest">
                             {sizeMB} MB
                         </span>
-                        <span className="text-color-support/20 text-[10px] mt-0.5">•</span>
+                        <span className="text-color-support/20 select-none">•</span>
                         {isEncrypted ? (
-                            <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mt-0.5 ${encryptionKey ? 'text-green-400' : 'text-color-primary'}`}>
-                                <ShieldCheck size={10} /> {encryptionKey ? 'Decrypted' : 'Locked'}
+                            <span className={`text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 ${encryptionKey ? 'text-green-400' : 'text-color-primary'}`}>
+                                {encryptionKey ? <ShieldCheck size={10} className="text-green-400" /> : <Lock size={10} className="text-color-primary" />}
+                                {encryptionKey ? 'DECRYPTED' : 'LOCKED'}
                             </span>
                         ) : (
-                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mt-0.5 text-yellow-400">
-                                <Globe size={10} /> Public
+                            <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-yellow-500">
+                                <Globe size={10} className="text-yellow-500" />
+                                PUBLIC
                             </span>
                         )}
                     </div>
                 </div>
+            </div>
+
+            {/* Capacity (Desktop Only) */}
+            <div className="hidden md:flex md:col-span-2 relative z-10 justify-center">
+                <div className="px-3 py-1 rounded-lg bg-white/5 border border-white/5 font-mono text-[11px] text-color-support/60 tracking-widest uppercase">
+                    {sizeMB} MB
+                </div>
+            </div>
+
+            {/* Status (Desktop Only) */}
+            <div className="hidden md:flex md:col-span-2 relative z-10 justify-center">
+                {isEncrypted ? (
+                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border ${encryptionKey ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-color-primary/10 border-color-primary/30 text-color-primary'}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${encryptionKey ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-color-primary shadow-[0_0_8px_rgba(232,58,118,0.5)] animate-pulse'}`} />
+                        {encryptionKey ? 'DECRYPTED' : 'LOCKED'}
+                    </div>
+                ) : (
+                    <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
+                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]" />
+                        PUBLIC
+                    </div>
+                )}
+            </div>
+
+            {/* Actions (Desktop Only) */}
+            <div className="hidden md:flex md:col-span-3 relative z-10 justify-center items-center gap-3">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (isEncrypted && !encryptionKey) {
+                            ensureKey(true);
+                            return;
+                        }
+                        if (status === 'live') {
+                            handleDownload();
+                        } else {
+                            toast("File indexing...", { icon: '⏳' });
+                        }
+                    }}
+                    className={`flex items-center justify-center p-2.5 rounded-xl transition-all shadow-lg group/download active:scale-95 ${isEncrypted && !encryptionKey
+                            ? 'bg-white/5 border border-white/10 text-white/40 hover:bg-white/10'
+                            : status === 'live'
+                                ? 'bg-white/10 border border-white/20 text-white hover:bg-color-primary hover:border-color-primary hover:scale-[1.02] shadow-[0_0_20px_rgba(232,58,118,0.1)]'
+                                : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed border border-white/5'
+                        }`}
+                    title="Download asset"
+                >
+                    <Download size={16} />
+                </button>
+
+                <button
+                    onClick={handleDelete}
+                    disabled={deleteBlobs.isPending}
+                    className="flex items-center justify-center p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-all duration-300 shadow-xl group/delete active:scale-95"
+                    title="Permanently remove from vault"
+                >
+                    {deleteBlobs.isPending ? (
+                        <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                        <Trash2 size={16} />
+                    )}
+                </button>
             </div>
 
             {/* Mobile 3-Dot Menu Button */}
@@ -936,55 +1001,6 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                     }}
                 >
                     <MoreVertical size={20} />
-                </button>
-            </div>
-
-            {/* Capacity (Desktop Only) */}
-            <div className="hidden md:flex md:col-span-2 relative z-10 flex-col">
-                <span className="text-white/80 font-mono text-xs tracking-widest">{sizeMB} MB</span>
-            </div>
-
-            {/* Download/Lock Button (Desktop Only) */}
-            <div className="hidden w-full md:col-span-2 relative z-10 md:flex md:justify-center items-center mt-4 md:mt-0">
-                <button
-                    className={`w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl transition-all duration-700 shadow-lg ${
-                        isEncrypted && !encryptionKey 
-                            ? 'bg-color-primary/10 border border-color-primary/30 text-color-primary hover:bg-color-primary hover:text-white'
-                        : status === 'live'
-                            ? 'bg-color-accent/20 border border-color-accent/40 text-white hover:bg-color-accent hover:scale-110 shadow-[0_0_20px_rgba(232,58,118,0.2)] animate-glow-activate'
-                        : 'bg-white/5 text-color-support/20 opacity-50 cursor-not-allowed border border-white/5'
-                        } ${status === 'live' && asset.isOptimistic ? 'animate-bounce-short' : ''}`}
-                    title={isEncrypted && !encryptionKey ? "Unlock to Download" : status === 'live' ? "Download Payload" : "File sedang dalam proses finalisasi..."}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (isEncrypted && !encryptionKey) {
-                            ensureKey(true);
-                            return;
-                        }
-                        if (status === 'live') {
-                            handleDownload();
-                        } else {
-                            toast("File is being finalized... Please retry in 30 seconds.", { icon: '⏳' });
-                        }
-                    }}
-                >
-                    {isEncrypted && !encryptionKey ? <Lock size={18} /> : <Download size={18} />}
-                </button>
-            </div>
-
-            {/* Actions Button (Delete) (Desktop Only) */}
-            <div className="hidden w-full md:col-span-2 relative z-10 md:flex md:justify-end items-center mb-2 md:mb-0">
-                <button
-                    className="w-full md:w-11 md:h-11 flex items-center justify-center gap-3 md:gap-0 px-5 py-3 md:p-0 rounded-xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-300 shadow-lg group/delete"
-                    onClick={handleDelete}
-                    title="Delete"
-                    disabled={deleteBlobs.isPending}
-                >
-                    {deleteBlobs.isPending ? (
-                        <Loader2 size={18} className="animate-spin" />
-                    ) : (
-                        <Trash2 size={18} />
-                    )}
                 </button>
             </div>
 
@@ -1001,29 +1017,29 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-4" onClick={() => setIsMenuOpen(false)}></div>
 
                         <div className="mb-4 flex items-center gap-4 border-b border-white/5 pb-5">
-                                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 shadow-inner">
-                                    {isEncrypted && !encryptionKey ? <Lock size={28} className="text-color-primary animate-pulse" /> : isImg ? <ImageIcon size={28} className="text-color-accent" /> : isVid ? <PackageOpen size={28} className="text-color-primary" /> : <FileText size={28} className="text-color-support" />}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <h3 className={`text-white font-bold truncate text-xl leading-snug ${isEncrypted && !encryptionKey ? 'blur-[6px] select-none opacity-50' : ''}`}>
-                                        {isEncrypted && !encryptionKey ? "Encrypted Asset" : displayName}
-                                    </h3>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="px-2 py-0.5 rounded-md bg-white/5 text-color-support/40 text-[10px] font-mono tracking-widest uppercase border border-white/5">
-                                            {sizeMB} MB
+                            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 shadow-inner">
+                                {isEncrypted && !encryptionKey ? <Lock size={28} className="text-color-primary animate-pulse" /> : isImg ? <ImageIcon size={28} className="text-color-accent" /> : isVid ? <PackageOpen size={28} className="text-color-primary" /> : <FileText size={28} className="text-color-support" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h3 className={`text-white font-bold truncate text-xl leading-snug ${isEncrypted && !encryptionKey ? 'blur-[6px] select-none opacity-50' : ''}`}>
+                                    {isEncrypted && !encryptionKey ? "Encrypted Asset" : displayName}
+                                </h3>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="px-2 py-0.5 rounded-md bg-white/5 text-color-support/40 text-[10px] font-mono tracking-widest uppercase border border-white/5">
+                                        {sizeMB} MB
+                                    </span>
+                                    <span className="text-color-support/20 text-[10px]">•</span>
+                                    {isEncrypted ? (
+                                        <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest ${encryptionKey ? 'text-green-400' : 'text-color-primary'}`}>
+                                            <ShieldCheck size={10} /> {encryptionKey ? 'Decrypted' : 'Locked'}
                                         </span>
-                                        <span className="text-color-support/20 text-[10px]">•</span>
-                                        {isEncrypted ? (
-                                            <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest ${encryptionKey ? 'text-green-400' : 'text-color-primary'}`}>
-                                                <ShieldCheck size={10} /> {encryptionKey ? 'Decrypted' : 'Locked'}
-                                            </span>
-                                        ) : (
-                                            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-yellow-400">
-                                                <Globe size={10} /> Public
-                                            </span>
-                                        )}
-                                    </div>
+                                    ) : (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-yellow-400">
+                                            <Globe size={10} /> Public
+                                        </span>
+                                    )}
                                 </div>
+                            </div>
                         </div>
 
                         <div className="space-y-3">
