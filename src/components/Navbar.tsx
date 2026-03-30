@@ -327,7 +327,7 @@ export default function Navbar(): React.ReactNode {
                         <span className="font-bold text-sm text-white">SoobinVault</span>
                     </Link>
                     <MagneticButton
-                        className="bg-color-primary/10 border border-color-primary/30 text-color-primary text-[10px] px-6 py-2 font-bold uppercase tracking-widest hover:bg-color-primary hover:text-white transition-all rounded-xl"
+                        className="bg-color-primary/10 border border-color-primary/30 text-color-primary text-[9px] px-4 py-1.5 font-bold uppercase tracking-widest hover:bg-color-primary hover:text-white transition-all rounded-xl"
                         onClick={handleWalletClick}
                     >
                         {isLoading ? "..." : (connected && account) ? `${account.address.toString().slice(0, 4)}...` : "Connect"}

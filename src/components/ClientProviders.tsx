@@ -77,10 +77,8 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
                         <main className="flex-grow">
                             {children}
                         </main>
-                        {/* Hide footer on mobile for vault-related pages */}
-                        <div className={isVaultPage ? "hidden md:block" : ""}>
-                            <Footer />
-                        </div>
+                        {/* Hide footer entirely for vault-related pages */}
+                        {!isVaultPage && <Footer />}
                     </VaultKeyProvider>
                 </ShelbyClientProvider>
             )}
