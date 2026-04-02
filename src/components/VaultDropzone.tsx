@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, Unlock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ShieldCheck, ChevronRight, ShieldOff, Calendar, Clock, Coins, Check, Folder, ArrowDown, Banknote, Tag, AlignLeft, BrainCircuit, Globe } from 'lucide-react';
 import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
+import { MARKETPLACE_REGISTRY_ADDRESS } from '../lib/constants';
 import gsap from 'gsap';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
@@ -37,7 +38,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const [uploadMode, setUploadMode] = useState<'vault' | 'micropayment'>('vault');
     const [priceShelbyUSD, setPriceShelbyUSD] = useState<string>('0.1');
     const [datasetCategory, setDatasetCategory] = useState<string>('NLP');
-    const [datasetAccess, setDatasetAccess] = useState<'paid' | 'free'>('paid');
+    const [datasetDescription, setDatasetDescription] = useState<string>('');
+    const [datasetAccess, setDatasetAccess] = useState<'paid' | 'free'>('free');
 
     // Multi-file queue state
     const [queue, setQueue] = useState<File[]>([]);
@@ -141,9 +143,23 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         return promise as any;
                     },
                 },
-                blobs: blobsForSdk,
+                blobs: backupBlobs.map((b, i) => {
+                    const originalName = b.blobName;
+                    const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
+                    // Prefix metadata into name for Indexer Discovery (No-Contract Pattern)
+                    const marketName = uploadMode === 'micropayment' 
+                        ? `sv_market::${datasetCategory}::${effectivePrice}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`
+                        : originalName;
+
+                    return {
+                        blobName: marketName,
+                        blobData: blobsForSdk[i].blobData
+                    };
+                }),
                 expirationMicros: Date.now() * 1000 + selectedDuration.value,
             });
+
+            // No post-upload registration needed (prefix discovery pattern)
 
             console.log("[Shelby] Batch upload completed. Captured response:", caughtResponse);
             if (caughtResponse && (caughtResponse as any).hash) {
@@ -289,6 +305,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setLastTxHash(null);
         setPendingUploads(null);
         setTotalSize(0);
+        setDatasetDescription('');
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -447,16 +464,16 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1">Access Type</label>
                                         <div className="flex w-full bg-black/40 rounded-full p-1 mb-4 border border-indigo-500/30 shadow-inner">
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); setDatasetAccess('paid'); }}
-                                                className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'paid' ? 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'text-white/40 hover:text-white/80'}`}
-                                            >
-                                                <Banknote size={14} /> Paid
-                                            </button>
-                                            <button
                                                 onClick={(e) => { e.stopPropagation(); setDatasetAccess('free'); }}
                                                 className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'free' ? 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'text-white/40 hover:text-white/80'}`}
                                             >
                                                 <Globe size={14} /> Free
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setDatasetAccess('paid'); }}
+                                                className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'paid' ? 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'text-white/40 hover:text-white/80'}`}
+                                            >
+                                                <Banknote size={14} /> Paid
                                             </button>
                                         </div>
 
@@ -469,16 +486,24 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                                     </div>
                                                     <input 
                                                         type="number" 
-                                                        min="0.000001"
-                                                        step="0.000001"
+                                                        min="0"
+                                                        step="0.01"
                                                         value={priceShelbyUSD}
                                                         onChange={(e) => setPriceShelbyUSD(e.target.value)}
                                                         onClick={(e) => e.stopPropagation()}
-                                                        className="w-full bg-[#050505]/80 border border-indigo-500/30 focus:border-indigo-400/80 focus:ring-1 focus:ring-indigo-500/50 rounded-xl py-3 pl-10 pr-16 text-white text-sm outline-none transition-all placeholder:text-white/20 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        className="w-full bg-[#050505]/80 border border-indigo-500/30 focus:border-indigo-400/80 focus:ring-1 focus:ring-indigo-500/50 rounded-xl py-3 pl-10 pr-24 text-white text-sm outline-none transition-all placeholder:text-white/20 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-mono"
                                                         placeholder="0.1"
                                                     />
-                                                    <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
-                                                        <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">SUSD</span>
+                                                    <div className="absolute inset-y-0 right-1 flex items-center gap-1 pr-1.5">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setPriceShelbyUSD(prev => (Math.max(0, parseFloat(prev) - 0.1)).toFixed(1)); }}
+                                                            className="w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 hover:border-indigo-500/50 transition-all font-bold"
+                                                        >-</button>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setPriceShelbyUSD(prev => (parseFloat(prev) + 0.1).toFixed(1)); }}
+                                                            className="w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 hover:border-indigo-500/50 transition-all font-bold"
+                                                        >+</button>
+                                                        <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest ml-1 mr-1.5 select-none">SUSD</span>
                                                     </div>
                                                 </div>
                                             </>
@@ -509,6 +534,21 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                             <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
                                                 <ChevronRight size={14} className="rotate-90 text-indigo-400/60" />
                                             </div>
+                                        </div>
+
+                                        <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1 mt-4">Dataset Description</label>
+                                        <div className="relative group mb-4">
+                                            <div className="absolute top-3 left-3 flex items-start pointer-events-none">
+                                                <AlignLeft size={16} className="text-color-support/50 group-focus-within:text-indigo-400 transition-colors" />
+                                            </div>
+                                            <textarea
+                                                value={datasetDescription}
+                                                onChange={(e) => setDatasetDescription(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                rows={3}
+                                                className="w-full bg-[#050505]/80 border border-indigo-500/30 focus:border-indigo-400/80 focus:ring-1 focus:ring-indigo-500/50 rounded-xl py-3 pl-10 pr-4 text-white text-sm outline-none transition-all placeholder:text-white/20 shadow-[inset_0_2px_100_rgba(0,0,0,0.5)] resize-none"
+                                                placeholder="Describe the contents, quality, and use cases of your dataset..."
+                                            />
                                         </div>
                                     </div>
                                 )}

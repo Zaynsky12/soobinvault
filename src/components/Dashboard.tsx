@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, LayoutGrid, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle, ShieldCheck, Globe, Video, Music, FileSpreadsheet, Presentation, Archive, File as FileGeneral, Code2, BookOpen, UploadCloud } from 'lucide-react';
+import { Lock, FileText, LayoutGrid, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle, ShieldCheck, Globe, Video, Music, FileSpreadsheet, Presentation, Archive, File as FileGeneral, Code2, BookOpen, UploadCloud, Tag } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
@@ -105,7 +105,14 @@ export function Dashboard() {
             const assetHash = asset.blob_merkle_root || asset.merkle_root || asset.merkleRoot || asset.hash || asset.blob_hash || asset.blob_id || asset.blobId || (asset.metadata && (asset.metadata.blob_merkle_root || asset.metadata.merkle_root || asset.metadata.hash)) || '';
             const nameStr = typeof asset.name === 'string' ? asset.name : '';
             const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
-            const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+            let nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+            
+            // Strip sv_market prefix for display if present
+            if (nameOnly.startsWith('sv_market::')) {
+                const parts = nameOnly.split('::');
+                nameOnly = parts[parts.length - 1];
+            }
+
             const decryptedName = decryptedNames[nameOnly];
             const nameToSearch = decryptedName || nameOnly || '';
             const fileType = getFileType(nameToSearch);
@@ -516,7 +523,15 @@ export function Dashboard() {
                                 filteredAssets.map((asset, index) => {
                                     const nameStr = typeof asset.name === 'string' ? asset.name : '';
                                     const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
-                                    const nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+                                    let nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+                                    const fullNameForLink = nameOnly; // We need this for the download URL
+
+                                    // Strip sv_market prefix for display
+                                    const isMarketAsset = nameOnly.startsWith('sv_market::');
+                                    if (isMarketAsset) {
+                                        const parts = nameOnly.split('::');
+                                        nameOnly = parts[parts.length - 1];
+                                    }
 
                                     const decryptedName = decryptedNames[nameOnly];
                                     const displayName: string = decryptedName || nameOnly;
@@ -548,15 +563,15 @@ export function Dashboard() {
 
                                     // Construct the download URL with strict encoding for both parts, but allowing slashes to remain literal for paths
                                     const rpcBaseUrl = shelbyClient.baseUrl;
-                                    const downloadUrl = (finalIdentifier && nameOnly)
-                                        ? `${rpcBaseUrl}/v1/blobs/${encodeURIComponent(finalIdentifier)}/${nameOnly.split('/').map((segment: string) => encodeURIComponent(segment)).join('/')}`
+                                    const downloadUrl = (finalIdentifier && fullNameForLink)
+                                        ? `${rpcBaseUrl}/v1/blobs/${encodeURIComponent(finalIdentifier)}/${fullNameForLink.split('/').map((segment: string) => encodeURIComponent(segment)).join('/')}`
                                         : null;
 
                                     if (index === 0) {
                                         console.log(`[Debug] URL Construction for ${displayName}:`, {
                                             rawIdentifier: identifier,
                                             finalIdentifier,
-                                            nameOnly,
+                                            fullNameForLink,
                                             downloadUrl
                                         });
                                     }
@@ -604,7 +619,7 @@ export function Dashboard() {
                                             hash: assetHash,
                                             txHash: txHash,
                                             blobAccount: finalIdentifier,
-                                            blobName: nameOnly,
+                                            blobName: fullNameForLink,
                                             isEncrypted,
                                         });
                                         setIsPreviewModalOpen(true);
@@ -626,7 +641,7 @@ export function Dashboard() {
                                             isEncrypted={isEncrypted}
                                             downloadUrl={downloadUrl}
                                             blobAccount={finalIdentifier}
-                                            blobName={nameOnly}
+                                            blobName={fullNameForLink}
                                             handleOpenPreview={handleOpenPreviewLocal}
                                             assetHash={assetHash}
                                             txHash={txHash}
@@ -904,9 +919,17 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                     )}
                 </div>
                 <div className="flex flex-col min-w-0">
-                    <span className={`text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300 ${isEncrypted && !encryptionKey ? 'blur-[5px] select-none opacity-50' : ''}`}>
-                        {isEncrypted && !encryptionKey ? "Encrypted Vault Asset" : displayName}
-                    </span>
+                    <div className="flex items-center gap-2 min-w-0">
+                        <span className={`text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300 ${isEncrypted && !encryptionKey ? 'blur-[5px] select-none opacity-50' : ''}`}>
+                            {isEncrypted && !encryptionKey ? "Encrypted Vault Asset" : displayName}
+                        </span>
+                        {blobName.startsWith('sv_market::') && (
+                            <span className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/30 text-[9px] font-black uppercase tracking-widest text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]">
+                                <Tag size={10} className="fill-blue-400/20" />
+                                On Sale
+                            </span>
+                        )}
+                    </div>
 
                     {/* Mobile Subtitle (Size & Status) */}
                     <div className="flex items-center gap-2 mt-1.5 md:hidden">
