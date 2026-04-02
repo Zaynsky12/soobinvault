@@ -327,12 +327,26 @@ export default function Navbar(): React.ReactNode {
                         </div>
                         <span className="font-bold text-sm text-white">SoobinVault</span>
                     </Link>
-                    <MagneticButton
-                        className="bg-color-primary/10 border border-color-primary/30 text-color-primary text-[9px] px-4 py-1.5 font-bold uppercase tracking-widest hover:bg-color-primary hover:text-white transition-all rounded-xl"
-                        onClick={handleWalletClick}
-                    >
-                        {isLoading ? "..." : (connected && account) ? `${account.address.toString().slice(0, 4)}...` : "Connect"}
-                    </MagneticButton>
+                    <div className="flex items-center gap-2">
+                        {(connected && account) && (
+                            <button
+                                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-300 border ${
+                                    isSettingsOpen
+                                        ? 'text-color-primary bg-color-primary/10 border-color-primary/30'
+                                        : 'text-white/50 bg-white/5 border-white/10 hover:text-white hover:bg-white/10'
+                                }`}
+                            >
+                                <Settings size={15} className={`transition-transform duration-500 ${isSettingsOpen ? 'rotate-90' : ''}`} />
+                            </button>
+                        )}
+                        <MagneticButton
+                            className="bg-color-primary/10 border border-color-primary/30 text-color-primary text-[9px] px-4 py-1.5 font-bold uppercase tracking-widest hover:bg-color-primary hover:text-white transition-all rounded-xl"
+                            onClick={handleWalletClick}
+                        >
+                            {isLoading ? "..." : (connected && account) ? `${account.address.toString().slice(0, 4)}...` : "Connect"}
+                        </MagneticButton>
+                    </div>
                 </div>
             </header>
 
@@ -392,15 +406,7 @@ export default function Navbar(): React.ReactNode {
                         );
                     })}
 
-                    {(connected && account) && (
-                        <button 
-                            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                            className={`flex flex-col items-center gap-0.5 p-1 rounded-2xl transition-all duration-300 ${isSettingsOpen ? 'text-color-primary' : 'text-white/40'}`}
-                        >
-                            <Settings size={20} className={isSettingsOpen ? 'rotate-90' : ''} />
-                            <span className="text-[9px] font-bold uppercase tracking-widest">Settings</span>
-                        </button>
-                    )}
+
                 </div>
             </nav>
         </>

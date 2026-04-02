@@ -36,7 +36,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const [totalSize, setTotalSize] = useState<number>(0);
     const [uploadMode, setUploadMode] = useState<'vault' | 'micropayment'>('vault');
     const [priceShelbyUSD, setPriceShelbyUSD] = useState<string>('0.1');
-    const [datasetDescription, setDatasetDescription] = useState<string>('');
+    const [datasetCategory, setDatasetCategory] = useState<string>('NLP');
     const [datasetAccess, setDatasetAccess] = useState<'paid' | 'free'>('paid');
 
     // Multi-file queue state
@@ -445,16 +445,16 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         </div>
 
                                         <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1">Access Type</label>
-                                        <div className="flex w-full bg-[#050505]/80 rounded-xl p-1 mb-4 border border-indigo-500/30 shadow-inner">
+                                        <div className="flex w-full bg-black/40 rounded-full p-1 mb-4 border border-indigo-500/30 shadow-inner">
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setDatasetAccess('paid'); }}
-                                                className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-lg transition-all duration-300 ${datasetAccess === 'paid' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50 shadow-md' : 'text-white/40 hover:text-white/80 border border-transparent'}`}
+                                                className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'paid' ? 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'text-white/40 hover:text-white/80'}`}
                                             >
                                                 <Banknote size={14} /> Paid
                                             </button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setDatasetAccess('free'); }}
-                                                className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-lg transition-all duration-300 ${datasetAccess === 'free' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50 shadow-md' : 'text-white/40 hover:text-white/80 border border-transparent'}`}
+                                                className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'free' ? 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]' : 'text-white/40 hover:text-white/80'}`}
                                             >
                                                 <Globe size={14} /> Free
                                             </button>
@@ -484,18 +484,31 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                             </>
                                         )}
 
-                                        <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1 mt-4">Description</label>
+                                        <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1 mt-4">Dataset Category</label>
                                         <div className="relative group mb-2">
-                                            <div className="absolute top-3.5 left-0 pl-3 flex pointer-events-none">
-                                                <AlignLeft size={16} className="text-color-support/50 group-focus-within:text-indigo-400 transition-colors" />
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <BrainCircuit size={16} className="text-color-support/50 group-focus-within:text-indigo-400 transition-colors" />
                                             </div>
-                                            <textarea 
-                                                value={datasetDescription}
-                                                onChange={(e) => setDatasetDescription(e.target.value)}
+                                            <select
+                                                value={datasetCategory}
+                                                onChange={(e) => setDatasetCategory(e.target.value)}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="w-full bg-[#050505]/80 border border-indigo-500/30 focus:border-indigo-400/80 focus:ring-1 focus:ring-indigo-500/50 rounded-xl py-3 pl-10 pr-4 text-white text-sm outline-none transition-all placeholder:text-white/20 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] resize-none min-h-[85px] leading-relaxed"
-                                                placeholder="Describe the dataset's contents, use case, format, or AI training relevance..."
-                                            />
+                                                className="w-full appearance-none bg-[#050505]/80 border border-indigo-500/30 focus:border-indigo-400/80 focus:ring-1 focus:ring-indigo-500/50 rounded-xl py-3 pl-10 pr-10 text-white text-sm outline-none transition-all shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] cursor-pointer"
+                                            >
+                                                <option value="NLP" className="bg-gray-900">🗣️ NLP — Natural Language Processing</option>
+                                                <option value="Computer Vision" className="bg-gray-900">👁️ Computer Vision</option>
+                                                <option value="Audio" className="bg-gray-900">🎙️ Audio & Speech</option>
+                                                <option value="Sensors" className="bg-gray-900">📡 Sensors & IoT</option>
+                                                <option value="Finance" className="bg-gray-900">📈 Finance & Trading</option>
+                                                <option value="Biology" className="bg-gray-900">🧬 Biology & Genomics</option>
+                                                <option value="Medical" className="bg-gray-900">🏥 Medical & Healthcare</option>
+                                                <option value="Robotics" className="bg-gray-900">🤖 Robotics & Simulation</option>
+                                                <option value="Multimodal" className="bg-gray-900">🔀 Multimodal</option>
+                                                <option value="Other" className="bg-gray-900">📦 Other</option>
+                                            </select>
+                                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                                                <ChevronRight size={14} className="rotate-90 text-indigo-400/60" />
+                                            </div>
                                         </div>
                                     </div>
                                 )}
