@@ -3,7 +3,7 @@ import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown, RefreshCw, PlusCircle, Home, Vault, FileText } from 'lucide-react';
+import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown, RefreshCw, PlusCircle, Home, Vault, FileText, Store } from 'lucide-react';
 import gsap from 'gsap';
 import Link from 'next/link';
 import { MagneticButton } from './ui/MagneticButton';
@@ -96,6 +96,7 @@ export default function Navbar(): React.ReactNode {
     const navLinks = [
         { name: 'Home', href: '/', icon: Home },
         { name: 'Upload', href: '/vault', icon: PlusCircle },
+        { name: 'Market', href: '/marketplace', icon: Store },
         { name: 'Vault', href: '/dashboard', icon: FileText },
     ];
 

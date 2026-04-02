@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, Unlock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ShieldCheck, ChevronRight, ShieldOff, Calendar, Clock, Coins, Check, Folder, ArrowDown } from 'lucide-react';
+import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, Unlock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ShieldCheck, ChevronRight, ShieldOff, Calendar, Clock, Coins, Check, Folder, ArrowDown, Banknote, Tag, AlignLeft, BrainCircuit, Globe } from 'lucide-react';
 import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -34,6 +34,10 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const [lastTxHash, setLastTxHash] = useState<string | null>(null);
     const [selectedDuration, setSelectedDuration] = useState(DURATION_OPTIONS[1]); // Default 1 Month
     const [totalSize, setTotalSize] = useState<number>(0);
+    const [uploadMode, setUploadMode] = useState<'vault' | 'micropayment'>('vault');
+    const [priceShelbyUSD, setPriceShelbyUSD] = useState<string>('0.1');
+    const [datasetDescription, setDatasetDescription] = useState<string>('');
+    const [datasetAccess, setDatasetAccess] = useState<'paid' | 'free'>('paid');
 
     // Multi-file queue state
     const [queue, setQueue] = useState<File[]>([]);
@@ -389,34 +393,126 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         ) : uploadState === 'idle' && (
                             <div className="flex flex-col items-center text-center w-full max-w-lg mx-auto px-1 md:px-4">
                                 
+                                {/* Mode Switcher */}
+                                <div className="flex w-full max-w-[280px] bg-black/40 rounded-full p-1 mb-6 border border-white/10 relative z-20 shadow-inner">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setUploadMode('vault'); }}
+                                        className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${uploadMode === 'vault' ? 'bg-gradient-to-br from-color-primary to-color-accent text-white shadow-[0_0_15px_rgba(232,58,118,0.4)]' : 'text-white/40 hover:text-white/80'}`}
+                                    >
+                                        <Shield size={14} /> Private Vault
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setUploadMode('micropayment'); }}
+                                        className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${uploadMode === 'micropayment' ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.4)]' : 'text-white/40 hover:text-white/80'}`}
+                                    >
+                                        <Banknote size={14} /> Micropayment
+                                    </button>
+                                </div>
+
                                 {/* Top SoobinVault Glass Icon */}
                                 <div 
                                     className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center mb-3 md:mb-4 transition-transform duration-500 ${
-                                        encryptionEnabled 
-                                            ? 'bg-gradient-to-b from-[#3a1c3b] to-[#1A0D12] border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.2)]'
-                                            : 'glass-panel bg-[#1A0D12]/80 border border-white/10'
+                                        uploadMode === 'micropayment'
+                                            ? 'bg-gradient-to-b from-[#1c2e4a] to-[#0d1522] border-2 border-blue-500/50 shadow-[0_0_30px_rgba(59,130,246,0.2)]'
+                                            : encryptionEnabled 
+                                                ? 'bg-gradient-to-b from-[#3a1c3b] to-[#1A0D12] border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.2)]'
+                                                : 'glass-panel bg-[#1A0D12]/80 border border-white/10'
                                     }`}
                                 >
-                                    {encryptionEnabled
-                                        ? <ShieldCheck size={28} strokeWidth={2} className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.6)]" />
-                                        : <Shield size={28} strokeWidth={2} className="text-white/40" />
-                                    }
+                                    {uploadMode === 'micropayment' ? (
+                                        <Banknote size={28} strokeWidth={2} className="text-blue-400 drop-shadow-[0_0_10px_rgba(96,165,250,0.6)]" />
+                                    ) : encryptionEnabled ? (
+                                        <ShieldCheck size={28} strokeWidth={2} className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.6)]" />
+                                    ) : (
+                                        <Shield size={28} strokeWidth={2} className="text-white/40" />
+                                    )}
                                 </div>
 
-                                <h3 className="text-xl md:text-3xl font-bold mb-1 md:mb-2 text-white tracking-tight">Deploy Assets</h3>
-                                <p className="text-color-support/80 mb-4 md:mb-6 text-xs md:text-sm">Drag and drop your files, or select from your device.</p>
+                                <h3 className="text-xl md:text-3xl font-bold mb-1 md:mb-2 text-white tracking-tight">
+                                    {uploadMode === 'micropayment' ? 'Monetize AI Dataset' : 'Deploy Assets'}
+                                </h3>
+                                <p className="text-color-support/80 mb-4 md:mb-6 text-xs md:text-sm px-4">
+                                    {uploadMode === 'micropayment' ? 'Upload files and set a price in ShelbyUSD for public access.' : 'Drag and drop your files, or select from your device.'}
+                                </p>
+
+                                {uploadMode === 'micropayment' && (
+                                    <div className="w-full max-w-xs md:max-w-[420px] mb-4 text-left animate-in fade-in duration-300">
+                                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 mb-4">
+                                            <p className="flex items-start text-[10px] md:text-xs text-blue-200/80 leading-relaxed">
+                                                <AlertCircle size={14} className="text-blue-400 mr-2 shrink-0 mt-0.5" />
+                                                <span><strong className="text-blue-300">Beta Feature:</strong> The purchasable micropayment feature allows anyone to buy access. Do not upload sensitive personal data.</span>
+                                            </p>
+                                        </div>
+
+                                        <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1">Access Type</label>
+                                        <div className="flex w-full bg-[#050505]/80 rounded-xl p-1 mb-4 border border-indigo-500/30 shadow-inner">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setDatasetAccess('paid'); }}
+                                                className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-lg transition-all duration-300 ${datasetAccess === 'paid' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50 shadow-md' : 'text-white/40 hover:text-white/80 border border-transparent'}`}
+                                            >
+                                                <Banknote size={14} /> Paid
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setDatasetAccess('free'); }}
+                                                className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-lg transition-all duration-300 ${datasetAccess === 'free' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/50 shadow-md' : 'text-white/40 hover:text-white/80 border border-transparent'}`}
+                                            >
+                                                <Globe size={14} /> Free
+                                            </button>
+                                        </div>
+
+                                        {datasetAccess === 'paid' && (
+                                            <>
+                                                <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1 mt-2">Asset Price (ShelbyUSD)</label>
+                                                <div className="relative group">
+                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                        <Tag size={16} className="text-color-support/50 group-focus-within:text-indigo-400 transition-colors" />
+                                                    </div>
+                                                    <input 
+                                                        type="number" 
+                                                        min="0.000001"
+                                                        step="0.000001"
+                                                        value={priceShelbyUSD}
+                                                        onChange={(e) => setPriceShelbyUSD(e.target.value)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="w-full bg-[#050505]/80 border border-indigo-500/30 focus:border-indigo-400/80 focus:ring-1 focus:ring-indigo-500/50 rounded-xl py-3 pl-10 pr-16 text-white text-sm outline-none transition-all placeholder:text-white/20 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        placeholder="0.1"
+                                                    />
+                                                    <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+                                                        <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">SUSD</span>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1 mt-4">Description</label>
+                                        <div className="relative group mb-2">
+                                            <div className="absolute top-3.5 left-0 pl-3 flex pointer-events-none">
+                                                <AlignLeft size={16} className="text-color-support/50 group-focus-within:text-indigo-400 transition-colors" />
+                                            </div>
+                                            <textarea 
+                                                value={datasetDescription}
+                                                onChange={(e) => setDatasetDescription(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-full bg-[#050505]/80 border border-indigo-500/30 focus:border-indigo-400/80 focus:ring-1 focus:ring-indigo-500/50 rounded-xl py-3 pl-10 pr-4 text-white text-sm outline-none transition-all placeholder:text-white/20 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] resize-none min-h-[85px] leading-relaxed"
+                                                placeholder="Describe the dataset's contents, use case, format, or AI training relevance..."
+                                            />
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Visual Dashed Dropzone Indicator */}
-                                <div className={`w-[85%] max-w-xs md:max-w-[420px] h-16 md:h-20 rounded-xl border-2 border-dashed mb-5 md:mb-6 flex flex-col items-center justify-center transition-all duration-300 pointer-events-none mx-auto ${isDragging ? 'border-color-primary bg-color-primary/10 scale-105' : 'border-white/20 bg-black/20'}`}>
-                                    <ArrowDown size={24} strokeWidth={1.5} className={`transition-all duration-300 ${isDragging ? 'text-color-primary animate-bounce' : 'text-white/40'}`} />
+                                <div className={`w-[85%] max-w-xs md:max-w-[420px] h-16 md:h-20 rounded-xl border-2 border-dashed mb-5 md:mb-6 flex flex-col items-center justify-center transition-all duration-300 pointer-events-none mx-auto ${isDragging ? (uploadMode === 'micropayment' ? 'border-blue-500 bg-blue-500/10 scale-105' : 'border-color-primary bg-color-primary/10 scale-105') : 'border-white/20 bg-black/20'}`}>
+                                    <ArrowDown size={24} strokeWidth={1.5} className={`transition-all duration-300 ${isDragging ? (uploadMode === 'micropayment' ? 'text-blue-500 animate-bounce' : 'text-color-primary animate-bounce') : 'text-white/40'}`} />
                                 </div>
 
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     className={`w-[85%] max-w-xs md:max-w-[420px] py-3.5 md:py-4 rounded-full transition-all duration-500 font-bold uppercase text-[11px] md:text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98] mb-5 md:mb-6 mx-auto ${
-                                        encryptionEnabled
-                                            ? 'bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 border border-yellow-200 text-yellow-950 shadow-[0_5px_30px_rgba(250,204,21,0.7)] hover:shadow-[0_10px_40px_rgba(250,204,21,0.9)] scale-105 animate-pulse-slow'
-                                            : 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)]'
+                                        uploadMode === 'micropayment'
+                                            ? 'bg-gradient-to-r from-blue-500 to-indigo-600 border border-blue-400/50 text-white shadow-[0_5px_15px_rgba(59,130,246,0.3)] hover:shadow-[0_8px_25px_rgba(59,130,246,0.5)]'
+                                            : encryptionEnabled
+                                                ? 'bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 border border-yellow-200 text-yellow-950 shadow-[0_5px_30px_rgba(250,204,21,0.7)] hover:shadow-[0_10px_40px_rgba(250,204,21,0.9)] scale-105 animate-pulse-slow'
+                                                : 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)]'
                                     }`}
                                 >
                                     Select Files
