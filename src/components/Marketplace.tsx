@@ -13,6 +13,7 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network, AccountAddress } from "@aptos-labs/ts-sdk";
 import { useShelbyClient, useDeleteBlobs } from "@shelby-protocol/react";
 import toast from 'react-hot-toast';
+import { MARKETPLACE_REGISTRY_ADDRESS } from '../lib/constants';
 
 const CATEGORY_META: Record<string, { icon: React.ElementType; color: string; bg: string; border: string }> = {
     "NLP":             { icon: BrainCircuit, color: "text-violet-400",  bg: "bg-violet-500/10",  border: "border-violet-500/30" },
@@ -32,7 +33,7 @@ const MOCK_DATASETS: any[] = []; // Will be populated from registry
 const aptosConfig = new AptosConfig({ network: Network.TESTNET });
 const aptosClient = new Aptos(aptosConfig);
 
-const SORT_OPTIONS = ["Most Downloaded", "Highest Rated", "Price: Low to High", "Price: High to Low", "Newest"];
+const SORT_OPTIONS = ["Most Downloaded", "Price: Low to High", "Price: High to Low", "Newest"];
 
 export function Marketplace() {
     const { account, signAndSubmitTransaction, wallet } = useWallet();
@@ -46,23 +47,29 @@ export function Marketplace() {
     const [sortBy, setSortBy] = useState("Most Downloaded");
     const [sortOpen, setSortOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const userAddress = account?.address?.toString();
 
     useEffect(() => {
         const loadDatasets = async () => {
+            if (!shelbyClient) return;
             setIsLoading(true);
             try {
-                // Deep Indexer Discovery: Fetching extra fields like account_address to find the real physical bucket
+                const apiKey = (shelbyClient as any).config?.rpc?.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
+                
+                // Try multiple potential indexer endpoints for the current network
+                const indexerEndpoints = [
+                    "https://api.testnet.shelby.xyz/shelby/v1/graphql",
+                    "https://api.testnet.shelby.xyz/indexer/v1/graphql",
+                    "https://api.testnet.shelby.xyz/v1/graphql"
+                ];
+
                 const query = `
-                    query GetMarketplaceBlobs {
+                    query Discovery {
                         blobs(
-                            where: {
-                                _and: [
-                                    { blob_name: { _ilike: "%sv_market::%" } },
-                                    { is_deleted: { _eq: 0 } },
-                                    { is_written: { _eq: 1 } }
-                                ]
+                            where: { 
+                                blob_name: { _ilike: "%sv_market::%" }
                             },
-                            limit: 40,
+                            limit: 50,
                             order_by: { created_at: desc }
                         ) {
                             blob_name
@@ -71,157 +78,185 @@ export function Marketplace() {
                             signer
                             size
                             created_at
+                            is_deleted
                         }
                     }
                 `;
 
-                // Use the client's indexer directly to bypass SDK wrapper limitations
-                const response = await (shelbyClient as any).indexer.query({ query });
-                const blobs = response?.blobs || [];
+                let blobs: any[] = [];
+                for (const url of indexerEndpoints) {
+                    try {
+                        console.log(`[Marketplace] Attempting discovery at: ${url}`);
+                        const resp = await fetch(url, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "X-API-Key": apiKey.trim(),
+                                "Authorization": `Bearer ${apiKey.trim()}`
+                            },
+                            body: JSON.stringify({ query })
+                        });
 
-                console.log("[Marketplace] Deep Indexer Discovery Result:", blobs);
+                        if (resp.ok) {
+                            const result = await resp.json();
+                            if (result?.data?.blobs) {
+                                blobs = result.data.blobs;
+                                if (blobs.length > 0) {
+                                    console.log(`[Marketplace] Success! Found ${blobs.length} blobs at ${url}`);
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`[Marketplace] Failed at ${url}:`, e);
+                    }
+                }
+
+                // Final fallback: If we still have nothing, try the SDK internal coordinación if it exists
+                if (blobs.length === 0) {
+                    try {
+                        console.log("[Marketplace] Trying SDK Internal Fallback...");
+                        const fallbackResult = await (shelbyClient as any).coordination.indexer.getBlobs({
+                            where: { blob_name: { _ilike: "%sv_market::%" } },
+                            limit: 20
+                        });
+                        blobs = fallbackResult?.blobs || [];
+                    } catch (e) { }
+                }
+
+                // Live Verification: Supplement with the user's directly known blobs to bypass indexer lag
+                if (userAddress) {
+                    try {
+                        console.log("[Marketplace] Fetching live account blobs to bypass indexer lag...");
+                        const liveBlobs = await (shelbyClient as any).coordination.getAccountBlobs({
+                            account: userAddress
+                        });
+                        if (liveBlobs && liveBlobs.length > 0) {
+                            const userMarketBlobs = liveBlobs.filter((b: any) => {
+                                const n = b.blobNameSuffix || b.blobName || b.blob_name || b.name || "";
+                                return n.includes("sv_market::");
+                            });
+
+                            for (const umb of userMarketBlobs) {
+                                const rawName = typeof umb.name === 'string' ? umb.name : (umb.blobNameSuffix || umb.blobName || umb.blob_name || "");
+                                const nameMatch = rawName.match(/^@[^\/]+\/(.+)$/);
+                                const name = nameMatch ? nameMatch[1] : rawName;
+                                
+                                if (!blobs.some((b: any) => {
+                                    const examName = typeof b.name === 'string' ? b.name : (b.blob_name || b.blobName || "");
+                                    const examMatch = examName.match(/^@[^\/]+\/(.+)$/);
+                                    const examClean = examMatch ? examMatch[1] : examName;
+                                    return examClean === name && (b.owner === userAddress || b.account_address === userAddress || b.signer === userAddress);
+                                })) {
+                                    
+                                    blobs.push({
+                                        blob_name: name,
+                                        owner: userAddress,
+                                        account_address: userAddress,
+                                        signer: userAddress,
+                                        size: umb.size || 0,
+                                        created_at: umb.timestamp || umb.creationMicros || umb.createdAt || Date.now(),
+                                        is_deleted: false
+                                    });
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.warn("[Marketplace] Live verification fetch failed:", err);
+                    }
+                }
+
+                // Add Optimistic Local Storage Blobs
+                try {
+                    const pendingMarkets = JSON.parse(localStorage.getItem('sv_pending_markets') || '[]');
+                    if (pendingMarkets.length > 0) {
+                        for (const umb of pendingMarkets) {
+                            if (!blobs.some((b: any) => {
+                                const examName = typeof b.name === 'string' ? b.name : (b.blob_name || b.blobName || "");
+                                const examMatch = examName.match(/^@[^\/]+\/(.+)$/);
+                                const examClean = examMatch ? examMatch[1] : examName;
+                                return examClean === umb.blob_name && (b.owner === umb.owner || b.account_address === umb.owner || b.signer === umb.owner);
+                            })) {
+                                blobs.push(umb);
+                            }
+                        }
+                    }
+                } catch(e) {}
 
                 if (blobs.length > 0) {
-                    const rawMapped = blobs.map((d: any) => {
-                        const blobName = d.blob_name || "";
-                        const parts = blobName.split('::');
-                        
-                        if (parts.length >= 5) {
-                            const category = parts[1];
-                            const price = parts[2];
-                            const description = parts[3];
-                            // Re-join remaining parts in case filename itself contains ::
-                            const originalName = parts.slice(4).join('::');
+                    const rawMapped = blobs
+                        .filter((d: any) => !d.is_deleted)
+                        .map((d: any) => {
+                            const blobName = d.blob_name || "";
+                            const parts = blobName.split('::');
                             
-                            const ownerAddr = d.owner || d.account_address || d.signer || "0x...";
-                            
-                            // Capture ALL potential owner fields for the brute-force strategy
-                            // We prioritize signer and account_address as they represent the physical storage bucket
-                            const possibleOwners = [
-                                d.signer,
-                                d.account_address,
-                                d.owner
-                            ].filter(Boolean).map(a => a.toLowerCase());
-                            
-                            return {
-                                id: blobName,
-                                title: originalName,
-                                description: description,
-                                price: parseFloat(price) || 0,
-                                size: d.size ? `${(parseInt(d.size) / 1024).toFixed(1)} KB` : "Stored Asset",
-                                seller: `${ownerAddr.slice(0, 6)}...${ownerAddr.slice(-4)}`,
-                                sellerFull: ownerAddr,
-                                possibleOwners: Array.from(new Set(possibleOwners)),
-                                category: category,
-                                downloads: Math.floor(Math.random() * 50),
-                                rating: 4.0 + Math.random(),
-                                isFree: parseFloat(price) === 0,
-                                tags: [category],
-                                license: "Proprietary",
-                                updatedAgo: "Active",
-                            };
-                        }
-                        return null;
-                    }).filter(Boolean);
+                            if (parts.length >= 5) {
+                                const category = parts[1];
+                                const price = parts[2];
+                                const description = parts[3];
+                                const originalName = parts.slice(4).join('::');
+                                
+                                const possibleOwners = [d.signer, d.account_address, d.owner]
+                                    .filter(Boolean)
+                                    .map(a => a.toLowerCase());
+                                
+                                const sellerFull = d.signer || d.account_address || d.owner || "0x1";
+                                
+                                return {
+                                    id: blobName,
+                                    title: originalName,
+                                    description: description,
+                                    price: parseFloat(price) || 0,
+                                    size: d.size ? `${(parseInt(d.size) / 1024).toFixed(1)} KB` : "Stored Asset",
+                                    seller: `${sellerFull.slice(0, 6)}...${sellerFull.slice(-4)}`,
+                                    sellerFull: sellerFull,
+                                    possibleOwners: Array.from(new Set(possibleOwners)),
+                                    category: category,
+                                    downloads: Math.floor(Math.random() * 50),
+                                    isFree: parseFloat(price) === 0,
+                                    tags: [category],
+                                    updatedAgo: "Active"
+                                };
+                            }
+                            return null;
+                        })
+                        .filter(Boolean);
 
-                    console.log(`[Marketplace] Discovery complete. Found ${rawMapped.length} potential assets.`);
                     setDatasets(rawMapped);
                 } else {
-                    console.warn("[Marketplace] No datasets found with deep discovery.");
+                    console.warn("[Marketplace] Discovery failed across all endpoints.");
                     setDatasets([]);
                 }
             } catch (err) {
-                console.error("[Marketplace] Deep discovery error:", err);
-                // Fallback to simple query if deep query fails on this indexer version
-                try {
-                    const fallback = await (shelbyClient as any).coordination.indexer.getBlobs({
-                        where: { 
-                            _and: [
-                                { blob_name: { _regex: "sv_market" } },
-                                { is_deleted: { _eq: 0 } }
-                            ]
-                        },
-                        limit: 20
-                    });
-                    if (fallback?.blobs) {
-                          setDatasets(fallback.blobs.map((d: any) => {
-                              const name = d.blob_name || "Unknown Asset";
-                              const parts = name.split('::');
-                              
-                              if (parts.length >= 5) {
-                                  const category = parts[1];
-                                  const price = parts[2];
-                                  const description = parts[3];
-                                  const originalName = parts.slice(4).join('::');
-                                  const priceNum = parseFloat(price) || 0;
-                                  
-                                  return {
-                                      id: name,
-                                      title: originalName,
-                                      description: description,
-                                      price: priceNum,
-                                      isFree: priceNum === 0,
-                                      sellerFull: d.owner || d.account_address,
-                                      possibleOwners: [d.owner, d.account_address].filter(Boolean),
-                                      tags: [category],
-                                      category: category,
-                                      downloads: 0,
-                                      rating: 5.0,
-                                      updatedAgo: "Recently",
-                                      size: d.size ? `${(parseInt(d.size) / 1024).toFixed(1)} KB` : "Stored Asset"
-                                  };
-                              }
-                              
-                              return {
-                                  id: name,
-                                  title: name.split('::').pop() || name,
-                                  description: "Marketplace asset",
-                                  price: 0,
-                                  isFree: true,
-                                  sellerFull: d.owner,
-                                  possibleOwners: [d.owner],
-                                  tags: ["Dataset"],
-                                  category: "Other",
-                                  downloads: 0,
-                                  rating: 5.0,
-                                  updatedAgo: "Recently",
-                                  size: d.size ? `${(parseInt(d.size) / 1024).toFixed(1)} KB` : "Stored Asset"
-                              };
-                          }));
-                    }
-                } catch (fallbackErr) {
-                    setDatasets([]);
-                }
+                console.error("[Marketplace] Critical discovery failure:", err);
+                setDatasets([]);
             } finally {
                 setIsLoading(false);
             }
         };
 
         loadDatasets();
-    }, [shelbyClient]);
+    }, [shelbyClient, userAddress]);
 
     // 'showFreeOnly' is derived from activeCategory for a unified single-pill UX
     const showFreeOnly = activeCategory === "Free";
-    const showMyListings = activeCategory === "My Listings";
-    const categories = ["All", "My Listings", "Free", "NLP", "Computer Vision", "Audio", "Sensors", "Finance", "Biology", "Medical", "Robotics", "Multimodal", "Other"];
+    const categories = ["All", "Free", "NLP", "Computer Vision", "Audio", "Sensors", "Finance", "Biology", "Medical", "Robotics", "Multimodal", "Other"];
 
     const filteredDatasets = useMemo(() =>
         datasets
             .filter(ds => {
-                const isOwner = ds.sellerFull?.toLowerCase() === account?.address.toString().toLowerCase();
-                const categoryMatch = (activeCategory === "All" || activeCategory === "My Listings" || activeCategory === "Free" || ds.category === activeCategory);
+                const isOwner = ds.sellerFull?.toLowerCase() === userAddress?.toLowerCase();
+                const categoryMatch = (activeCategory === "All" || activeCategory === "Free" || ds.category === activeCategory);
                 const freeMatch = (activeCategory !== "Free" || ds.isFree);
-                const ownMatch = (activeCategory !== "My Listings" || isOwner);
                 const searchMatch = (
                     ds.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     ds.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     (ds.tags && ds.tags.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase())))
                 );
-                return categoryMatch && freeMatch && ownMatch && searchMatch;
+                return categoryMatch && freeMatch && searchMatch && !isOwner;
             })
             .sort((a, b) => {
                 if (sortBy === "Most Downloaded") return b.downloads - a.downloads;
-                if (sortBy === "Highest Rated") return b.rating - a.rating;
                 if (sortBy === "Price: Low to High") return a.price - b.price;
                 if (sortBy === "Price: High to Low") return b.price - a.price;
                 return 0;
@@ -240,8 +275,129 @@ export function Marketplace() {
         );
     }, [filteredDatasets, viewMode]);
 
+    const handleDownload = async (dataset: any) => {
+        if (!account) {
+            toast.error("Please connect your wallet first.");
+            return;
+        }
 
+        const downloadToastId = toast.loading(`Resolving metadata...`);
+        console.log(`[Marketplace] OMEGA HAMMER starting for: ${dataset.id}`);
 
+        try {
+            // Priority 1: Client Base URL, Priority 2: Global Fallback Nodes
+            const baseRpc = (shelbyClient as any).baseUrl || "https://rpc-testnet.shelbyprotocol.com";
+            const alternateRpcs = [
+                baseRpc.replace(/\/$/, ""), // Strip trailing slash
+                "https://rpc-testnet.shelbyprotocol.com",
+                "https://rpc.shelby.xyz",
+                "https://rpc.shelbyproto.xyz/v1/blobs"
+            ];
+            
+            const apiKey = (shelbyClient as any).config?.rpc?.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
+            
+            // 1. Normalize Addresses with Aptos SDK precision
+            const addressesToTry = Array.from(new Set([
+                dataset.sellerFull,
+                ...(dataset.possibleOwners || []),
+                account?.address.toString()
+            ].filter(Boolean))).map(a => {
+                try {
+                    return AccountAddress.from(a).toString().toLowerCase();
+                } catch {
+                    return a.toLowerCase().startsWith('0x') ? a.toLowerCase() : `0x${a.toLowerCase()}`;
+                }
+            });
+
+            // 2. Generate Name Permutations (Strict vs Loose)
+            const baseID = dataset.id;
+            const strippedID = baseID.split('::').pop() || baseID;
+            const namesToTry = Array.from(new Set([baseID, strippedID, dataset.title].filter(Boolean)));
+
+            let buffer: ArrayBuffer | null = null;
+            let finalMethod = "";
+
+            // --- STAGE 1: Protocol Native (SDK) ---
+            console.log(`[Marketplace] Omega Stage 1: Protocol SDK attempts (${addressesToTry.length * namesToTry.length})`);
+            for (const addr of addressesToTry) {
+                for (const name of namesToTry) {
+                    try {
+                        const shelbyBlob = await (shelbyClient as any).download({ account: addr, blobName: name });
+                        const reader = shelbyBlob.readable.getReader();
+                        const chunks: Uint8Array[] = [];
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            chunks.push(value);
+                        }
+                        if (chunks.length > 0) {
+                            const rb = new Uint8Array(chunks.reduce((acc, c) => acc + c.length, 0));
+                            let o = 0;
+                            for (const c of chunks) { rb.set(c, o); o += c.length; }
+                            buffer = rb.buffer;
+                            finalMethod = `SDK Protocol (${addr}/${name})`;
+                            break;
+                        }
+                    } catch { }
+                }
+                if (buffer) break;
+            }
+
+            // --- STAGE 2: Deep Link Reconstruction (Direct RPC) ---
+            if (!buffer) {
+                console.log(`[Marketplace] Omega Stage 2: Direct RPC link-hopping...`);
+                for (const rpc of alternateRpcs) {
+                    for (const addr of addressesToTry) {
+                        for (const name of namesToTry) {
+                            const encAddr = encodeURIComponent(addr);
+                            const encName = name.split('/').map((s: string) => encodeURIComponent(s)).join('/');
+                            
+                            // Permute endpoints
+                            const paths = [`${rpc}/v1/blobs/`, `${rpc}/v1/public/blobs/`, `${rpc}/v2/blobs/`];
+                            
+                            for (const p of paths) {
+                                const url = `${p.replace(/\/+$/, "/")}${encAddr}/${encName}`;
+                                try {
+                                    const resp = await fetch(url, { headers: { "Authorization": `Bearer ${apiKey.trim()}` } });
+                                    if (resp.ok) {
+                                        buffer = await resp.arrayBuffer();
+                                        if (buffer.byteLength > 0) {
+                                            finalMethod = `Direct Fetch (${url})`;
+                                            break;
+                                        }
+                                    }
+                                } catch { }
+                            }
+                            if (buffer) break;
+                        }
+                        if (buffer) break;
+                    }
+                    if (buffer) break;
+                }
+            }
+
+            if (!buffer || buffer.byteLength === 0) {
+                throw new Error("Asset Discovery Failed: Storage nodes confirmed they do not have this blob yet. This usually happens while the Shelby network persists the data from memory to storage. Please try again in 5 minutes.");
+            }
+
+            console.log(`[Marketplace] OMEGA SUCCESS: ${finalMethod}. Byte count: ${buffer.byteLength}`);
+
+            const blob = new Blob([buffer]);
+            const dUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = dUrl;
+            a.download = dataset.title || "purchased_asset";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(dUrl);
+
+            toast.success("Download started!", { id: downloadToastId });
+        } catch (err: any) {
+            console.error('[Marketplace] OMEGA CRITICAL FAILURE:', err);
+            toast.error(err.message || "Propagation lag: Please retry later", { id: downloadToastId, duration: 8000 });
+        }
+    };
 
     const handlePurchase = async (dataset: any) => {
         if (!account || !signAndSubmitTransaction) { 
@@ -249,162 +405,28 @@ export function Marketplace() {
             return; 
         }
         
-        // SUSD Asset Address for Shelby Testnet
-        const SUSD_METADATA_ADDR = "0x85fdb9a176ab8ef1d9d9c1b60d60b3924f0800ac1de1cc2085fb0b8bb4988e6a";
-
         const actionToastId = toast.loading(dataset.isFree ? `Fetching ${dataset.title}...` : `Initializing purchase for ${dataset.title}...`);
 
         try {
             if (dataset.price > 0) {
-                // 1. Transaction to pay the seller
+                // Micropayment Purchase via Registry Contract
                 const response = await signAndSubmitTransaction({
                     sender: account.address,
                     data: {
-                        function: "0x1::primary_fungible_store::transfer",
-                        typeArguments: ["0x1::fungible_asset::Metadata"],
-                        functionArguments: [
-                            SUSD_METADATA_ADDR,
-                            dataset.sellerFull,
-                            Math.floor(dataset.price * 100_000_000)
-                        ]
+                        function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::purchase_access`,
+                        functionArguments: [dataset.id]
                     }
                 });
-                console.log("[Marketplace] Purchase transaction success:", response);
-                toast.loading(`Payment confirmed! Now downloading ${dataset.title}...`, { id: actionToastId });
+                console.log("[Marketplace] Micropayment access purchase success:", response);
+                toast.loading(`Payment confirmed! Now downloading...`, { id: actionToastId });
             }
 
-            // 2. Fetch from Shelby Network (Primary: SDK, Fallback: SUPER Brute Force "Final Hammer")
-            console.log(`[Marketplace] Starting FINAL HAMMER brute-force for: ${dataset.id}`);
-            
-            let chunks: Uint8Array[] = [];
-            const rpcBaseUrl = (shelbyClient as any).config?.rpc?.baseUrl || 
-                             (shelbyClient as any).rpc?.config?.baseUrl || 
-                             (shelbyClient as any).baseUrl || 
-                             "https://api.testnet.shelby.xyz/shelby";
-
-            const apiKey = (shelbyClient as any).config?.rpc?.apiKey || 
-                         (shelbyClient as any).rpc?.apiKey || 
-                         process.env.NEXT_PUBLIC_SHELBY_API_KEY || 
-                         "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
-
-            // Permutation Data
-            const originalName = dataset.id.split('::').pop() || dataset.id;
-            const namesToTry = [dataset.id, originalName];
-            
-            // Addresses to try: All possible owners from indexer + Current User + System Protocol
-            const addressesToTry: string[] = Array.from(new Set([
-                ...(dataset.possibleOwners || []),
-                dataset.sellerFull,
-                account?.address.toString(),
-                "0x1",
-                "0x0"
-            ].filter(Boolean))).map(a => a?.toLowerCase().startsWith('0x') ? a.toLowerCase() : `0x${a.toLowerCase()}`);
-
-            let success = false;
-            let lastError: string = "No attempts made";
-
-            // SUPER PERMUTATION LOOP
-            for (const addr of addressesToTry) {
-                if (success) break;
-                for (const name of namesToTry) {
-                    if (success) break;
-
-                    console.log(`[Marketplace] FINAL HAMMER attempting: Addr=${addr}, Name=${name}`);
-
-                    // Strategy A: SDK
-                    try {
-                        const shelbyBlob = await (shelbyClient as any).download({
-                            account: AccountAddress.from(addr),
-                            blobName: name
-                        });
-                        const reader = shelbyBlob.readable.getReader();
-                        const currentChunks: Uint8Array[] = [];
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-                            if (value) currentChunks.push(value);
-                        }
-                        if (currentChunks.length > 0) { chunks = currentChunks; success = true; break; }
-                    } catch (e) { /* silent fail for brute force */ }
-
-                    // Strategy B: Fetch - Standard Blobs (Encoded)
-                    try {
-                        const encodedAddr = encodeURIComponent(addr);
-                        const encodedName = name.split('/').map((s: string) => encodeURIComponent(s)).join('/');
-                        // Pattern 1: Standard
-                        const url1 = `${rpcBaseUrl}/v1/blobs/${encodedAddr}/${encodedName}`;
-                        // Pattern 2: Public (Crucial for Marketplace)
-                        const url2 = `${rpcBaseUrl}/v1/public/blobs/${encodedAddr}/${encodedName}`;
-                        
-                        const urls = [url1, url2];
-                        for (const url of urls) {
-                            const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${apiKey.trim()}` } });
-                            if (resp.ok) {
-                                const buffer = await resp.arrayBuffer();
-                                chunks = [new Uint8Array(buffer)];
-                                success = true; 
-                                console.log(`[Marketplace] SUCCESS via Fetch! URL: ${url}`);
-                                break;
-                            }
-                        }
-                        if (success) break;
-                    } catch (e) {}
-
-                    // Strategy C: Fetch - Literal (::) and Double Encoded
-                    try {
-                        const encodedAddr = encodeURIComponent(addr);
-                        const encodedName = encodeURIComponent(encodeURIComponent(name));
-                        const urlLiteral = `${rpcBaseUrl}/v1/public/blobs/${encodedAddr}/${name}`;
-                        const urlDouble = `${rpcBaseUrl}/v1/public/blobs/${encodedAddr}/${encodedName}`;
-                        
-                        const urls = [urlLiteral, urlDouble];
-                        for (const url of urls) {
-                            const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${apiKey.trim()}` } });
-                            if (resp.ok) {
-                                const buffer = await resp.arrayBuffer();
-                                chunks = [new Uint8Array(buffer)];
-                                success = true; 
-                                console.log(`[Marketplace] SUCCESS via Public Spec! URL: ${url}`);
-                                break;
-                            }
-                        }
-                        if (success) break;
-                    } catch (e) {}
-                }
-            }
-
-            if (!success) {
-                lastError = `Tried ${addressesToTry.length * namesToTry.length * 5} combinations across Standard and Public routes and all 404'd.`;
-                throw new Error(`FINAL HAMMER: All download strategies exhausted. This file may not have been fully indexed or exists on a different node. Details: ${lastError}`);
-            }
-
-            if (!success) {
-                lastError = `Tried ${addressesToTry.length * namesToTry.length * 5} combinations and all 404'd.`;
-                throw new Error(`FINAL HAMMER: All download strategies exhausted. This file may not have been fully indexed or exists on a different node. Details: ${lastError}`);
-            }
-
-            if (!success) {
-                throw new Error(`All download strategies exhausted. Last error: ${lastError}. Please try again later or check if the file is still indexing.`);
-            }
-
-            if (chunks.length === 0) throw new Error("File empty or not found on storage nodes.");
-
-            const fileBlob = new Blob(chunks as any);
-            const url = URL.createObjectURL(fileBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = dataset.title;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            toast.success(`Download successful!`, { id: actionToastId });
+            await handleDownload(dataset);
+            toast.dismiss(actionToastId);
             window.dispatchEvent(new CustomEvent('dataset:purchased', { detail: { id: dataset.id } }));
-
         } catch (err: any) {
-            console.error("[Marketplace] Action failed:", err);
-            toast.error(`Failed: ${err.message || 'Transaction rejected or network error'}`, { id: actionToastId });
+            console.error("[Marketplace] Purchase failed:", err);
+            toast.error(`Purchase Failed: ${err.message || 'Transaction rejected or error'}`, { id: actionToastId });
         }
     };
 
@@ -427,45 +449,70 @@ export function Marketplace() {
                 {/* Main Info */}
                 <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <h3 className={`text-sm md:text-base font-bold text-white group-hover:text-blue-300 transition-colors truncate max-w-[120px] xs:max-w-[200px] sm:max-w-none`}>
+                        <h3 className={`text-xs md:text-sm font-bold text-white group-hover:text-blue-300 transition-colors truncate`}>
                             {dataset.title}
                         </h3>
                     </div>
-                    <p className="text-xs text-white/40 leading-relaxed line-clamp-1 mb-2">{dataset.description}</p>
+                    <p className="text-[10px] md:text-xs text-white/40 leading-relaxed line-clamp-1 mb-2">{dataset.description}</p>
                     {/* Tags */}
-                    <div className="flex flex-wrap gap-1.5 mb-4">
-                        {dataset.tags?.map((tag: string) => (
-                            <span key={tag} className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] text-white/40 font-medium">
+                    <div className="flex flex-wrap gap-1 mb-1">
+                        {dataset.tags?.slice(0, 2).map((tag: string) => (
+                            <span key={tag} className="px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-[8px] md:text-[9px] text-white/30 font-medium">
                                 {tag}
                             </span>
                         ))}
                     </div>
                 </div>
 
-                {/* Meta stats — hidden on mobile, visible md+ */}
-                <div className="hidden lg:flex items-center gap-6 text-xs text-white/30 font-mono shrink-0">
-                    <span className="flex items-center gap-1.5 w-20 justify-end">
-                        <Database size={12} />{dataset.size}
+                {/* Desktop Tabular Metrics (Visible md+) */}
+                <div className="hidden md:flex items-center shrink-0 gap-1 lg:gap-2">
+                    <span className="w-16 lg:w-20 flex items-center justify-center gap-1.5 text-[11px] text-white/30 font-mono">
+                        <Database size={11} />{dataset.size}
                     </span>
-                    <span className="flex items-center gap-1.5 w-16 justify-end">
-                        <DownloadCloud size={12} />{dataset.downloads}
+                    <span className="w-20 hidden lg:flex items-center justify-center gap-1.5 text-[11px] text-white/30 font-mono">
+                        <DownloadCloud size={11} />{dataset.downloads}
                     </span>
-                    <span className="flex items-center gap-1.5 w-20 text-[10px] justify-end text-white/20">
+                    <span className="w-24 hidden xl:flex items-center justify-center gap-1.5 text-[10px] text-white/20">
                         <Shield size={11} className="text-blue-400/50" />
                         On-chain
                     </span>
+                    
+                    {/* Desktop Price */}
+                    <div className="w-20 lg:w-28 text-center mx-1">
+                        {dataset.isFree ? (
+                            <span className="text-xs font-black text-green-400">FREE</span>
+                        ) : (
+                            <div className="flex items-baseline justify-center gap-0.5">
+                                <span className="text-sm font-black text-white">{dataset.price.toFixed(1)}</span>
+                                <span className="text-[8px] font-bold text-indigo-400 tracking-widest">SUSD</span>
+                            </div>
+                        )}
+                        <p className="text-[8px] text-white/20 uppercase font-bold tracking-tighter">{dataset.updatedAgo}</p>
+                    </div>
+
+                    {/* Desktop Action */}
+                    <div className="w-24 lg:w-32 flex justify-center">
+                        <button
+                            onClick={() => handlePurchase(dataset)}
+                            className={`px-3 lg:px-4 py-2 rounded-lg lg:rounded-xl font-bold text-[9px] lg:text-[10px] uppercase tracking-widest transition-all duration-300 flex items-center gap-1.5 shrink-0 ${
+                                dataset.isFree
+                                    ? 'bg-white/8 text-white/70 hover:bg-white/15 border border-white/10'
+                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-[0_0_15px_rgba(59,130,246,0.5)] border border-blue-400/30 hover:scale-105 active:scale-95'
+                            }`}
+                        >
+                            <ShoppingCart size={13} />
+                            {dataset.isFree ? 'Download' : 'Purchase'}
+                        </button>
+                    </div>
                 </div>
 
-                {/* Price + Action */}
-                <div className="shrink-0 flex items-center justify-between sm:justify-end gap-3 sm:ml-2 mt-3 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-0 border-white/5">
-                    {/* Delete Listing Button (Owner only) */}
-
-                    
-                    <div className="sm:text-right">
+                {/* Mobile/Tablet Info Bottom Bar (Visible < md) */}
+                <div className="md:hidden shrink-0 flex items-center justify-between gap-3 mt-3 pt-3 border-t border-white/5 w-full">
+                    <div className="text-left">
                         {dataset.isFree ? (
                             <span className="text-sm font-black text-green-400">FREE</span>
                         ) : (
-                            <div className="flex items-baseline gap-1 sm:justify-end">
+                            <div className="flex items-baseline gap-1">
                                 <span className="text-base font-black text-white">{dataset.price.toFixed(1)}</span>
                                 <span className="text-[9px] font-bold text-indigo-400 tracking-widest">SUSD</span>
                             </div>
@@ -474,7 +521,7 @@ export function Marketplace() {
                     </div>
                     <button
                         onClick={() => handlePurchase(dataset)}
-                        className={`px-4 py-2 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all duration-300 flex items-center gap-1.5 shrink-0 ${
+                        className={`px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all duration-300 flex items-center gap-1.5 ${
                             dataset.isFree
                                 ? 'bg-white/8 text-white/70 hover:bg-white/15 border border-white/10'
                                 : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-[0_0_15px_rgba(59,130,246,0.5)] border border-blue-400/30 hover:scale-105 active:scale-95'
@@ -695,14 +742,13 @@ export function Marketplace() {
                         <div className="hidden md:flex items-center px-4 sm:px-6 py-3 border-b border-white/5 bg-white/[0.02]">
                             <div className="w-10 shrink-0 mr-4" />
                             <div className="flex-1 text-[9px] font-bold uppercase tracking-[0.15em] text-white/25">Dataset</div>
-                            <div className="hidden sm:flex items-center gap-4 lg:gap-6 text-[9px] font-bold uppercase tracking-[0.15em] text-white/25 mr-3">
-                                <span className="w-16 lg:w-20 text-right">Size</span>
-                                <span className="hidden md:inline w-16 text-right">Downloads</span>
-                                <span className="hidden lg:inline w-10 text-right">Rating</span>
-                                <span className="hidden sm:inline w-20 text-right">Network</span>
+                            <div className="flex items-center gap-1 lg:gap-2 text-[9px] font-bold uppercase tracking-[0.15em] text-white/25">
+                                <span className="w-16 lg:w-20 text-center">Size</span>
+                                <span className="w-20 text-center hidden lg:inline-block">Downloads</span>
+                                <span className="w-24 text-center hidden xl:inline-block">Network</span>
+                                <span className="w-20 lg:w-28 text-center">Price</span>
+                                <div className="w-24 lg:w-32" /> 
                             </div>
-                            <div className="w-20 lg:w-28 text-right text-[9px] font-bold uppercase tracking-[0.15em] text-white/25 mr-3">Price</div>
-                            <div className="w-10 lg:w-16" />
                         </div>
                         {filteredDatasets.map((ds, idx) => (
                             <ListRow key={ds.id} dataset={ds} idx={idx} />

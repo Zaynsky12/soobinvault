@@ -167,6 +167,29 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 setLastTxHash(txHash || null);
             }
 
+            // Optimistic Store for Marketplace specifically
+            if (uploadMode === 'micropayment') {
+                try {
+                    const pendingMarkets = JSON.parse(localStorage.getItem('sv_pending_markets') || '[]');
+                    backupBlobs.forEach((b, i) => {
+                        const originalName = b.blobName;
+                        const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
+                        const marketName = `sv_market::${datasetCategory}::${effectivePrice}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`;
+                        pendingMarkets.push({
+                            blob_name: marketName,
+                            owner: account.address.toString(),
+                            account_address: account.address.toString(),
+                            signer: account.address.toString(),
+                            size: b.blobData.size,
+                            created_at: Date.now(),
+                            is_deleted: false,
+                            is_optimistic: true
+                        });
+                    });
+                    localStorage.setItem('sv_pending_markets', JSON.stringify(pendingMarkets));
+                } catch(e) {}
+            }
+
             // Handle success events for each file
             backupFiles.forEach(file => {
                 window.dispatchEvent(new CustomEvent('vault:uploadSuccess', {
@@ -419,7 +442,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         <Shield size={14} /> Private Vault
                                     </button>
                                     <button
-                                        onClick={(e) => { e.stopPropagation(); setUploadMode('micropayment'); }}
+                                        onClick={(e) => { e.stopPropagation(); setUploadMode('micropayment'); setEncryptionEnabled(false); }}
                                         className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${uploadMode === 'micropayment' ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.4)]' : 'text-white/40 hover:text-white/80'}`}
                                     >
                                         <Banknote size={14} /> Micropayment
@@ -572,39 +595,41 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </button>
 
                                 {/* Checkbox-Style Encryption Toggle */}
-                                <div 
-                                    onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
-                                    className="w-full max-w-xs md:max-w-[420px] mx-auto flex items-center justify-center gap-3 cursor-pointer group px-2"
-                                >
-                                    {/* Checkbox square */}
-                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 shrink-0 ${
-                                        encryptionEnabled 
-                                            ? 'bg-color-primary border-color-primary text-white shadow-[0_0_10px_rgba(232,58,118,0.4)]' 
-                                            : 'border-white/40 bg-transparent group-hover:border-white/60'
-                                    }`}>
-                                        {encryptionEnabled && <Check size={14} strokeWidth={3} />}
+                                {uploadMode !== 'micropayment' && (
+                                    <div 
+                                        onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
+                                        className="w-full max-w-xs md:max-w-[420px] mx-auto flex items-center justify-center gap-3 cursor-pointer group px-2"
+                                    >
+                                        {/* Checkbox square */}
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 shrink-0 ${
+                                            encryptionEnabled 
+                                                ? 'bg-color-primary border-color-primary text-white shadow-[0_0_10px_rgba(232,58,118,0.4)]' 
+                                                : 'border-white/40 bg-transparent group-hover:border-white/60'
+                                        }`}>
+                                            {encryptionEnabled && <Check size={14} strokeWidth={3} />}
+                                        </div>
+
+                                        {/* Lock Icon */}
+                                        {encryptionEnabled ? (
+                                            <Lock 
+                                                size={20} 
+                                                className="shrink-0 text-yellow-400 fill-yellow-400/20 drop-shadow-[0_0_12px_rgba(250,204,21,0.9)] transition-all duration-300 scale-110"
+                                            />
+                                        ) : (
+                                            <Unlock 
+                                                size={18} 
+                                                className="shrink-0 text-yellow-500/80 transition-colors duration-300 group-hover:text-yellow-400" 
+                                            />
+                                        )}
+
+                                        {/* Text */}
+                                        <span className={`text-[12px] md:text-sm tracking-wide transition-colors ${
+                                            encryptionEnabled ? 'text-white font-medium' : 'text-white/60 group-hover:text-white/80'
+                                        }`}>
+                                            Encrypt file before upload
+                                        </span>
                                     </div>
-
-                                    {/* Lock Icon */}
-                                    {encryptionEnabled ? (
-                                        <Lock 
-                                            size={20} 
-                                            className="shrink-0 text-yellow-400 fill-yellow-400/20 drop-shadow-[0_0_12px_rgba(250,204,21,0.9)] transition-all duration-300 scale-110"
-                                        />
-                                    ) : (
-                                        <Unlock 
-                                            size={18} 
-                                            className="shrink-0 text-yellow-500/80 transition-colors duration-300 group-hover:text-yellow-400" 
-                                        />
-                                    )}
-
-                                    {/* Text */}
-                                    <span className={`text-[12px] md:text-sm tracking-wide transition-colors ${
-                                        encryptionEnabled ? 'text-white font-medium' : 'text-white/60 group-hover:text-white/80'
-                                    }`}>
-                                        Encrypt file before upload
-                                    </span>
-                                </div>
+                                )}
                             </div>
                         )}
                         {/* Uploading / Encrypting state */}
