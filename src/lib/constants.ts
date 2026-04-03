@@ -1,2 +1,2 @@
-export const MARKETPLACE_REGISTRY_ADDRESS = "0x85fdb9a176ab8ef1d9d9c1b60d60b3924f0800ac1de1cc2085fb0b8bb4988e6a"; // Placeholder: Replace with actual Registry Contract Address
+export const MARKETPLACE_REGISTRY_ADDRESS = "0xa9578ac984ee02e18972c5186420b2d9f3660856c88ca92e3b469c76850a836c"; // User's Dev Account Address
 export const SHELBYUSD_FA_METADATA_ADDRESS = "0x1b18363a9f1fe5e6ebf247daba5cc1c18052bb232efdc4c50f556053922d98e1";

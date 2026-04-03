@@ -1,10 +1,11 @@
 "use client";
 
+import { useRouter } from 'next/navigation';
 import React, { useState, useRef, useEffect } from 'react';
 import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, Unlock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ShieldCheck, ChevronRight, ShieldOff, Calendar, Clock, Coins, Check, Folder, ArrowDown, Banknote, Tag, AlignLeft, BrainCircuit, Globe } from 'lucide-react';
 import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
-import { MARKETPLACE_REGISTRY_ADDRESS } from '../lib/constants';
+import { MARKETPLACE_REGISTRY_ADDRESS, SHELBYUSD_FA_METADATA_ADDRESS } from '../lib/constants';
 import gsap from 'gsap';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
@@ -26,6 +27,7 @@ const DURATION_OPTIONS = [
 ];
 
 export function VaultDropzone({ refetch }: VaultDropzoneProps) {
+    const router = useRouter();
     const { account, signAndSubmitTransaction, wallet } = useWallet();
     const { ensureKey, encryptionKey } = useVaultKey();
     const [isDragging, setIsDragging] = useState(false);
@@ -122,6 +124,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 blobData: new Uint8Array(await b.blobData.arrayBuffer())
             })));
 
+            setUploadStatusText("Step 1/2: Storing encrypted file on Shelby network...");
             await uploadBlobs.mutateAsync({
                 signer: {
                     account: account.address.toString(),
@@ -129,7 +132,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         console.log("[Shelby] Wallet signing request (direct context):", tx);
 
                         // Update status when wallet is reached
-                        setUploadStatusText("Submitting to network...");
+                        setUploadStatusText("Step 1/2: Submitting to protocol...");
 
                         // Defensive transaction cleaning
                         const { sequence_number, ...cleanTx } = tx;
@@ -165,6 +168,36 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             if (caughtResponse && (caughtResponse as any).hash) {
                 txHash = (caughtResponse as any).hash;
                 setLastTxHash(txHash || null);
+            }
+
+            // Step 2: Register in Aptos Marketplace Registry (Contract)
+            if (uploadMode === 'micropayment') {
+                setUploadStatusText("Step 2/2: Registering listing on Marketplace Registry...");
+                for (let i = 0; i < backupBlobs.length; i++) {
+                    const b = backupBlobs[i];
+                    const originalName = b.blobName;
+                    const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
+                    const priceU64 = Math.floor(parseFloat(effectivePrice) * 100_000_000);
+                    const marketName = `sv_market::${datasetCategory}::${effectivePrice}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`;
+
+                    console.log(`[Marketplace] Registering listing: ${marketName} at ${effectivePrice} SUSD`);
+                    
+                    await signAndSubmitTransaction({
+                        sender: account.address,
+                        data: {
+                            function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::list_dataset`,
+                            functionArguments: [
+                                marketName,
+                                priceU64.toString(),
+                                datasetCategory,
+                                datasetDescription,
+                                SHELBYUSD_FA_METADATA_ADDRESS
+                            ]
+                        }
+                    });
+                }
+                // Invalidate Next.js cache
+                router.refresh();
             }
 
             // Optimistic Store for Marketplace specifically
@@ -205,6 +238,14 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
             setSuccessCount(backupFiles.length);
             setUploadState('success');
+
+            // --- REDIRECT LOGIC ---
+            if (uploadMode === 'micropayment') {
+                toast.success("All steps complete! Redirecting to Marketplace...", { duration: 3000 });
+                setTimeout(() => {
+                    router.push('/marketplace');
+                }, 2000);
+            }
         } catch (sdkError) {
             console.error("[Shelby SDK Error]", sdkError);
             const msg = sdkError instanceof Error ? sdkError.message : String(sdkError);

@@ -7,4 +7,4 @@ upgrade_policy = "compatible"
 AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "testnet", subdir = "aptos-move/framework/aptos-framework" }
 
 [addresses]
-marketplace_addr = "_"
+marketplace_addr = "0xa9578ac984ee02e18972c5186420b2d9f3660856c88ca92e3b469c76850a836c"
