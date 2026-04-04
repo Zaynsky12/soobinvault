@@ -322,7 +322,7 @@ export function Marketplace() {
                 // Step 3A: Blockchain State Discovery (View Function) - Absolute Ground Truth
                 try {
                     console.log(`[Marketplace] View-Crawl for participant: ${seller.slice(0, 8)}...`);
-                    const viewResponse = await aptos.view({
+                    const viewResponse = await aptosClient.view({
                         payload: {
                             function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_storefront`,
                             functionArguments: [seller],
