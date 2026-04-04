@@ -34,7 +34,8 @@ yarn-error.log*
 .env*
 
 # vercel
-.vercel
+# aptos build
+marketplace_contract/build/
 
 # typescript
 *.tsbuildinfo
