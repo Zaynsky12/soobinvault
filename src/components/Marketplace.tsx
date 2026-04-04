@@ -129,12 +129,17 @@ export function Marketplace() {
                 query Discovery {
                     blobs(
                         where: { 
-                            blob_name: { _ilike: "%sv_market::%" }
+                            _or: [
+                                { blob_name: { _ilike: "%sv_market::%" } },
+                                { name: { _ilike: "%sv_market::%" } }
+                            ],
+                            is_deleted: { _eq: false }
                         },
-                        limit: 50,
+                        limit: 100,
                         order_by: { created_at: desc }
                     ) {
                         blob_name
+                        name
                         owner
                         account_address
                         signer
@@ -163,14 +168,18 @@ export function Marketplace() {
                         if (result?.data?.blobs) {
                             const foundBlobs = result.data.blobs;
                             if (foundBlobs.length > 0) {
-                                console.log(`[Marketplace] Success! Found ${foundBlobs.length} blobs at ${url}`);
+                                 console.log(`[Marketplace] Success! Found ${foundBlobs.length} blobs at ${url}`);
                                 // Merge unique blobs only
                                 for (const fb of foundBlobs) {
-                                    if (!blobs.some(b => b.blob_name === fb.blob_name)) {
-                                        blobs.push(fb);
+                                    const bName = fb.blob_name || fb.name || "";
+                                    if (!blobs.some(b => b.blob_name === bName)) {
+                                        blobs.push({
+                                            ...fb,
+                                            blob_name: bName
+                                        });
                                     } else {
                                         // Supplement size if already there from contract
-                                        const existing = blobs.find(b => b.blob_name === fb.blob_name);
+                                        const existing = blobs.find(b => b.blob_name === bName);
                                         if (existing) existing.size = fb.size;
                                     }
                                 }
@@ -180,6 +189,41 @@ export function Marketplace() {
                     }
                 } catch (e) {
                     console.warn(`[Marketplace] Failed at ${url}:`, e);
+                }
+            }
+
+            // High-Confidence Participant Discovery (Brute force for known sellers if indexer is lagging)
+            const backupSellers = [MARKETPLACE_REGISTRY_ADDRESS];
+            if (userAddress) backupSellers.push(userAddress);
+            
+            for (const seller of backupSellers) {
+                if (shelbyClient) {
+                    try {
+                        console.log(`[Marketplace] Direct Discovery for participant: ${seller.slice(0,8)}...`);
+                        const liveBlobs = await (shelbyClient as any).coordination.getAccountBlobs({
+                            account: seller
+                        });
+                        if (liveBlobs && liveBlobs.length > 0) {
+                            const userMarketBlobs = liveBlobs.filter((b: any) => {
+                                const n = b.blobNameSuffix || b.blobName || b.blob_name || b.name || "";
+                                return n.includes("sv_market::");
+                            });
+                            for (const umb of userMarketBlobs) {
+                                const rawName = typeof umb.name === 'string' ? umb.name : (umb.blobNameSuffix || umb.blobName || umb.blob_name || "");
+                                if (!blobs.some(b => b.blob_name === rawName)) {
+                                    blobs.push({
+                                        blob_name: rawName,
+                                        owner: seller,
+                                        account_address: seller,
+                                        signer: seller,
+                                        size: umb.size || 0,
+                                        created_at: umb.timestamp || umb.creationMicros || umb.createdAt || Date.now(),
+                                        is_deleted: false
+                                    });
+                                }
+                            }
+                        }
+                    } catch (e) {}
                 }
             }
 
@@ -195,48 +239,6 @@ export function Marketplace() {
                         blobs = fallbackResult?.blobs || [];
                     }
                 } catch (e) { }
-            }
-
-            // Live Verification: Supplement with the user's directly known blobs to bypass indexer lag
-            if (userAddress && shelbyClient) {
-                try {
-                    console.log("[Marketplace) Fetching live account blobs to bypass indexer lag...");
-                    const liveBlobs = await (shelbyClient as any).coordination.getAccountBlobs({
-                        account: userAddress
-                    });
-                    if (liveBlobs && liveBlobs.length > 0) {
-                        const userMarketBlobs = liveBlobs.filter((b: any) => {
-                            const n = b.blobNameSuffix || b.blobName || b.blob_name || b.name || "";
-                            return n.includes("sv_market::");
-                        });
-
-                        for (const umb of userMarketBlobs) {
-                            const rawName = typeof umb.name === 'string' ? umb.name : (umb.blobNameSuffix || umb.blobName || umb.blob_name || "");
-                            const nameMatch = rawName.match(/^@[^\/]+\/(.+)$/);
-                            const name = nameMatch ? nameMatch[1] : rawName;
-                            
-                            if (!blobs.some((b: any) => {
-                                const examName = typeof b.name === 'string' ? b.name : (b.blob_name || b.blobName || "");
-                                const examMatch = examName.match(/^@[^\/]+\/(.+)$/);
-                                const examClean = examMatch ? examMatch[1] : examName;
-                                return examClean === name && (b.owner === userAddress || b.account_address === userAddress || b.signer === userAddress);
-                            })) {
-                                
-                                blobs.push({
-                                    blob_name: name,
-                                    owner: userAddress,
-                                    account_address: userAddress,
-                                    signer: userAddress,
-                                    size: umb.size || 0,
-                                    created_at: umb.timestamp || umb.creationMicros || umb.createdAt || Date.now(),
-                                    is_deleted: false
-                                });
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.warn("[Marketplace] Live verification fetch failed:", err);
-                }
             }
 
             // Add Optimistic Local Storage Blobs
