@@ -202,18 +202,35 @@ export function Marketplace() {
                 // 1C: Transactions
                 if (txResp?.ok) {
                     const txJson = await txResp.json();
-                    if (txJson?.data?.account_transactions) {
-                        const txs = txJson.data.account_transactions;
+                    if (txJson?.data) {
+                        const txs = Array.isArray(txJson.data) ? txJson.data : (txJson.data?.account_transactions || []);
                         console.log(`[Marketplace] 1C (Transactions) Discovered ${txs.length} recent participants.`);
                         txs.forEach((tx: any) => {
-                            const seller = tx.user_transaction?.sender;
+                            const seller = tx.user_transaction?.sender || tx.sender;
                             if (seller) allDiscoveredSellers.add(seller);
+                        });
+                    }
+                }
+
+                // 1E: REST Transaction History Crawl (Ultra-Robust Discovery)
+                const txHistoryUrl = `https://api.testnet.aptoslabs.com/v1/accounts/${MARKETPLACE_REGISTRY_ADDRESS}/transactions?limit=100`;
+                const txHistoryResp = await fetch(txHistoryUrl, { 
+                    method: "GET", 
+                    headers: { "x-api-key": apiKey.trim(), "Accept": "application/json" } 
+                }).catch(() => null);
+
+                if (txHistoryResp?.ok) {
+                    const txs = await txHistoryResp.json();
+                    if (Array.isArray(txs)) {
+                        console.log(`[Marketplace] 1E (REST History) Scanned ${txs.length} contract interactions.`);
+                        txs.forEach((tx: any) => {
+                            if (tx.sender) allDiscoveredSellers.add(tx.sender);
                         });
                     }
                 }
                 
                 console.log("[Marketplace] Aggregated Seller Queue:");
-                console.table(Array.from(allDiscoveredSellers).map(s => ({ address: s, reliability: s === MARKETPLACE_REGISTRY_ADDRESS ? 'HIGH' : 'LOW-CONFIDENCE' })));
+                console.table(Array.from(allDiscoveredSellers).map(s => ({ address: s, reliability: s === MARKETPLACE_REGISTRY_ADDRESS ? 'REGISTRY' : 'PARTICIPANT' })));
                 
                 blobs = storefrontBlobs;
             } catch (e) {
@@ -302,9 +319,39 @@ export function Marketplace() {
             const backupSellers = Array.from(allDiscoveredSellers);
             
             for (const seller of (backupSellers as string[])) {
+                // Step 3A: Blockchain State Discovery (View Function) - Absolute Ground Truth
+                try {
+                    console.log(`[Marketplace] View-Crawl for participant: ${seller.slice(0, 8)}...`);
+                    const viewResponse = await aptos.view({
+                        payload: {
+                            function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_storefront`,
+                            functionArguments: [seller],
+                        },
+                    });
+
+                    if (viewResponse && viewResponse[0] && Array.isArray(viewResponse[0])) {
+                        const datasets = viewResponse[0];
+                        console.log(`[Marketplace] View-Crawl SUCCESS! Found ${datasets.length} listings for ${seller.slice(0, 8)}`);
+                        datasets.forEach((ds: any) => {
+                            const bName = ds.blob_name || ds.blobName || "";
+                            if (!blobs.some(b => b.blob_name === bName)) {
+                                blobs.push({
+                                    blob_name: bName, owner: seller, account_address: seller, signer: seller,
+                                    contract_price: ds.price, contract_category: ds.category, contract_description: ds.description,
+                                    contract_payment_metadata: ds.payment_metadata, size: "0", created_at: Date.now(), is_deleted: false, from_contract: true
+                                });
+                            }
+                        });
+                    }
+                } catch (e) {
+                    // Fallback to Resource fetch if View fails or is not found
+                    console.warn(`[Marketplace] View-Crawl skipped for ${seller.slice(0, 8)}:`, e);
+                }
+
+                // Step 3B: Hybrid Discovery (SDK and Direct storage nodes)
                 if (shelbyClient) {
                     try {
-                        console.log(`[Marketplace] Direct Discovery for participant: ${seller.slice(0,8)}...`);
+                        console.log(`[Marketplace] Shelby-Crawl for participant: ${seller.slice(0, 8)}...`);
                         const liveBlobs = await (shelbyClient as any).coordination.getAccountBlobs({
                             account: seller
                         });
