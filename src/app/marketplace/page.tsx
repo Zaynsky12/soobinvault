@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function MarketplacePage() {
   return (
-    <main className="min-h-screen bg-[#050505] flex flex-col pt-20">
+    <main className="min-h-screen bg-color-deep flex flex-col pt-20">
       {/* Background aesthetics */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[120px]" />

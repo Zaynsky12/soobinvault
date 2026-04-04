@@ -48,7 +48,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
     }, []);
 
     const pathname = usePathname();
-    const isVaultPage = pathname === '/dashboard' || pathname === '/vault';
+    const hideFooterPages = ['/dashboard', '/vault', '/marketplace'].includes(pathname);
 
     return (
         <WalletProvider>
@@ -78,7 +78,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
                             {children}
                         </main>
                         {/* Hide footer entirely for vault-related pages */}
-                        {!isVaultPage && <Footer />}
+                        {!hideFooterPages && <Footer />}
                     </VaultKeyProvider>
                 </ShelbyClientProvider>
             )}

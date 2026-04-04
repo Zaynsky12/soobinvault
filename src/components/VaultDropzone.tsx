@@ -124,7 +124,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 blobData: new Uint8Array(await b.blobData.arrayBuffer())
             })));
 
-            setUploadStatusText("Step 1/2: Storing encrypted file on Shelby network...");
+            const isMarket = uploadMode === 'micropayment';
+            setUploadStatusText(isMarket ? "Step 1/2: Storing encrypted file on Shelby network..." : "Uploading to secure network...");
+            
             await uploadBlobs.mutateAsync({
                 signer: {
                     account: account.address.toString(),
@@ -132,7 +134,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         console.log("[Shelby] Wallet signing request (direct context):", tx);
 
                         // Update status when wallet is reached
-                        setUploadStatusText("Step 1/2: Submitting to protocol...");
+                        if (isMarket) {
+                            setUploadStatusText("Step 1/2: Submitting to protocol...");
+                        } else {
+                            setUploadStatusText("Submitting to network...");
+                        }
 
                         // Defensive transaction cleaning
                         const { sequence_number, ...cleanTx } = tx;
@@ -171,7 +177,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             }
 
             // Step 2: Register in Aptos Marketplace Registry (Contract)
-            if (uploadMode === 'micropayment') {
+            if (isMarket) {
                 setUploadStatusText("Step 2/2: Registering listing on Marketplace Registry...");
                 for (let i = 0; i < backupBlobs.length; i++) {
                     const b = backupBlobs[i];
@@ -238,6 +244,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
             setSuccessCount(backupFiles.length);
             setUploadState('success');
+            setUploadStatusText(isMarket ? "Registry Update: Complete." : "Assets secured and backed up.");
 
             // --- REDIRECT LOGIC ---
             if (uploadMode === 'micropayment') {

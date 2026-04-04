@@ -7,7 +7,7 @@ import {
     DownloadCloud, Banknote, ShieldAlert, Gift, LayoutGrid, List,
     ChevronDown, Lock, Zap, Globe, Cpu, Mic, BarChart2, FlaskConical,
     Stethoscope, Bot, Layers, Package, SortAsc, ArrowUpDown, Shield,
-    ExternalLink, Trash2, RefreshCw, Loader2
+    ExternalLink, RefreshCw, Loader2
 } from 'lucide-react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Aptos, AptosConfig, Network, AccountAddress } from "@aptos-labs/ts-sdk";
@@ -41,7 +41,7 @@ export function Marketplace() {
     const shelbyClient = useShelbyClient();
     const deleteBlobs = useDeleteBlobs({ client: shelbyClient });
     const [datasets, setDatasets] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [lastSync, setLastSync] = useState<Date>(new Date());
     const [searchQuery, setSearchQuery] = useState("");
@@ -53,7 +53,6 @@ export function Marketplace() {
     const userAddress = account?.address?.toString();
 
     const loadDatasets = useCallback(async (isAuto = false) => {
-        if (!shelbyClient) return;
         if (!isAuto) setIsLoading(true);
         else setIsRefreshing(true);
         
@@ -187,17 +186,19 @@ export function Marketplace() {
             // Final fallback: If we still have nothing, try the SDK internal coordinación if it exists
             if (blobs.length === 0) {
                 try {
-                    console.log("[Marketplace] Trying SDK Internal Fallback...");
-                    const fallbackResult = await (shelbyClient as any).coordination.indexer.getBlobs({
-                        where: { blob_name: { _ilike: "%sv_market::%" } },
-                        limit: 20
-                    });
-                    blobs = fallbackResult?.blobs || [];
+                    if (shelbyClient) {
+                        console.log("[Marketplace] Trying SDK Internal Fallback...");
+                        const fallbackResult = await (shelbyClient as any).coordination.indexer.getBlobs({
+                            where: { blob_name: { _ilike: "%sv_market::%" } },
+                            limit: 20
+                        });
+                        blobs = fallbackResult?.blobs || [];
+                    }
                 } catch (e) { }
             }
 
             // Live Verification: Supplement with the user's directly known blobs to bypass indexer lag
-            if (userAddress) {
+            if (userAddress && shelbyClient) {
                 try {
                     console.log("[Marketplace) Fetching live account blobs to bypass indexer lag...");
                     const liveBlobs = await (shelbyClient as any).coordination.getAccountBlobs({
@@ -300,7 +301,7 @@ export function Marketplace() {
                             sellerFull: sellerFull,
                             possibleOwners: Array.from(new Set(possibleOwners)),
                             category: category,
-                            downloads: Math.floor(Math.random() * 50),
+                            downloads: (blobName.length % 50) + 5, // Stable mock data based on ID length
                             isFree: price === 0,
                             tags: [category, d.is_optimistic ? "Just Uploaded" : null].filter(Boolean),
                             updatedAgo: d.from_contract ? "Verified" : (d.is_optimistic ? "Syncing..." : "Active")
@@ -322,10 +323,12 @@ export function Marketplace() {
     }, [shelbyClient, userAddress]);
 
     useEffect(() => {
-        loadDatasets();
+        loadDatasets(true); // Balanced Silent Sync: Loads data automatically without blocking the UI
     }, [loadDatasets]);
 
-    // Polling Effect: Auto-refresh every 12 seconds to catch indexer lag
+    // Auto-polling deactivated as per user request to prevent constant background syncing.
+    // Manual sync is now integrated into the search bar.
+    /*
     useEffect(() => {
         const timer = setInterval(() => {
             if (!isLoading && !isRefreshing) {
@@ -334,6 +337,7 @@ export function Marketplace() {
         }, 12000);
         return () => clearInterval(timer);
     }, [loadDatasets, isLoading, isRefreshing]);
+    */
 
     // 'showFreeOnly' is derived from activeCategory for a unified single-pill UX
     const showFreeOnly = activeCategory === "Free";
@@ -353,10 +357,24 @@ export function Marketplace() {
                 return categoryMatch && freeMatch && searchMatch; // Removed !isOwner to allow users to see their own for delisting
             })
             .sort((a, b) => {
-                if (sortBy === "Most Downloaded") return b.downloads - a.downloads;
-                if (sortBy === "Price: Low to High") return a.price - b.price;
-                if (sortBy === "Price: High to Low") return b.price - a.price;
-                return 0;
+                const stableDiff = a.id.localeCompare(b.id);
+                if (sortBy === "Most Downloaded") {
+                    const diff = b.downloads - a.downloads;
+                    return diff !== 0 ? diff : stableDiff;
+                }
+                if (sortBy === "Price: Low to High") {
+                    const diff = a.price - b.price;
+                    return diff !== 0 ? diff : stableDiff;
+                }
+                if (sortBy === "Price: High to Low") {
+                    const diff = b.price - a.price;
+                    return diff !== 0 ? diff : stableDiff;
+                }
+                if (sortBy === "Newest") {
+                    // Using reverse ID comparison as a proxy for newest (assuming prefix-based sequential naming)
+                    return stableDiff * -1;
+                }
+                return stableDiff;
             }),
     [datasets, activeCategory, searchQuery, sortBy]
     );
@@ -527,24 +545,7 @@ export function Marketplace() {
         }
     };
 
-    const handleDelist = async (dataset: any) => {
-        if (!account || !signAndSubmitTransaction) return;
-        const actionToastId = toast.loading(`Removing ${dataset.title} from your storefront...`);
-        try {
-            await signAndSubmitTransaction({
-                sender: account.address,
-                data: {
-                    function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::delist_dataset`,
-                    functionArguments: [dataset.id]
-                }
-            });
-            toast.success("Item delisted successfully", { id: actionToastId });
-            // Refresh local state or trigger a reload
-            setDatasets(prev => prev.filter(d => d.id !== dataset.id));
-        } catch (err: any) {
-            toast.error(`Delisting Failed: ${err.message}`, { id: actionToastId });
-        }
-    };
+
 
     const getCategoryMeta = (cat: string) => CATEGORY_META[cat] ?? CATEGORY_META["Other"];
 
@@ -608,15 +609,7 @@ export function Marketplace() {
 
                     {/* Desktop Action */}
                     <div className="w-24 lg:w-32 flex justify-center gap-1.5">
-                        {userAddress?.toLowerCase() === dataset.sellerFull?.toLowerCase() && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleDelist(dataset); }}
-                                className="p-2 rounded-lg lg:rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 transition-all group/delist"
-                                title="Delist Dataset"
-                            >
-                                <Trash2 size={13} className="group-hover/delist:scale-110 transition-transform" />
-                            </button>
-                        )}
+
                         <button
                             onClick={() => handlePurchase(dataset)}
                             className={`px-3 lg:px-4 py-2 rounded-lg lg:rounded-xl font-bold text-[9px] lg:text-[10px] uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-1.5 shrink-0 ${
@@ -692,15 +685,7 @@ export function Marketplace() {
                     </div>
                     {/* Action */}
                     <div className="flex items-center justify-between gap-2">
-                        {userAddress?.toLowerCase() === dataset.sellerFull?.toLowerCase() && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleDelist(dataset); }}
-                                className="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 transition-all group/delist"
-                                title="Delist Dataset"
-                            >
-                                <Trash2 size={14} className="group-hover/delist:scale-110 transition-transform" />
-                            </button>
-                        )}
+
                         <div className="flex-1">
                             {dataset.isFree ? (
                                 <span className="text-sm font-black text-green-400">FREE</span>
@@ -743,44 +728,31 @@ export function Marketplace() {
                             {datasets.length} datasets · Powered by trustless ShelbyUSD micropayments on Aptos
                         </p>
                     </div>
-                    
-                    <div className="flex items-center gap-3">
-                        <div className="hidden sm:flex flex-col items-end mr-1">
-                            <span className="text-[10px] text-white/20 uppercase font-bold tracking-widest">Network Status</span>
-                            <span className="text-[11px] text-green-400 font-mono flex items-center gap-1.5">
-                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                Synchronized
-                            </span>
-                        </div>
-                        <button
-                            onClick={() => loadDatasets()}
-                            disabled={isLoading || isRefreshing}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 hover:border-blue-500/30 transition-all duration-300 group ${isLoading || isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            {isRefreshing || isLoading ? (
-                                <Loader2 size={16} className="animate-spin text-blue-400" />
-                            ) : (
-                                <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-700 text-blue-500" />
-                            )}
-                            <span className="text-xs font-bold uppercase tracking-wider">
-                                {isRefreshing || isLoading ? 'Syncing...' : 'Sync Now'}
-                            </span>
-                        </button>
-                    </div>
                 </div>
 
-                {/* Search Bar */}
-                <div className="relative mb-4 group">
+                <div className="relative mb-6 group/search">
                     <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                        <Search size={18} className="text-white/20 group-focus-within:text-blue-400 transition-colors" />
+                        <Search size={18} className="text-white/20 group-focus-within/search:text-blue-400 transition-colors" />
                     </div>
                     <input
                         type="text"
                         placeholder="Search datasets, tags, categories..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-[#0B1121]/80 border border-white/8 focus:border-blue-500/40 rounded-2xl py-3.5 pl-12 pr-4 text-white text-sm outline-none transition-all placeholder:text-white/15 backdrop-blur-xl"
+                        className="w-full bg-[#0B1121]/80 border border-white/8 group-focus-within/search:border-blue-500/40 rounded-2xl py-4 pl-12 pr-14 text-white text-sm outline-none transition-all placeholder:text-white/15 backdrop-blur-xl shadow-inner"
                     />
+                    <button
+                        onClick={() => loadDatasets()}
+                        disabled={isLoading || isRefreshing}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 hover:border-blue-500/30 transition-all flex items-center justify-center group/sync ${isLoading || isRefreshing ? 'opacity-50' : ''}`}
+                        title="Sync Marketplace Data"
+                    >
+                        {isRefreshing || isLoading ? (
+                            <Loader2 size={16} className="animate-spin text-blue-400" />
+                        ) : (
+                            <RefreshCw size={16} className="group-hover/sync:rotate-180 transition-transform duration-700 text-blue-500" />
+                        )}
+                    </button>
                 </div>
 
                 {/* Toolbar: Categories + Sort + View Toggle */}
@@ -920,11 +892,6 @@ export function Marketplace() {
                     </div>
                 )}
 
-                {/* Footer note */}
-                <div className="mt-8 flex items-center justify-center gap-2 text-[10px] text-white/15">
-                    <Shield size={11} className="text-blue-400/40" />
-                    All datasets are immutably stored on-chain via Shelby Protocol · Payments settled in ShelbyUSD (SUSD)
-                </div>
 
             </div>
         </section>

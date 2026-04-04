@@ -2,9 +2,10 @@
 name = "MarketplaceRegistry"
 version = "1.0.0"
 upgrade_policy = "compatible"
+edition = "2024.alpha"
 
 [dependencies]
-AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "testnet", subdir = "aptos-move/framework/aptos-framework" }
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "6ae8bca019623e42562ec542898f98cc6c9cf1c6", subdir = "aptos-move/framework/aptos-framework" }
 
 [addresses]
-marketplace_addr = "0xa9578ac984ee02e18972c5186420b2d9f3660856c88ca92e3b469c76850a836c"
+marketplace_addr = "0xaf41289b3141c2b8f5650dda1ae3fc400270048da3c009e087694d082bdcc263"
