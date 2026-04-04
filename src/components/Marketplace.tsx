@@ -59,9 +59,13 @@ export function Marketplace() {
         try {
             // Step 1: Decentralized Discovery via Aptos GraphQL Indexer
             let blobs: any[] = [];
+            const allDiscoveredSellers = new Set<string>();
+            allDiscoveredSellers.add(MARKETPLACE_REGISTRY_ADDRESS);
+            if (userAddress) allDiscoveredSellers.add(userAddress);
+
             try {
-                console.log("[Marketplace] Crawling network for UserStorefront resources...");
-                const resourceType = `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::UserStorefront`;
+            console.log("[Marketplace] Crawling network for UserStorefront resources...");
+            const resourceType = `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::UserStorefront`;
                 
                 const indexerQuery = {
                   query: `
@@ -91,6 +95,7 @@ export function Marketplace() {
                     const storefrontBlobs: any[] = [];
                     resources.forEach((res: any) => {
                         const sellerAddr = res.account_address;
+                        allDiscoveredSellers.add(sellerAddr);
                         const datasets = res.data?.datasets || [];
                         
                         datasets.forEach((ds: any) => {
@@ -192,11 +197,10 @@ export function Marketplace() {
                 }
             }
 
-            // High-Confidence Participant Discovery (Brute force for known sellers if indexer is lagging)
-            const backupSellers = [MARKETPLACE_REGISTRY_ADDRESS];
-            if (userAddress) backupSellers.push(userAddress);
+            // High-Confidence Participant Discovery (Direct crawl for all known sellers to bypass indexer lag)
+            const backupSellers = Array.from(allDiscoveredSellers);
             
-            for (const seller of backupSellers) {
+            for (const seller of (backupSellers as string[])) {
                 if (shelbyClient) {
                     try {
                         console.log(`[Marketplace] Direct Discovery for participant: ${seller.slice(0,8)}...`);
