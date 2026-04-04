@@ -67,82 +67,116 @@ export function Marketplace() {
             console.log("[Marketplace] Crawling network for UserStorefront resources...");
             const resourceType = `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::UserStorefront`;
                 
-                // Consolidated Aptos Indexer Query (Resources + Events)
-                const consolidatedQuery = {
+                // Step 1A: Resource Discovery (Primary State)
+                const resourceQuery = {
                     query: `
-                        query Discovery($resource_type: String!, $event_type: String!) {
+                        query Discovery($resource_type: String!) {
                             current_account_resources(where: { resource_type: { _eq: $resource_type } }) {
                                 account_address
                                 data
                             }
+                        }
+                    `,
+                    variables: { resource_type: resourceType }
+                };
+
+                // Step 1B: Event Discovery (Interaction Delta)
+                const eventQuery = {
+                    query: `
+                        query GetEvents($event_type: String!) {
                             events(where: { type: { _eq: $event_type } }, limit: 100, order_by: { transaction_version: desc }) {
                                 account_address
                                 data
                             }
                         }
                     `,
-                    variables: { 
-                        resource_type: resourceType,
-                        event_type: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::DatasetListed`
-                    }
+                    variables: { event_type: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::DatasetListed` }
+                };
+
+                // Step 1C: Transaction Discovery (Ultra-Robust Fallback for Indexer Lag/Failure)
+                const txQuery = {
+                    query: `
+                        query GetRecentTx($registry: String!) {
+                            account_transactions(where: { account_address: { _eq: $registry } }, limit: 50, order_by: { version: desc }) {
+                                user_transaction { sender }
+                            }
+                        }
+                    `,
+                    variables: { registry: MARKETPLACE_REGISTRY_ADDRESS }
                 };
 
                 console.group("[Marketplace] Discovery Report");
-                console.log("[Marketplace] Initializing Global Fetch Pipeline...");
+                console.log("[Marketplace] Initializing Robust Multi-Path Discovery...");
 
-                const aptosResp = await fetch("https://api.testnet.aptoslabs.com/v1/graphql", {
+                const fetchOptions = {
                     method: "POST",
                     headers: { 
                         "Content-Type": "application/json",
+                        "Accept": "application/json",
                         "Cache-Control": "no-cache, no-store, must-revalidate"
-                    },
-                    body: JSON.stringify(consolidatedQuery)
-                });
+                    }
+                };
 
-                const aptosResult = await aptosResp.json();
+                // Attempt all paths in parallel to minimize latency
+                const [resResp, eventResp, txResp] = await Promise.all([
+                    fetch("https://api.testnet.aptoslabs.com/v1/graphql", { ...fetchOptions, body: JSON.stringify(resourceQuery) }).catch(() => null),
+                    fetch("https://api.testnet.aptoslabs.com/v1/graphql", { ...fetchOptions, body: JSON.stringify(eventQuery) }).catch(() => null),
+                    fetch("https://api.testnet.aptoslabs.com/v1/graphql", { ...fetchOptions, body: JSON.stringify(txQuery) }).catch(() => null)
+                ]);
+
                 const storefrontBlobs: any[] = [];
 
-                // Process Resources (Current Truth)
-                if (aptosResult?.data?.current_account_resources) {
-                    const src = aptosResult.data.current_account_resources;
-                    console.log(`[Marketplace] Storefront Discovery: Found ${src.length} active stores.`);
-                    src.forEach((res: any) => {
-                        const sellerAddr = res.account_address;
-                        allDiscoveredSellers.add(sellerAddr);
-                        (res.data?.datasets || []).forEach((ds: any) => {
-                            const bName = ds.blob_name || ds.blobName || "";
-                            if (!storefrontBlobs.some(b => b.blob_name === bName)) {
-                                storefrontBlobs.push({
-                                    blob_name: bName,
-                                    owner: sellerAddr,
-                                    account_address: sellerAddr,
-                                    signer: sellerAddr,
-                                    contract_price: ds.price,
-                                    contract_category: ds.category,
-                                    contract_description: ds.description,
-                                    contract_payment_metadata: ds.payment_metadata,
-                                    size: "0",
-                                    created_at: Date.now(),
-                                    is_deleted: false,
-                                    from_contract: true
-                                });
-                            }
+                // 1A: Resources
+                if (resResp?.ok) {
+                    const resJson = await resResp.json();
+                    if (resJson?.data?.current_account_resources) {
+                        const src = resJson.data.current_account_resources;
+                        console.log(`[Marketplace] 1A (Resources) Found ${src.length} entries.`);
+                        src.forEach((res: any) => {
+                            const sellerAddr = res.account_address;
+                            allDiscoveredSellers.add(sellerAddr);
+                            (res.data?.datasets || []).forEach((ds: any) => {
+                                const bName = ds.blob_name || ds.blobName || "";
+                                if (!storefrontBlobs.some(b => b.blob_name === bName)) {
+                                    storefrontBlobs.push({
+                                        blob_name: bName, owner: sellerAddr, account_address: sellerAddr, signer: sellerAddr,
+                                        contract_price: ds.price, contract_category: ds.category, contract_description: ds.description,
+                                        contract_payment_metadata: ds.payment_metadata, size: "0", created_at: Date.now(), is_deleted: false, from_contract: true
+                                    });
+                                }
+                            });
                         });
-                    });
+                    }
                 }
 
-                // Process Events (Historical/Lagging Truth)
-                if (aptosResult?.data?.events) {
-                    const evts = aptosResult.data.events;
-                    console.log(`[Marketplace] Event Discovery: Found ${evts.length} listing triggers.`);
-                    evts.forEach((ev: any) => {
-                        const seller = ev.data?.owner || ev.account_address;
-                        if (seller) allDiscoveredSellers.add(seller);
-                    });
+                // 1B: Events
+                if (eventResp?.ok) {
+                    const eventJson = await eventResp.json();
+                    if (eventJson?.data?.events) {
+                        const evts = eventJson.data.events;
+                        console.log(`[Marketplace] 1B (Events) Found ${evts.length} triggers.`);
+                        evts.forEach((ev: any) => {
+                            const seller = ev.data?.owner || ev.account_address;
+                            if (seller) allDiscoveredSellers.add(seller);
+                        });
+                    }
+                }
+
+                // 1C: Transactions
+                if (txResp?.ok) {
+                    const txJson = await txResp.json();
+                    if (txJson?.data?.account_transactions) {
+                        const txs = txJson.data.account_transactions;
+                        console.log(`[Marketplace] 1C (Transactions) Discovered ${txs.length} recent participants.`);
+                        txs.forEach((tx: any) => {
+                            const seller = tx.user_transaction?.sender;
+                            if (seller) allDiscoveredSellers.add(seller);
+                        });
+                    }
                 }
                 
-                console.log("[Marketplace] Discovered Seller Set:");
-                console.table(Array.from(allDiscoveredSellers).map(s => ({ address: s, type: s === MARKETPLACE_REGISTRY_ADDRESS ? 'Registry' : 'Participant' })));
+                console.log("[Marketplace] Aggregated Seller Queue:");
+                console.table(Array.from(allDiscoveredSellers).map(s => ({ address: s, reliability: s === MARKETPLACE_REGISTRY_ADDRESS ? 'HIGH' : 'LOW-CONFIDENCE' })));
                 
                 blobs = storefrontBlobs;
             } catch (e) {
@@ -151,11 +185,11 @@ export function Marketplace() {
 
             const apiKey = (shelbyClient as any).config?.rpc?.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
             
-            // Try multiple potential indexer endpoints for the current network
+            // Updated Testnet Endpoints: Prioritizing most reliable discovery hubs
             const indexerEndpoints = [
+                "https://api.testnet.shelby.xyz/v1/graphql",
                 "https://api.testnet.shelby.xyz/shelby/v1/graphql",
-                "https://api.testnet.shelby.xyz/indexer/v1/graphql",
-                "https://api.testnet.shelby.xyz/v1/graphql"
+                "https://api.testnet.shelby.xyz/indexer/v1/graphql"
             ];
 
             const query = `
