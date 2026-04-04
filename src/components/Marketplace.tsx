@@ -67,56 +67,88 @@ export function Marketplace() {
             console.log("[Marketplace] Crawling network for UserStorefront resources...");
             const resourceType = `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::UserStorefront`;
                 
-                const indexerQuery = {
-                  query: `
-                    query GetStorefronts($resource_type: String!) {
-                      current_account_resources(
-                        where: { resource_type: { _eq: $resource_type } }
-                      ) {
-                        account_address
-                        data
-                      }
-                    }
-                  `,
-                  variables: { resource_type: resourceType }
+                // Sub-step 1A: High-Precision Resource Discovery
+                const resourceQuery = {
+                    query: `
+                        query GetStorefronts($resource_type: String!) {
+                            current_account_resources(where: { resource_type: { _eq: $resource_type } }) {
+                                account_address
+                                data
+                            }
+                        }
+                    `,
+                    variables: { resource_type: resourceType }
                 };
 
-                const response = await fetch("https://api.testnet.aptoslabs.com/v1/graphql", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(indexerQuery)
-                });
+                // Sub-step 1B: Event-Driven Participant Discovery (Robust Fallback)
+                const eventType = `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::DatasetListed`;
+                const eventQuery = {
+                    query: `
+                        query GetRecentSellers($event_type: String!) {
+                            events(where: { type: { _eq: $event_type } }, limit: 100, order_by: { transaction_version: desc }) {
+                                account_address
+                                data
+                            }
+                        }
+                    `,
+                    variables: { event_type: eventType }
+                };
 
-                const result = await response.json();
-                if (result?.data?.current_account_resources) {
-                    const resources = result.data.current_account_resources;
-                    console.log(`[Marketplace] Found ${resources.length} active storefronts on-chain.`);
-                    
-                    const storefrontBlobs: any[] = [];
+                const [resResp, eventResp] = await Promise.all([
+                    fetch("https://api.testnet.aptoslabs.com/v1/graphql", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(resourceQuery)
+                    }),
+                    fetch("https://api.testnet.aptoslabs.com/v1/graphql", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(eventQuery)
+                    })
+                ]);
+
+                const resResult = await resResp.json();
+                const eventResult = await eventResp.json();
+                const storefrontBlobs: any[] = [];
+
+                // Process Resources
+                if (resResult?.data?.current_account_resources) {
+                    const resources = resResult.data.current_account_resources;
+                    console.log(`[Marketplace] Storefront Discovery: Found ${resources.length} active stores.`);
                     resources.forEach((res: any) => {
                         const sellerAddr = res.account_address;
                         allDiscoveredSellers.add(sellerAddr);
-                        const datasets = res.data?.datasets || [];
-                        
-                        datasets.forEach((ds: any) => {
-                            storefrontBlobs.push({
-                                blob_name: ds.blob_name,
-                                owner: sellerAddr,
-                                account_address: sellerAddr,
-                                signer: sellerAddr,
-                                contract_price: ds.price,
-                                contract_category: ds.category,
-                                contract_description: ds.description,
-                                contract_payment_metadata: ds.payment_metadata,
-                                size: "0",
-                                created_at: Date.now(),
-                                is_deleted: false,
-                                from_contract: true
-                            });
+                        (res.data?.datasets || []).forEach((ds: any) => {
+                            if (!storefrontBlobs.some(b => b.blob_name === ds.blob_name)) {
+                                storefrontBlobs.push({
+                                    blob_name: ds.blob_name,
+                                    owner: sellerAddr,
+                                    account_address: sellerAddr,
+                                    signer: sellerAddr,
+                                    contract_price: ds.price,
+                                    contract_category: ds.category,
+                                    contract_description: ds.description,
+                                    contract_payment_metadata: ds.payment_metadata,
+                                    size: "0",
+                                    created_at: Date.now(),
+                                    is_deleted: false,
+                                    from_contract: true
+                                });
+                            }
                         });
                     });
-                    blobs = storefrontBlobs;
                 }
+
+                // Process Events (Discovery of sellers who might be lagging in resources index)
+                if (eventResult?.data?.events) {
+                    const events = eventResult.data.events;
+                    console.log(`[Marketplace] Event Discovery: Found ${events.length} listing updates.`);
+                    events.forEach((ev: any) => {
+                        const seller = ev.data?.owner || ev.account_address;
+                        if (seller) allDiscoveredSellers.add(seller);
+                    });
+                }
+                blobs = storefrontBlobs;
             } catch (e) {
                 console.error("[Marketplace] P2P Discovery failed:", e);
             }
@@ -136,6 +168,7 @@ export function Marketplace() {
                         where: { 
                             _or: [
                                 { blob_name: { _ilike: "%sv_market::%" } },
+                                { blobName: { _ilike: "%sv_market::%" } },
                                 { name: { _ilike: "%sv_market::%" } }
                             ],
                             is_deleted: { _eq: false }
