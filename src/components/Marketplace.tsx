@@ -66,7 +66,8 @@ export function Marketplace() {
             try {
             console.log("[Marketplace] Crawling network for UserStorefront resources...");
             const resourceType = `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::UserStorefront`;
-                
+                const apiKey = (shelbyClient as any).config?.rpc?.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
+
                 // Step 1A: Resource Discovery (Primary State)
                 const resourceQuery = {
                     query: `
@@ -108,23 +109,59 @@ export function Marketplace() {
                 console.group("[Marketplace] Discovery Report");
                 console.log("[Marketplace] Initializing Robust Multi-Path Discovery...");
 
+                const aptosHosts = [
+                    "https://api.testnet.aptoslabs.com/v1/graphql",
+                    "https://indexer.testnet.aptoslabs.com/v1/graphql"
+                ];
+
                 const fetchOptions = {
                     method: "POST",
+                    mode: 'cors' as RequestMode,
                     headers: { 
                         "Content-Type": "application/json",
                         "Accept": "application/json",
-                        "Cache-Control": "no-cache, no-store, must-revalidate"
+                        "Cache-Control": "no-cache, no-store, must-revalidate",
+                        "x-api-key": apiKey.trim()
                     }
                 };
 
                 // Attempt all paths in parallel to minimize latency
-                const [resResp, eventResp, txResp] = await Promise.all([
-                    fetch("https://api.testnet.aptoslabs.com/v1/graphql", { ...fetchOptions, body: JSON.stringify(resourceQuery) }).catch(() => null),
-                    fetch("https://api.testnet.aptoslabs.com/v1/graphql", { ...fetchOptions, body: JSON.stringify(eventQuery) }).catch(() => null),
-                    fetch("https://api.testnet.aptoslabs.com/v1/graphql", { ...fetchOptions, body: JSON.stringify(txQuery) }).catch(() => null)
+                let resResp, eventResp, txResp;
+                
+                // Try hosts in sequence if needed, but start with primary
+                const primaryHost = aptosHosts[0];
+                [resResp, eventResp, txResp] = await Promise.all([
+                    fetch(primaryHost, { ...fetchOptions, body: JSON.stringify(resourceQuery) }).catch(() => null),
+                    fetch(primaryHost, { ...fetchOptions, body: JSON.stringify(eventQuery) }).catch(() => null),
+                    fetch(primaryHost, { ...fetchOptions, body: JSON.stringify(txQuery) }).catch(() => null)
                 ]);
 
+                // 1D: Direct REST API Fallback (Extremely Reliable for Registry)
+                const restUrl = `https://api.testnet.aptoslabs.com/v1/accounts/${MARKETPLACE_REGISTRY_ADDRESS}/resource/${resourceType}`;
+                const restResp = await fetch(restUrl, { 
+                    method: "GET", 
+                    headers: { "x-api-key": apiKey.trim(), "Accept": "application/json" } 
+                }).catch(() => null);
+
                 const storefrontBlobs: any[] = [];
+
+                // 1D (REST Fallback) Processing
+                if (restResp?.ok) {
+                    const restData = await restResp.json();
+                    if (restData?.data?.datasets) {
+                        console.log(`[Marketplace] 1D (REST) Found ${restData.data.datasets.length} registry entries.`);
+                        restData.data.datasets.forEach((ds: any) => {
+                            const bName = ds.blob_name || ds.blobName || "";
+                            if (!storefrontBlobs.some(b => b.blob_name === bName)) {
+                                storefrontBlobs.push({
+                                    blob_name: bName, owner: MARKETPLACE_REGISTRY_ADDRESS, account_address: MARKETPLACE_REGISTRY_ADDRESS, signer: MARKETPLACE_REGISTRY_ADDRESS,
+                                    contract_price: ds.price, contract_category: ds.category, contract_description: ds.description,
+                                    contract_payment_metadata: ds.payment_metadata, size: "0", created_at: Date.now(), is_deleted: false, from_contract: true
+                                });
+                            }
+                        });
+                    }
+                }
 
                 // 1A: Resources
                 if (resResp?.ok) {
