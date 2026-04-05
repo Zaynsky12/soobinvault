@@ -27,6 +27,20 @@ module marketplace_addr::marketplace {
         datasets: vector<Dataset>
     }
 
+    struct GlobalRegistry has key {
+        sellers: vector<address>
+    }
+
+    public entry fun initialize_registry(admin: &signer) {
+        let admin_addr = signer::address_of(admin);
+        assert!(admin_addr == @marketplace_addr, E_NOT_AUTHORIZED);
+        if (!exists<GlobalRegistry>(admin_addr)) {
+            move_to(admin, GlobalRegistry {
+                sellers: vector::empty<address>()
+            });
+        }
+    }
+
     #[event]
     struct DatasetListed has drop, store {
         blob_name: String,
@@ -56,8 +70,14 @@ module marketplace_addr::marketplace {
         category: String,
         description: String,
         payment_metadata: address
-    ) acquires UserStorefront {
+    ) acquires UserStorefront, GlobalRegistry {
         let sender_addr = signer::address_of(sender);
+        
+        // Track the seller globally on the registry
+        let registry = borrow_global_mut<GlobalRegistry>(@marketplace_addr);
+        if (!vector::contains(&registry.sellers, &sender_addr)) {
+            vector::push_back(&mut registry.sellers, sender_addr);
+        };
         
         if (!exists<UserStorefront>(sender_addr)) {
             move_to(sender, UserStorefront {
@@ -172,6 +192,17 @@ module marketplace_addr::marketplace {
             storefront.datasets
         } else {
             vector::empty<Dataset>()
+        }
+    }
+
+    /// View all unique sellers who have ever listed a dataset
+    #[view]
+    public fun get_all_sellers(): vector<address> acquires GlobalRegistry {
+        if (exists<GlobalRegistry>(@marketplace_addr)) {
+            let registry = borrow_global<GlobalRegistry>(@marketplace_addr);
+            registry.sellers
+        } else {
+            vector::empty<address>()
         }
     }
 }

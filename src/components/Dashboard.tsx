@@ -163,9 +163,27 @@ export function Dashboard() {
         const nameStr = selectedAsset.name;
         const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
         const nameSuffix = nameMatch ? nameMatch[2] : (selectedAsset.blobName || nameStr);
+        const MARKETPLACE_REGISTRY_ADDRESS = "0xaf41289b3141c2b8f5650dda1ae3fc400270048da3c009e087694d082bdcc263";
 
         try {
             toast.loading(`Deleting ${selectedAsset.name}...`, { id: 'delete-blob-modal' });
+
+            // If it's a marketplace listing, delist it from the smart contract first!
+            if (nameSuffix.startsWith('sv_market::')) {
+                toast.loading(`Delisting from Marketplace registry...`, { id: 'delete-blob-modal' });
+                try {
+                    await signAndSubmitTransaction({
+                        sender: account.address,
+                        data: {
+                            function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::delist_dataset`,
+                            functionArguments: [nameSuffix]
+                        }
+                    });
+                } catch (err) {
+                    console.warn("[Dashboard] Marketplace delist aborted or already delisted:", err);
+                }
+                toast.loading(`Purging file from storage nodes...`, { id: 'delete-blob-modal' });
+            }
 
             await deleteBlobs.mutateAsync({
                 signer: {
@@ -855,6 +873,25 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
 
         try {
             toast.loading(`Deleting ${displayName}...`, { id: 'delete-blob' });
+
+            // If it's a marketplace asset, also delist it from the smart contract!
+            if (nameSuffix.startsWith('sv_market::')) {
+                const MARKETPLACE_REGISTRY_ADDRESS = "0xaf41289b3141c2b8f5650dda1ae3fc400270048da3c009e087694d082bdcc263";
+                try {
+                    console.log(`[Marketplace] Attempting to delist ${nameSuffix} from Smart Contract...`);
+                    await signAndSubmitTransaction({
+                        sender: account?.address.toString(),
+                        data: {
+                            function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::delist_dataset`,
+                            functionArguments: [nameSuffix]
+                        }
+                    });
+                    console.log(`[Marketplace] Successfully delisted from smart contract!`);
+                } catch (contractErr) {
+                    console.warn("[Marketplace] Failed to delist from contract (may already be delisted or user cancelled):", contractErr);
+                    // Do not strictly abort if this fails, they might still want it deleted from Shelby storage
+                }
+            }
 
             await deleteBlobs.mutateAsync({
                 signer: {
