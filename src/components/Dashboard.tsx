@@ -12,6 +12,10 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient, useDeleteBlobs } from "@shelby-protocol/react";
 import { LinkPreviewModal } from './LinkPreviewModal';
 import { decryptFile, decryptText } from '../utils/crypto';
+import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
+
+const aptosConfig = new AptosConfig({ network: Network.TESTNET });
+const aptosClient = new Aptos(aptosConfig);
 import { useVaultKey } from '../context/VaultKeyContext';
 import { getFileType } from '../utils/file';
 
@@ -170,17 +174,39 @@ export function Dashboard() {
 
             // If it's a marketplace listing, delist it from the smart contract first!
             if (nameSuffix.startsWith('sv_market::')) {
-                toast.loading(`Delisting from Marketplace registry...`, { id: 'delete-blob-modal' });
+                // Ghost Buster Pre-Check for Vault
+                let inContract = false;
                 try {
-                    await signAndSubmitTransaction({
-                        sender: account.address,
-                        data: {
-                            function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::delist_dataset`,
-                            functionArguments: [nameSuffix]
+                    const viewResponse = await aptosClient.view({
+                        payload: {
+                            function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_storefront`,
+                            functionArguments: [account.address.toString()]
                         }
                     });
-                } catch (err) {
-                    console.warn("[Dashboard] Marketplace delist aborted or already delisted:", err);
+                    if (viewResponse && viewResponse[0] && Array.isArray(viewResponse[0])) {
+                        inContract = viewResponse[0].some(
+                            (d: any) => d.blob_name === nameSuffix || d.blobName === nameSuffix
+                        );
+                    }
+                } catch (e) {
+                    console.warn("[Dashboard] GhostBuster pre-check failed:", e);
+                }
+
+                if (inContract) {
+                    toast.loading(`Delisting from Marketplace registry...`, { id: 'delete-blob-modal' });
+                    try {
+                        await signAndSubmitTransaction({
+                            sender: account.address,
+                            data: {
+                                function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::delist_dataset`,
+                                functionArguments: [nameSuffix]
+                            }
+                        });
+                    } catch (err) {
+                        console.warn("[Dashboard] Marketplace delist aborted or already delisted:", err);
+                    }
+                } else {
+                    console.log("[Dashboard] File is a Ghost in the marketplace, skipping contract delist.");
                 }
                 toast.loading(`Purging file from storage nodes...`, { id: 'delete-blob-modal' });
             }
