@@ -373,11 +373,17 @@ export function Marketplace() {
                         umb.blobName ||
                         umb.blob_name ||
                         "";
-                  if (
-                    !blobs.some(
-                      (b) => b.blob_name === rawName || b.blobName === rawName,
-                    )
-                  ) {
+                        
+                  const existingBlob = blobs.find(
+                    (b) => b.blob_name === rawName || b.blobName === rawName
+                  );
+
+                  if (existingBlob) {
+                    // Update size from storage node if it was 0 from the contract
+                    if (existingBlob.size === "0" || !existingBlob.size) {
+                       existingBlob.size = umb.size || 0;
+                    }
+                  } else {
                     console.log(
                       `[Marketplace] DISCOVERED: ${rawName.slice(0, 20)}... from ${seller.slice(0, 8)}`,
                     );
@@ -497,6 +503,13 @@ export function Marketplace() {
         }
 
         if (blobs.length > 0) {
+          try {
+             const deletedMarkets = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
+             if (deletedMarkets.length > 0) {
+                 blobs = blobs.filter((b: any) => !deletedMarkets.includes(b.blob_name) && !deletedMarkets.includes(b.blobName));
+             }
+          } catch(e) {}
+
           const rawMapped = blobs
             .filter((d: any) => !d.is_deleted && (d.from_contract || d.is_optimistic))
             .map((d: any) => {
@@ -530,9 +543,16 @@ export function Marketplace() {
 
               const sellerFull = d.signer || d.account_address || d.owner || "0x1";
               const purchaseCount = purchaseCounts[blobName] || 0;
+              
+              const localDownloadsKey = `sv_local_dl_${blobName}`;
+              let localDownloads = 0;
+              try {
+                  localDownloads = parseInt(localStorage.getItem(localDownloadsKey) || "0");
+              } catch (e) {}
+
               const displayDownloads = price === 0 
-                ? purchaseCount + (blobName.length % 12) + 1 
-                : purchaseCount;
+                ? purchaseCount + localDownloads + (blobName.length % 12) + 1 
+                : purchaseCount + localDownloads;
 
               return {
                 id: blobName,
@@ -663,13 +683,13 @@ export function Marketplace() {
     );
   }, [filteredDatasets, viewMode]);
 
-  const handleDownload = async (dataset: any) => {
+  const handleDownload = async (dataset: any, existingToastId?: string) => {
     if (!account) {
       toast.error("Please connect your wallet first.");
       return;
     }
 
-    const downloadToastId = toast.loading(`Resolving metadata...`);
+    const downloadToastId = existingToastId || toast.loading(`Resolving metadata...`);
     console.log(`[Marketplace] OMEGA HAMMER starting for: ${dataset.id}`);
 
     try {
@@ -816,6 +836,16 @@ export function Marketplace() {
       document.body.removeChild(a);
       URL.revokeObjectURL(dUrl);
 
+      try {
+          const localDownloadsKey = `sv_local_dl_${dataset.id}`;
+          const currentDl = parseInt(localStorage.getItem(localDownloadsKey) || "0");
+          localStorage.setItem(localDownloadsKey, (currentDl + 1).toString());
+          
+          setDatasets(prev => prev.map(d => 
+            d.id === dataset.id ? { ...d, downloads: d.downloads + 1 } : d
+          ));
+      } catch (e) {}
+
       toast.success("Download started!", { id: downloadToastId });
     } catch (err: any) {
       console.error("[Marketplace] OMEGA CRITICAL FAILURE:", err);
@@ -855,8 +885,8 @@ export function Marketplace() {
         );
       }
 
-      await handleDownload(dataset);
-      toast.dismiss(actionToastId);
+      // No separate loading toast needed here as handleDownload will reuse the current ID
+      await handleDownload(dataset, actionToastId);
       window.dispatchEvent(
         new CustomEvent("dataset:purchased", { detail: { id: dataset.id } }),
       );
@@ -875,7 +905,7 @@ export function Marketplace() {
     }
 
     const confirmDelete = window.confirm(
-      `Are you sure you want to permanently delete "${dataset.title}" from the Marketplace and your Vault?`,
+      `Are you sure you want to delist "${dataset.title}" from the Marketplace? The file will still remain in your personal Vault.`,
     );
     if (!confirmDelete) return;
 
@@ -929,12 +959,14 @@ export function Marketplace() {
 
       // If it exists in neither, it's a total ghost. Silently remove it from UI.
       if (!inContract && !inShelby) {
-        toast.success(`Ghost listing scrubbed from view!`, {
-          id: actionToastId,
-          icon: "🧹",
-        });
+        toast.dismiss(actionToastId);
         
         try {
+            const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
+            if (!deleted.includes(dataset.id)) {
+                deleted.push(dataset.id);
+                localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
+            }
             const pending = JSON.parse(localStorage.getItem('sv_pending_markets') || '[]');
             localStorage.setItem('sv_pending_markets', JSON.stringify(pending.filter((p: any) => p.blob_name !== dataset.id)));
         } catch(e) {}
@@ -945,7 +977,7 @@ export function Marketplace() {
 
       toast.loading(
         inContract && inShelby
-          ? `Removing from network...`
+          ? `Delisting from network...`
           : `Cleaning up orphaned data...`,
         { id: actionToastId },
       );
@@ -967,35 +999,18 @@ export function Marketplace() {
         }
       }
 
-      // 2. Delete from Shelby Storage (Only if it exists)
-      if (inShelby) {
-        try {
-          await deleteBlobs.mutateAsync({
-            signer: {
-              account: account.address.toString(),
-              signAndSubmitTransaction: (tx: any) => {
-                const { sequence_number, ...cleanTx } = tx;
-                const isSocialLogin =
-                  wallet?.name === "Aptos Connect" ||
-                  (account as any)?.wallet?.name === "Aptos Connect";
-                const finalTx = isSocialLogin
-                  ? cleanTx
-                  : { ...cleanTx, sender: undefined };
-                return signAndSubmitTransaction(finalTx);
-              },
-            } as any,
-            blobNames: [dataset.id],
-          });
-        } catch (storageErr: any) {
-          console.warn("[Marketplace] Simulated deletion aborted:", storageErr);
-        }
-      }
+      // Remove the Shelby Storage deletion block. We want to keep the file in the user's Vault.
 
-      toast.success(`Successfully cleared ${dataset.title} from Marketplace!`, {
+      toast.success(`Successfully delisted ${dataset.title} from Marketplace!`, {
         id: actionToastId,
       });
 
       try {
+          const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
+          if (!deleted.includes(dataset.id)) {
+              deleted.push(dataset.id);
+              localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
+          }
           const pending = JSON.parse(localStorage.getItem('sv_pending_markets') || '[]');
           localStorage.setItem('sv_pending_markets', JSON.stringify(pending.filter((p: any) => p.blob_name !== dataset.id)));
       } catch(e) {}
@@ -1004,12 +1019,16 @@ export function Marketplace() {
     } catch (err: any) {
       console.error("[Marketplace] Full operation failed:", err);
       // Optimistic clear
-      toast.success(`Cleared ${dataset.title} from view.`, {
+      toast.success(`Successfully cleared ${dataset.title} from Marketplace!`, {
         id: actionToastId,
-        icon: "🧹",
       });
 
       try {
+          const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
+          if (!deleted.includes(dataset.id)) {
+              deleted.push(dataset.id);
+              localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
+          }
           const pending = JSON.parse(localStorage.getItem('sv_pending_markets') || '[]');
           localStorage.setItem('sv_pending_markets', JSON.stringify(pending.filter((p: any) => p.blob_name !== dataset.id)));
       } catch(e) {}

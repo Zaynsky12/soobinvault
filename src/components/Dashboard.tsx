@@ -193,7 +193,10 @@ export function Dashboard() {
                 }
 
                 if (inContract) {
-                    toast.loading(`Delisting from Marketplace registry...`, { id: 'delete-blob-modal' });
+                    const confirmDelist = window.confirm(`File "${selectedAsset.name}" is currently On Sale.\n\nFirst, we need to delist it from the Marketplace. Proceed?`);
+                    if (!confirmDelist) return;
+                    
+                    toast.loading(`Tx 1/2: Approve wallet to Delist Market Asset...`, { id: 'delete-blob-modal' });
                     try {
                         await signAndSubmitTransaction({
                             sender: account.address,
@@ -202,13 +205,33 @@ export function Dashboard() {
                                 functionArguments: [nameSuffix]
                             }
                         });
+                        try {
+                            const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
+                            if (!deleted.includes(nameSuffix)) {
+                                deleted.push(nameSuffix);
+                                localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
+                            }
+                        } catch(e) {}
                     } catch (err) {
                         console.warn("[Dashboard] Marketplace delist aborted or already delisted:", err);
                     }
                 } else {
                     console.log("[Dashboard] File is a Ghost in the marketplace, skipping contract delist.");
                 }
-                toast.loading(`Purging file from storage nodes...`, { id: 'delete-blob-modal' });
+                
+                const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedAsset.name}? This action is permanent and will remove the file's metadata from the blockchain.`);
+                if (!confirmDelete) {
+                    toast.dismiss('delete-blob-modal');
+                    fetchBlobs();
+                    return;
+                }
+                
+                toast.loading(inContract ? `Tx 2/2: Approve wallet to Permanently Purge Blob...` : `Approve wallet to Permanently Purge Blob...`, { id: 'delete-blob-modal' });
+            } else {
+                const confirmDelete = window.confirm(`Are you sure you want to delete ${selectedAsset.name}? This action is permanent and will remove the file's metadata from the blockchain.`);
+                if (!confirmDelete) return;
+                
+                toast.loading(`Approve wallet to Permanently Purge Blob...`, { id: 'delete-blob-modal' });
             }
 
             await deleteBlobs.mutateAsync({
@@ -570,9 +593,16 @@ export function Dashboard() {
                                     let nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
                                     const fullNameForLink = nameOnly; // We need this for the download URL
 
-                                    // Strip sv_market prefix for display
-                                    const isMarketAsset = nameOnly.startsWith('sv_market::');
+                                    // Strip sv_market prefix for display and check if currently on sale
+                                    let isMarketAsset = nameOnly.startsWith('sv_market::');
                                     if (isMarketAsset) {
+                                        try {
+                                          const deletedLocally = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
+                                          if (deletedLocally.includes(nameOnly)) {
+                                            isMarketAsset = false; // It was delisted, hide the "On Sale" tag!
+                                          }
+                                        } catch (e) {}
+
                                         const parts = nameOnly.split('::');
                                         nameOnly = parts[parts.length - 1];
                                     }
@@ -686,6 +716,7 @@ export function Dashboard() {
                                             downloadUrl={downloadUrl}
                                             blobAccount={finalIdentifier}
                                             blobName={fullNameForLink}
+                                            isMarketAsset={isMarketAsset}
                                             handleOpenPreview={handleOpenPreviewLocal}
                                             assetHash={assetHash}
                                             txHash={txHash}
@@ -745,7 +776,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, downloadUrl, blobAccount, blobName, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, downloadUrl, blobAccount, blobName, isMarketAsset, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
     const { ensureKey, encryptionKey } = useVaultKey();
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -888,20 +919,23 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
             return;
         }
 
-        const confirmDelete = window.confirm(`Are you sure you want to delete ${displayName}? This action is permanent and will remove the file's metadata from the blockchain.`);
-
-        if (!confirmDelete) return;
-
         // Extract the original name suffix (without the @address/ prefix)
         const nameStr = typeof asset.name === 'string' ? asset.name : '';
         const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
         const nameSuffix = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
 
-        try {
-            toast.loading(`Deleting ${displayName}...`, { id: 'delete-blob' });
+        if (!isMarketAsset) {
+            const confirmDelete = window.confirm(`Are you sure you want to delete ${displayName}? This action is permanent and will remove the file's metadata from the blockchain.`);
+            if (!confirmDelete) return;
+        }
 
-            // If it's a marketplace asset, also delist it from the smart contract!
-            if (nameSuffix.startsWith('sv_market::')) {
+        try {
+
+            // If it's still an active marketplace asset, delist it from the smart contract first!
+            if (isMarketAsset) {
+                const confirmDelist = window.confirm(`File "${displayName}" is currently On Sale.\n\nFirst, we need to delist it from the Marketplace. Proceed?`);
+                if (!confirmDelist) return;
+                toast.loading(`Tx 1/2: Approve wallet to Delist Market Asset...`, { id: 'delete-blob' });
                 const MARKETPLACE_REGISTRY_ADDRESS = "0xaf41289b3141c2b8f5650dda1ae3fc400270048da3c009e087694d082bdcc263";
                 try {
                     console.log(`[Marketplace] Attempting to delist ${nameSuffix} from Smart Contract...`);
@@ -913,10 +947,28 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         }
                     });
                     console.log(`[Marketplace] Successfully delisted from smart contract!`);
+                    try {
+                        const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
+                        if (!deleted.includes(nameSuffix)) {
+                            deleted.push(nameSuffix);
+                            localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
+                        }
+                    } catch(e) {}
                 } catch (contractErr) {
                     console.warn("[Marketplace] Failed to delist from contract (may already be delisted or user cancelled):", contractErr);
                     // Do not strictly abort if this fails, they might still want it deleted from Shelby storage
                 }
+                
+                const confirmDelete = window.confirm(`Are you sure you want to delete ${displayName}? This action is permanent and will remove the file's metadata from the blockchain.`);
+                if (!confirmDelete) {
+                    toast.dismiss('delete-blob');
+                    fetchBlobs();
+                    return;
+                }
+                
+                toast.loading(`Tx 2/2: Approve wallet to Permanently Purge Blob...`, { id: 'delete-blob' });
+            } else {
+                toast.loading(`Approve wallet to Permanently Purge Blob...`, { id: 'delete-blob' });
             }
 
             await deleteBlobs.mutateAsync({
@@ -934,6 +986,16 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 } as any,
                 blobNames: [nameSuffix]
             });
+
+            try {
+                const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
+                if (!deleted.includes(nameSuffix)) {
+                    deleted.push(nameSuffix);
+                    localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
+                }
+                const pending = JSON.parse(localStorage.getItem('sv_pending_markets') || '[]');
+                localStorage.setItem('sv_pending_markets', JSON.stringify(pending.filter((p: any) => p.blob_name !== nameSuffix)));
+            } catch(e) {}
 
             toast.success(`${displayName} successfully removed from vault.`, { id: 'delete-blob' });
 
@@ -986,7 +1048,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         <span className={`text-white font-bold truncate text-base group-hover:text-color-primary transition-colors duration-300 ${isEncrypted && !encryptionKey ? 'blur-[5px] select-none opacity-50' : ''}`}>
                             {isEncrypted && !encryptionKey ? "Encrypted Vault Asset" : displayName}
                         </span>
-                        {blobName.startsWith('sv_market::') && (
+                        {isMarketAsset && (
                             <span className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/30 text-[9px] font-black uppercase tracking-widest text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]">
                                 <Tag size={10} className="fill-blue-400/20" />
                                 On Sale
