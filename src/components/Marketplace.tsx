@@ -1244,12 +1244,12 @@ export function Marketplace() {
     >
       <div className="container mx-auto max-w-6xl">
         {/* Header */}
-        <div className="mb-8 md:mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="mb-8 md:mb-10 flex flex-col items-center justify-center text-center gap-4">
           <div>
             <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight mb-2">
               Data Marketplace
             </h2>
-            <p className="text-blue-200/50 text-sm md:text-base font-light">
+            <p className="text-blue-200/50 text-sm md:text-base font-light max-w-2xl mx-auto">
               {datasets.length} datasets · Powered by trustless ShelbyUSD
               micropayments on Aptos
             </p>
