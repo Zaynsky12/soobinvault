@@ -366,13 +366,15 @@ export function Marketplace() {
                   return n.includes("sv_market::");
                 });
                 for (const umb of userMarketBlobs) {
-                  const rawName =
+                  const rawNameStr =
                     typeof umb.name === "string"
                       ? umb.name
                       : umb.blobNameSuffix ||
                         umb.blobName ||
                         umb.blob_name ||
                         "";
+                  const regexMatch = rawNameStr.match(/^@[^\/]+\/(.+)$/);
+                  const rawName = regexMatch ? regexMatch[1] : rawNameStr;
                         
                   const existingBlob = blobs.find(
                     (b) => b.blob_name === rawName || b.blobName === rawName
@@ -550,9 +552,7 @@ export function Marketplace() {
                   localDownloads = parseInt(localStorage.getItem(localDownloadsKey) || "0");
               } catch (e) {}
 
-              const displayDownloads = price === 0 
-                ? purchaseCount + localDownloads + (blobName.length % 12) + 1 
-                : purchaseCount + localDownloads;
+              const displayDownloads = purchaseCount + localDownloads;
 
               return {
                 id: blobName,
