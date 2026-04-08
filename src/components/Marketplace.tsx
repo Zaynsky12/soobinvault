@@ -38,7 +38,6 @@ import {
   ExternalLink,
   RefreshCw,
   Loader2,
-  Trash2,
 } from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import {
@@ -898,144 +897,6 @@ export function Marketplace() {
       );
     }
   };
-  const handleDeleteMarketplaceAsset = async (dataset: any) => {
-    if (!account || !signAndSubmitTransaction) {
-      toast.error("Please connect your wallet first to delete.");
-      return;
-    }
-
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delist "${dataset.title}" from the Marketplace? The file will still remain in your personal Vault.`,
-    );
-    if (!confirmDelete) return;
-
-    const actionToastId = toast.loading(
-      `Verifying network state for ${dataset.title}...`,
-    );
-
-    try {
-      // --- GHOST BUSTER PROTOCOL: PRE-CHECKS ---
-
-      // 1. Check Smart Contract State
-      let inContract = false;
-      try {
-        const viewResponse = await aptosClient.view({
-          payload: {
-            function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_storefront`,
-            functionArguments: [account.address.toString()],
-          },
-        });
-        if (viewResponse && viewResponse[0] && Array.isArray(viewResponse[0])) {
-          inContract = viewResponse[0].some(
-            (d: any) => d.blob_name === dataset.id || d.blobName === dataset.id,
-          );
-        }
-      } catch (e) {
-        console.warn("[GhostBuster] User storefront not found or empty");
-      }
-
-      // 2. Check Shelby Storage State
-      let inShelby = true; // Assume true unless 404
-      try {
-        const apiKey =
-          (shelbyClient as any).config?.rpc?.apiKey ||
-          process.env.NEXT_PUBLIC_SHELBY_API_KEY ||
-          "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
-        const checkUrl = `https://api.testnet.shelby.xyz/v1/blobs/${encodeURIComponent(account.address.toString())}/${encodeURIComponent(dataset.id)}`;
-        const resp = await fetch(checkUrl, {
-          method: "HEAD",
-          headers: { Authorization: `Bearer ${apiKey.trim()}` },
-        });
-        if (resp.status === 404) {
-          inShelby = false;
-        }
-      } catch (e) {
-        console.warn("[GhostBuster] Failed to peek Shelby node");
-      }
-
-      console.log(
-        `[GhostBuster] Status: Contract=${inContract}, Shelby=${inShelby}`,
-      );
-
-      // If it exists in neither, it's a total ghost. Silently remove it from UI.
-      if (!inContract && !inShelby) {
-        toast.dismiss(actionToastId);
-        
-        try {
-            const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
-            if (!deleted.includes(dataset.id)) {
-                deleted.push(dataset.id);
-                localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
-            }
-            const pending = JSON.parse(localStorage.getItem('sv_pending_markets') || '[]');
-            localStorage.setItem('sv_pending_markets', JSON.stringify(pending.filter((p: any) => p.blob_name !== dataset.id)));
-        } catch(e) {}
-
-        setDatasets((prev) => prev.filter((d) => d.id !== dataset.id));
-        return;
-      }
-
-      toast.loading(
-        inContract && inShelby
-          ? `Delisting from network...`
-          : `Cleaning up orphaned data...`,
-        { id: actionToastId },
-      );
-
-      // --- EXECUTION PHASE ---
-
-      // 1. Delist from Smart Contract (Only if it exists)
-      if (inContract) {
-        try {
-          await signAndSubmitTransaction({
-            sender: account.address,
-            data: {
-              function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::delist_dataset`,
-              functionArguments: [dataset.id],
-            },
-          });
-        } catch (contractErr: any) {
-          console.warn("[Marketplace] Simulated delist aborted:", contractErr);
-        }
-      }
-
-      // Remove the Shelby Storage deletion block. We want to keep the file in the user's Vault.
-
-      toast.success(`Successfully delisted ${dataset.title} from Marketplace!`, {
-        id: actionToastId,
-      });
-
-      try {
-          const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
-          if (!deleted.includes(dataset.id)) {
-              deleted.push(dataset.id);
-              localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
-          }
-          const pending = JSON.parse(localStorage.getItem('sv_pending_markets') || '[]');
-          localStorage.setItem('sv_pending_markets', JSON.stringify(pending.filter((p: any) => p.blob_name !== dataset.id)));
-      } catch(e) {}
-
-      setDatasets((prev) => prev.filter((d) => d.id !== dataset.id));
-    } catch (err: any) {
-      console.error("[Marketplace] Full operation failed:", err);
-      // Optimistic clear
-      toast.success(`Successfully cleared ${dataset.title} from Marketplace!`, {
-        id: actionToastId,
-      });
-
-      try {
-          const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
-          if (!deleted.includes(dataset.id)) {
-              deleted.push(dataset.id);
-              localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
-          }
-          const pending = JSON.parse(localStorage.getItem('sv_pending_markets') || '[]');
-          localStorage.setItem('sv_pending_markets', JSON.stringify(pending.filter((p: any) => p.blob_name !== dataset.id)));
-      } catch(e) {}
-
-      setDatasets((prev) => prev.filter((d) => d.id !== dataset.id));
-    }
-  };
 
   const getCategoryMeta = (cat: string) =>
     CATEGORY_META[cat] ?? CATEGORY_META["Other"];
@@ -1116,21 +977,6 @@ export function Marketplace() {
 
           {/* Desktop Action */}
           <div className="w-24 lg:w-32 flex justify-center gap-1.5">
-            {userAddress?.toLowerCase() ===
-              dataset.sellerFull?.toLowerCase() && (
-              <button
-                onClick={() => handleDeleteMarketplaceAsset(dataset)}
-                disabled={deleteBlobs.isPending}
-                className="px-2 lg:px-3 py-2 rounded-lg lg:rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 active:scale-95 transition-all duration-300 flex items-center justify-center shrink-0 disabled:opacity-50"
-                title="Delete Listing"
-              >
-                {deleteBlobs.isPending ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Trash2 size={13} />
-                )}
-              </button>
-            )}
 
             <button
               onClick={() => handlePurchase(dataset)}
@@ -1138,7 +984,7 @@ export function Marketplace() {
                 dataset.isFree
                   ? "bg-white/8 text-white/70 hover:bg-white/15 border border-white/10"
                   : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-[0_0_15px_rgba(59,130,246,0.5)] border border-blue-400/30 hover:scale-105 active:scale-95"
-              } ${userAddress?.toLowerCase() === dataset.sellerFull?.toLowerCase() ? "flex-1" : ""}`}
+              }`}
             >
               <ShoppingCart size={13} />
               {dataset.isFree ? "Download" : "Purchase"}
@@ -1166,20 +1012,6 @@ export function Marketplace() {
             </p>
           </div>
           <div className="flex gap-2">
-            {userAddress?.toLowerCase() ===
-              dataset.sellerFull?.toLowerCase() && (
-              <button
-                onClick={() => handleDeleteMarketplaceAsset(dataset)}
-                disabled={deleteBlobs.isPending}
-                className="px-4 py-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 active:scale-95 transition-all duration-300 flex items-center justify-center shrink-0 disabled:opacity-50"
-              >
-                {deleteBlobs.isPending ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Trash2 size={13} />
-                )}
-              </button>
-            )}
             <button
               onClick={() => handlePurchase(dataset)}
               className={`px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all duration-300 flex items-center gap-1.5 ${
@@ -1269,20 +1101,6 @@ export function Marketplace() {
               <p className="text-[9px] text-white/20">{dataset.updatedAgo}</p>
             </div>
             <div className="flex gap-2">
-              {userAddress?.toLowerCase() ===
-                dataset.sellerFull?.toLowerCase() && (
-                <button
-                  onClick={() => handleDeleteMarketplaceAsset(dataset)}
-                  disabled={deleteBlobs.isPending}
-                  className="px-4 py-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 active:scale-95 transition-all duration-300 flex items-center justify-center shrink-0 disabled:opacity-50"
-                >
-                  {deleteBlobs.isPending ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={13} />
-                  )}
-                </button>
-              )}
               <button
                 onClick={() => handlePurchase(dataset)}
                 className={`px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all duration-300 flex items-center gap-1.5 ${
