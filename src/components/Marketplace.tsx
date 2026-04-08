@@ -153,7 +153,7 @@ export function Marketplace() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [sortBy, setSortBy] = useState("Most Downloaded");
+  const [sortBy, setSortBy] = useState("Newest");
   const [sortOpen, setSortOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const userAddress = account?.address?.toString();
