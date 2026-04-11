@@ -24,7 +24,7 @@ export default function RootLayout({
   const pathname = usePathname();
   
   // Define routes that should have the sidebar/navbar
-  const isDashboardRoute = ['/', '/vault', '/dashboard', '/marketplace'].includes(pathname);
+  const isDashboardRoute = ['/', '/vault', '/dashboard', '/marketplace', '/account'].includes(pathname);
   
   // Show sidebar on dashboard/home routes
   const showSidebar = isDashboardRoute;

@@ -3,7 +3,7 @@ import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown, RefreshCw, PlusCircle, Home, Vault, FileText, Store } from 'lucide-react';
+import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown, RefreshCw, PlusCircle, Home, Vault, FileText, Store, User } from 'lucide-react';
 import gsap from 'gsap';
 import Link from 'next/link';
 import { MagneticButton } from './ui/MagneticButton';
@@ -13,12 +13,11 @@ import toast from 'react-hot-toast';
 
 export default function Navbar(): React.ReactNode {
     const { disconnect, connected, account, isLoading } = useWallet();
-    const { encryptionKey, lockVault, ensureKey, importKeyManual, requestPin } = useVaultKey();
+    const { encryptionKey, keyFingerprint, lockVault, ensureKey, importKeyManual, requestPin } = useVaultKey();
     const [isScrolled, setIsScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isSelectorOpen, setIsSelectorOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [keyFingerprint, setKeyFingerprint] = useState<string | null>(null);
     const [showBackupWarning, setShowBackupWarning] = useState(false);
     const [isKeyBackedUp, setIsKeyBackedUp] = useState(true);
 
@@ -57,24 +56,7 @@ export default function Navbar(): React.ReactNode {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    // Generate fingerprint when key changes
-    useEffect(() => {
-        const genFingerprint = async () => {
-            if (encryptionKey) {
-                try {
-                    const keyBuffer = await window.crypto.subtle.exportKey('raw', encryptionKey);
-                    const keyHash = await window.crypto.subtle.digest('SHA-256', keyBuffer);
-                    const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
-                    setKeyFingerprint(fingerprint);
-                } catch (e) {
-                    console.error("Fingerprint failed");
-                }
-            } else {
-                setKeyFingerprint(null);
-            }
-        };
-        genFingerprint();
-    }, [encryptionKey]);
+    // keyFingerprint is now managed by VaultKeyContext
 
     // Entrance animation
     useEffect(() => {
@@ -97,6 +79,7 @@ export default function Navbar(): React.ReactNode {
         { name: 'Home', href: '/', icon: Home },
         { name: 'Upload', href: '/vault', icon: PlusCircle },
         { name: 'Vault', href: '/dashboard', icon: FileText },
+        { name: 'Account', href: '/account', icon: User },
     ];
 
     const pathname = usePathname();

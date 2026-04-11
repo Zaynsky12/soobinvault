@@ -29,7 +29,9 @@ import {
     Check,
     Wallet,
     LogOut,
-    User
+    User,
+    Twitter,
+    ArrowUpRight
 } from 'lucide-react';
 import { WalletSelector } from '@/components/WalletSelector';
 import toast from 'react-hot-toast';
@@ -55,6 +57,8 @@ export default function BuyPage() {
     const [lastTxHash, setLastTxHash] = useState<string | null>(null);
     const [isIndexerLag, setIsIndexerLag] = useState(false);
     const [isSelectorOpen, setIsSelectorOpen] = useState(false);
+    const [xHandle, setXHandle] = useState<string | null>(null);
+    const [isVerified, setIsVerified] = useState(false);
 
     const blobName = decodeURIComponent(id as string);
     const metadata = useMemo(() => parseAssetId(blobName), [blobName]);
@@ -137,8 +141,29 @@ export default function BuyPage() {
                 } else if (metadata.seller) {
                     console.warn("[Buy] Indexer lag detected. Proceeding with link metadata.");
                     setIsIndexerLag(true);
+                }
 
-                    // VERIFY LISTING STATUS VIA LINK METADATA SELLER
+                // FETCH SELLER PROFILE FOR TRUST CARD
+                if (metadata.seller || sellerAddress) {
+                    const target = sellerAddress || metadata.seller;
+                    try {
+                        const profile = await aptosClient.view({
+                            payload: {
+                                function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_profile`,
+                                functionArguments: [target]
+                            }
+                        });
+                        if (profile && profile[0]) {
+                            setXHandle(profile[0] as string);
+                            setIsVerified(profile[1] as boolean);
+                        }
+                    } catch (e) {
+                        console.warn("[Buy] Profile fetch failed:", e);
+                    }
+                }
+
+                // VERIFY LISTING STATUS VIA LINK METADATA SELLER
+                if (metadata.seller) {
                     try {
                         const storefront = await aptosClient.view({
                             payload: {
@@ -308,53 +333,117 @@ export default function BuyPage() {
 
                 <div className="buy-card">
                     <GlassCard className="p-0 border-white/10 bg-white/[0.01] relative overflow-hidden backdrop-blur-3xl rounded-[2rem] sm:rounded-[3rem]">
+                        {/* Enhanced Creator Trust Header (Ultra-Premium & Compact Mobile) */}
+                        <div className="border-b border-white/5 bg-gradient-to-b from-white/[0.04] to-transparent p-5 sm:p-10 relative overflow-hidden group/header">
+                            {/* Dynamic Ambient Glow */}
+                            <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/10 blur-[100px] group-hover/header:bg-indigo-500/20 transition-all duration-1000" />
+                            
+                            <div className="relative z-10 flex flex-col md:flex-row items-center md:items-stretch gap-5 md:gap-10">
+                                {/* Creator Avatar: Refined sizing */}
+                                <div className="relative shrink-0">
+                                    <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full opacity-0 group-hover/header:opacity-100 transition-opacity duration-1000" />
+                                    <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-[#1a1a1a] to-[#0a0a0a] border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] relative z-10">
+                                        <User size={30} className="text-white/10 sm:w-12 sm:h-12" />
+                                        {isVerified && (
+                                            <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 sm:w-7 sm:h-7 bg-blue-500 rounded-full border-2 border-[#0B1121] flex items-center justify-center shadow-lg">
+                                                <CheckCircle size={12} className="text-white fill-white/20 sm:w-[14px]" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                <div className="flex-1 flex flex-col justify-center min-w-0 w-full text-center md:text-left">
+                                    {/* Verification Badges Row */}
+                                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-3">
+                                        <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 flex items-center gap-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest truncate max-w-[150px] sm:max-w-none">
+                                                {sellerAddress ? `${sellerAddress.slice(0, 6)}...${sellerAddress.slice(-6)}` : "Authenticating..."}
+                                            </span>
+                                        </div>
+                                        {isVerified && (
+                                            <div className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center gap-1.5">
+                                                <Shield size={10} className="text-blue-400" />
+                                                <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Verified Creator</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Creator ID Row */}
+                                    <div className="flex flex-col sm:flex-row items-center md:justify-start gap-3 md:gap-4">
+                                        {xHandle ? (
+                                            <div className="flex items-center gap-3">
+                                                <h3 className="text-2xl sm:text-4xl font-black text-white tracking-tighter leading-none italic group-hover/header:text-indigo-200 transition-colors">
+                                                    {xHandle}
+                                                </h3>
+                                                <a 
+                                                    href={`https://x.com/${xHandle.replace('@', '')}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white/5 border border-white/10 text-white/20 hover:text-white hover:bg-blue-500/20 hover:border-blue-500/40 transition-all flex items-center justify-center group/social shrink-0"
+                                                    title="View Profile on X"
+                                                >
+                                                    <Twitter size={15} className="group-hover/social:scale-110 transition-transform sm:w-[18px]" />
+                                                </a>
+                                            </div>
+                                        ) : (
+                                            <h3 className="text-xl sm:text-2xl font-black text-white/80 italic">Anonymous Creator</h3>
+                                        )}
+                                        
+                                    </div>
+                                </div>
+
+                                {/* Desktop: Side Action | Mobile: Bottom Action */}
+                                <div className="w-full md:w-auto flex items-center mt-2 md:mt-0">
+                                    <a 
+                                        href={`https://explorer.aptoslabs.com/account/${sellerAddress}?network=testnet`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="w-full md:w-auto px-6 py-4 md:py-6 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 font-black uppercase tracking-[0.3em] text-[9px] sm:text-[10px] hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all flex items-center justify-center gap-3 group/btn shadow-[0_0_20px_rgba(79,70,229,0.1)]"
+                                    >
+                                        <span>Verify Profile</span>
+                                        <ArrowUpRight size={16} className="group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform sm:w-[18px]" />
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Interactive Background Glow */}
-                        <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-yellow-500/[0.03] rounded-full blur-[100px] pointer-events-none" />
+                        <div className="absolute top-20 right-0 w-1/2 h-1/2 bg-yellow-500/[0.03] rounded-full blur-[100px] pointer-events-none" />
                         
                         <div className="flex flex-col">
-                            {/* Header Section */}
-                            <div className="p-6 sm:p-12 lg:p-16 border-b border-white/5">
-                                <div className="flex flex-col lg:flex-row gap-8 lg:items-start justify-between">
-                                    <div className="flex-1 space-y-4 sm:space-y-6">
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <div className="px-3 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-black uppercase tracking-[0.2em]">
+                            {/* Header Content Section: Side-by-Side on all screens */}
+                            <div className="p-5 sm:p-12 lg:p-16 border-b border-white/5">
+                                <div className="flex flex-row items-start justify-between gap-4 sm:gap-8">
+                                    <div className="flex-1 space-y-3 sm:space-y-6 min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <div className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em]">
                                                 {metadata.category}
-                                            </div>
-                                            <div className="flex items-center gap-1.5 text-yellow-500/60 text-[9px] font-bold uppercase tracking-[0.2em]">
-                                                <Globe size={11} /> Global Checkout
                                             </div>
                                         </div>
 
-                                        <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight leading-[0.9] break-words">
+                                        <h1 className="text-xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.1] sm:leading-[0.9] break-words">
                                             {metadata.title}
                                         </h1>
 
-                                        <div className="flex items-start gap-4 text-white/40">
-                                            <div className="mt-1.5 w-10 sm:w-16 h-[1px] bg-indigo-500/50 shrink-0" />
-                                            <p className="text-sm sm:text-base lg:text-xl font-medium leading-relaxed max-w-2xl italic">
-                                                {metadata.description || "The owner has designated this asset as priority-access. Encrypted fragments are ready for retrieval."}
+                                        <div className="flex items-start gap-3 sm:gap-4 text-white/40">
+                                            <div className="mt-1.5 w-6 sm:w-16 h-[1px] bg-indigo-500/50 shrink-0" />
+                                            <p className="text-[10px] sm:text-base lg:text-xl font-medium leading-relaxed max-w-2xl italic line-clamp-2 sm:line-clamp-none">
+                                                {metadata.description || "The owner has designated this asset as priority-access."}
                                             </p>
                                         </div>
                                     </div>
 
-                                    {/* Price Card */}
-                                    <div className="lg:shrink-0">
+                                    {/* Responsive Price Card: Compact on mobile, standard on desktop */}
+                                    <div className="shrink-0">
                                         <div className="relative group/price">
                                             <div className="absolute inset-0 bg-indigo-600/20 blur-2xl group-hover/price:bg-indigo-600/40 transition-all duration-700 rounded-full" />
-                                            <div className="relative p-8 sm:p-10 lg:p-12 rounded-[2rem] bg-gradient-to-br from-indigo-600 to-indigo-800 text-white min-w-[240px] shadow-2xl border border-white/10">
-                                                <div className="flex items-center justify-between lg:block">
-                                                    <div>
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-1 sm:mb-2 text-indigo-200/60">Asset Protocol Price</p>
-                                                        <div className="flex items-baseline gap-2">
-                                                            <span className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight">{metadata.price}</span>
-                                                            <span className="text-xs font-black uppercase tracking-[0.2em] text-indigo-200">SUSD</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="lg:mt-6 pt-4 lg:pt-6 border-t border-indigo-400/20 flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                                                            <Lock size={14} className="text-indigo-200" />
-                                                        </div>
-                                                        <span className="text-[9px] font-black uppercase tracking-widest text-indigo-100/40">P2P Escrow<br/>Verified</span>
+                                            <div className="relative p-3 sm:p-10 lg:p-12 rounded-xl sm:rounded-[2rem] bg-gradient-to-br from-indigo-600 to-indigo-800 text-white min-w-[80px] sm:min-w-[240px] shadow-2xl border border-white/10 text-center">
+                                                <div>
+                                                    <p className="text-[6px] sm:text-[10px] font-black uppercase tracking-[0.3em] mb-1 sm:mb-2 text-indigo-200/60">Asset Price</p>
+                                                    <div className="flex items-baseline justify-center gap-1 sm:gap-2">
+                                                        <span className="text-xl sm:text-6xl lg:text-7xl font-black tracking-tight">{metadata.price}</span>
+                                                        <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200">SUSD</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -380,7 +469,7 @@ export default function BuyPage() {
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <ChevronLeft size={18} className="rotate-180" />
+                                                        Buy Now <ChevronLeft size={18} className="rotate-180" />
                                                     </>
                                                 )}
                                             </button>

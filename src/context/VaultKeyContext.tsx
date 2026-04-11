@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 
 interface VaultKeyContextType {
     encryptionKey: CryptoKey | null;
+    keyFingerprint: string | null;
     ensureKey: (force?: boolean) => Promise<CryptoKey | null>;
     importKeyManual: (base64: string) => Promise<boolean>;
     lockVault: () => void;
@@ -22,6 +23,7 @@ const SIGN_MESSAGE = "Unlock SoobinVault Session. Nonce: soobinvault-v1";
 export function VaultKeyProvider({ children }: { children: ReactNode }) {
     const { signMessage, account, connected, wallet } = useWallet();
     const [encryptionKey, setEncryptionKey] = useState<CryptoKey | null>(null);
+    const [keyFingerprint, setKeyFingerprint] = useState<string | null>(null);
 
     const [pinPromptConfig, setPinPromptConfig] = useState<{
         isOpen: boolean;
@@ -119,6 +121,25 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
             }
         }
     }, [connected, account, encryptionKey]);
+    
+    // Manage Fingerprint
+    React.useEffect(() => {
+        const updateFingerprint = async () => {
+            if (encryptionKey) {
+                try {
+                    const rawKey = await window.crypto.subtle.exportKey('raw', encryptionKey);
+                    const keyHash = await window.crypto.subtle.digest('SHA-256', rawKey);
+                    const fingerprint = Array.from(new Uint8Array(keyHash)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
+                    setKeyFingerprint(fingerprint);
+                } catch (e) {
+                    console.error("Fingerprint update failed", e);
+                }
+            } else {
+                setKeyFingerprint(null);
+            }
+        };
+        updateFingerprint();
+    }, [encryptionKey]);
 
     const lockVault = () => {
         setEncryptionKey(null);
@@ -512,7 +533,7 @@ export function VaultKeyProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <VaultKeyContext.Provider value={{ encryptionKey, ensureKey, importKeyManual, lockVault, requestPin }}>
+        <VaultKeyContext.Provider value={{ encryptionKey, keyFingerprint, ensureKey, importKeyManual, lockVault, requestPin }}>
             {children}
             <VaultPinOverlay 
                 key={pinPromptConfig.timestamp || "pin-overlay"}

@@ -184,6 +184,28 @@ module marketplace_addr::marketplace {
         }
     }
 
+    struct UserProfile has key {
+        x_handle: String,
+        is_verified: bool
+    }
+
+    public entry fun update_profile(
+        sender: &signer,
+        x_handle: String
+    ) acquires UserProfile {
+        let sender_addr = signer::address_of(sender);
+        if (!exists<UserProfile>(sender_addr)) {
+            move_to(sender, UserProfile {
+                x_handle,
+                is_verified: true // Self-attestation is considered 'verified' for this demo
+            });
+        } else {
+            let profile = borrow_global_mut<UserProfile>(sender_addr);
+            profile.x_handle = x_handle;
+            profile.is_verified = true;
+        }
+    }
+
     /// View all datasets in a user's storefront
     #[view]
     public fun get_user_storefront(user: address): vector<Dataset> acquires UserStorefront {
@@ -192,6 +214,17 @@ module marketplace_addr::marketplace {
             storefront.datasets
         } else {
             vector::empty<Dataset>()
+        }
+    }
+
+    /// View a user's profile information
+    #[view]
+    public fun get_user_profile(user: address): (String, bool) acquires UserProfile {
+        if (exists<UserProfile>(user)) {
+            let profile = borrow_global<UserProfile>(user);
+            (profile.x_handle, profile.is_verified)
+        } else {
+            (std::string::utf8(b""), false)
         }
     }
 

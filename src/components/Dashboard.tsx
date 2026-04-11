@@ -18,6 +18,7 @@ const aptosConfig = new AptosConfig({ network: Network.TESTNET });
 const aptosClient = new Aptos(aptosConfig);
 import { useVaultKey } from '../context/VaultKeyContext';
 import { getFileType } from '../utils/file';
+import { MARKETPLACE_REGISTRY_ADDRESS } from '../lib/constants';
 
 // Register GSAP plugins
 if (typeof window !== 'undefined') {
@@ -34,6 +35,7 @@ export function Dashboard() {
     const [optimisticAssets, setOptimisticAssets] = useState<any[]>([]);
     const [isClient, setIsClient] = useState(false);
     const { ensureKey, encryptionKey, importKeyManual, lockVault } = useVaultKey();
+    const [activeListings, setActiveListings] = useState<any[]>([]);
 
     // Effect for hydration
     useEffect(() => {
@@ -314,6 +316,26 @@ export function Dashboard() {
         }
     };
 
+    const fetchMarketListings = async () => {
+        if (!account) return;
+        try {
+            const result = await aptosClient.view({
+                payload: {
+                    function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_storefront`,
+                    functionArguments: [account.address.toString()]
+                }
+            });
+            if (result && Array.isArray(result[0])) {
+                setActiveListings(result[0]);
+            } else {
+                setActiveListings([]);
+            }
+        } catch (err) {
+            console.warn("[Dashboard] Marketplace sync failed:", err);
+            setActiveListings([]);
+        }
+    };
+
 
     useEffect(() => {
         if (!account) {
@@ -323,6 +345,7 @@ export function Dashboard() {
         }
 
         fetchBlobs();
+        fetchMarketListings();
 
         // Listen for successful uploads from VaultDropzone
         const handleUploadSuccess = (e: any) => {
@@ -595,14 +618,8 @@ export function Dashboard() {
                                     const fullNameForLink = nameOnly; // We need this for the download URL
 
                                     // Strip sv_market prefix for display and check if currently on sale
-                                    let isMarketAsset = nameOnly.startsWith('sv_market::');
-                                    if (isMarketAsset) {
-                                        try {
-                                          const deletedLocally = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
-                                          if (deletedLocally.includes(nameOnly)) {
-                                            isMarketAsset = false; // It was delisted, hide the "On Sale" tag!
-                                          }
-                                        } catch (e) {}
+                                    let isMarketAsset = activeListings && activeListings.some((l: any) => l.blob_name === fullNameForLink || l.blobName === fullNameForLink);
+                                    if (nameOnly.startsWith('sv_market::')) {
 
                                         const parts = nameOnly.split('::');
                                         nameOnly = parts[parts.length - 1];
