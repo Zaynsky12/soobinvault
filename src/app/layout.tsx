@@ -1,7 +1,13 @@
+"use client";
+
 import type { Metadata } from "next";
 import { Inter, Plus_Jakarta_Sans, JetBrains_Mono, Outfit, Urbanist } from "next/font/google";
 import "./globals.css";
 import { ClientProviders } from "@/components/ClientProviders";
+import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
+
+const Navbar = dynamic(() => import("@/components/Navbar"), { ssr: false });
 
 // Font configurations
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -10,16 +16,19 @@ const urbanist = Urbanist({ subsets: ["latin"], variable: "--font-urbanist" });
 const plusJakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-plus-jakarta" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono" });
 
-export const metadata: Metadata = {
-  title: "SoobinVault | Network",
-  description: "The decentralized, unbreakable vault for your digital life.",
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = usePathname();
+  
+  // Define routes that should have the sidebar/navbar
+  const isDashboardRoute = ['/', '/vault', '/dashboard', '/marketplace'].includes(pathname);
+  
+  // Show sidebar on dashboard/home routes
+  const showSidebar = isDashboardRoute;
+
   return (
     <html lang="en" data-scroll-behavior="smooth" className={`${inter.variable} ${outfit.variable} ${urbanist.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       <body className="antialiased font-sans text-color-clean bg-color-deep min-h-screen relative flex flex-col">
@@ -37,7 +46,8 @@ export default function RootLayout({
         </div>
 
         <ClientProviders>
-          <main className="flex-1 pb-24 md:pb-0 md:pl-64 bg-color-deep">
+          {showSidebar && <Navbar />}
+          <main className={`flex-1 flex flex-col ${showSidebar ? 'md:pl-64 pb-20 md:pb-0' : ''}`}>
             {children}
           </main>
         </ClientProviders>

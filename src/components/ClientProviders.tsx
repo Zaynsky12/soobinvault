@@ -11,7 +11,6 @@ import { Network } from "@aptos-labs/ts-sdk";
 import { Toaster } from "react-hot-toast";
 
 const WalletProvider = dynamic((() => import("@/components/WalletProvider")) as any, { ssr: false }) as any;
-const Navbar = dynamic((() => import("@/components/Navbar")) as any, { ssr: false }) as any;
 
 
 
@@ -48,7 +47,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
     }, []);
 
     const pathname = usePathname();
-    const hideFooterPages = ['/dashboard', '/vault', '/marketplace'].includes(pathname);
+    const hideFooterPages = ['/dashboard', '/vault', '/marketplace'].includes(pathname) || pathname.startsWith('/buy');
 
     return (
         <WalletProvider>
@@ -73,20 +72,13 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
                                 },
                             }}
                         />
-                        <Navbar />
-                        <main className="flex-grow">
-                            {children}
-                        </main>
+                        {children}
                         {/* Hide footer entirely for vault-related pages */}
                         {!hideFooterPages && <Footer />}
                     </VaultKeyProvider>
                 </ShelbyClientProvider>
             )}
-            {!shelbyClient && (
-                <main className="flex-grow">
-                    {children}
-                </main>
-            )}
+            {!shelbyClient && children}
         </WalletProvider>
     );
 }

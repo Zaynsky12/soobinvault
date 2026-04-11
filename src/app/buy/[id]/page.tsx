@@ -1,10 +1,13 @@
 "use client";
 
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient } from "@shelby-protocol/react";
 import { parseAssetId, handlePurchaseTransaction, downloadWithRetry } from '@/utils/payment';
+import { MARKETPLACE_REGISTRY_ADDRESS } from '@/lib/constants';
+import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MagneticButton } from '@/components/ui/MagneticButton';
 import { 
@@ -23,16 +26,24 @@ import {
     Globe,
     FileText,
     Activity,
-    Check
+    Check,
+    Wallet,
+    LogOut,
+    User
 } from 'lucide-react';
+import { WalletSelector } from '@/components/WalletSelector';
 import toast from 'react-hot-toast';
 import gsap from 'gsap';
+
+
+const aptosConfig = new AptosConfig({ network: Network.TESTNET });
+const aptosClient = new Aptos(aptosConfig);
 
 export default function BuyPage() {
     const params = useParams();
     const router = useRouter();
     const { id } = params;
-    const { connected, account, signAndSubmitTransaction } = useWallet();
+    const { connected, account, signAndSubmitTransaction, disconnect } = useWallet();
     const shelbyClient = useShelbyClient();
 
     const [loading, setLoading] = useState(true);
@@ -43,9 +54,33 @@ export default function BuyPage() {
     const [sellerAddress, setSellerAddress] = useState<string | null>(null);
     const [lastTxHash, setLastTxHash] = useState<string | null>(null);
     const [isIndexerLag, setIsIndexerLag] = useState(false);
+    const [isSelectorOpen, setIsSelectorOpen] = useState(false);
 
     const blobName = decodeURIComponent(id as string);
     const metadata = useMemo(() => parseAssetId(blobName), [blobName]);
+
+    useEffect(() => {
+        const checkAccess = async () => {
+            if (!metadata) return;
+
+            // 1. If price is 0, it's virtually "purchased" (free to all)
+            if (parseFloat(metadata.price) === 0) {
+                setPurchased(true);
+                return;
+            }
+
+            // 2. If user is the seller/owner, they don't need to buy
+            if (connected && account && sellerAddress) {
+                const addrStr = account.address.toString();
+                if (addrStr === sellerAddress) {
+                    setPurchased(true);
+                    return;
+                }
+            }
+        };
+
+        checkAccess();
+    }, [connected, account, metadata, sellerAddress]);
 
     useEffect(() => {
         const init = async () => {
@@ -76,9 +111,56 @@ export default function BuyPage() {
                     const owner = typeof ownerRaw === 'string' ? ownerRaw : (ownerRaw as any)?.toString();
                     if (owner) setSellerAddress(owner);
                     setIsIndexerLag(false);
+
+                    // VERIFY LISTING STATUS IN SMART CONTRACT
+                    if (owner) {
+                        try {
+                            const storefront = await aptosClient.view({
+                                payload: {
+                                    function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_storefront`,
+                                    functionArguments: [owner]
+                                }
+                            });
+                            
+                            if (storefront && Array.isArray(storefront[0])) {
+                                const isListed = (storefront[0] as any[]).some(d => d.blob_name === blobName || d.blobName === blobName);
+                                if (!isListed) {
+                                    setError("This payment link is inactive or has been deleted.");
+                                    setLoading(false);
+                                    return;
+                                }
+                            }
+                        } catch (contractErr) {
+                            console.warn("[Buy] Contract verification failed (ignoring for resilience):", contractErr);
+                        }
+                    }
                 } else if (metadata.seller) {
                     console.warn("[Buy] Indexer lag detected. Proceeding with link metadata.");
                     setIsIndexerLag(true);
+
+                    // VERIFY LISTING STATUS VIA LINK METADATA SELLER
+                    try {
+                        const storefront = await aptosClient.view({
+                            payload: {
+                                function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_storefront`,
+                                functionArguments: [metadata.seller]
+                            }
+                        });
+                        
+                        if (storefront && Array.isArray(storefront[0])) {
+                            const isListed = (storefront[0] as any[]).some(d => d.blob_name === blobName || d.blobName === blobName);
+                            if (!isListed) {
+                                setError("This payment link is inactive or has been deleted.");
+                                setLoading(false);
+                                return;
+                            }
+                        }
+                    } catch (contractErr) {
+                        console.warn("[Buy] Contract verification failed via link seller:", contractErr);
+                    }
+                } else {
+                    // Fallback: If no seller found and indexer nothing, link might be truly orphan
+                    console.warn("[Buy] No seller identified. Link might be invalid.");
                 }
                 
                 // Entrance animation
@@ -146,6 +228,15 @@ export default function BuyPage() {
         }
     };
 
+    const handleWalletAction = () => {
+        if (connected) {
+            disconnect();
+            toast.success("Wallet disconnected.");
+        } else {
+            setIsSelectorOpen(true);
+        }
+    };
+
     const handleDownload = async (owner: string) => {
         if (!metadata) return;
         setDownloading(true);
@@ -207,11 +298,13 @@ export default function BuyPage() {
                 {/* Back Link */}
                 <button 
                     onClick={() => router.push('/vault')}
-                    className="inline-flex items-center gap-2 text-white/30 hover:text-white transition-all mb-6 sm:mb-10 group bg-white/5 px-4 py-2 rounded-full border border-white/5"
+                    className="inline-flex items-center gap-2 text-red-500/50 hover:text-red-400 transition-all mb-6 sm:mb-10 group bg-red-500/5 px-4 py-2 rounded-full border border-red-500/10"
                 >
                     <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
                     <span className="text-[10px] font-black uppercase tracking-[0.2em]">Exit to Vault</span>
                 </button>
+                
+                <WalletSelector isOpen={isSelectorOpen} onClose={() => setIsSelectorOpen(false)} />
 
                 <div className="buy-card">
                     <GlassCard className="p-0 border-white/10 bg-white/[0.01] relative overflow-hidden backdrop-blur-3xl rounded-[2rem] sm:rounded-[3rem]">
@@ -227,17 +320,12 @@ export default function BuyPage() {
                                             <div className="px-3 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-black uppercase tracking-[0.2em]">
                                                 {metadata.category}
                                             </div>
-                                            {isIndexerLag && (
-                                                <div className="px-3 py-1 rounded-md bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
-                                                    <Clock size={10} /> Instant Sync Active
-                                                </div>
-                                            )}
-                                            <div className="flex items-center gap-1.5 text-white/20 text-[9px] font-bold uppercase tracking-[0.2em]">
+                                            <div className="flex items-center gap-1.5 text-yellow-500/60 text-[9px] font-bold uppercase tracking-[0.2em]">
                                                 <Globe size={11} /> Global Checkout
                                             </div>
                                         </div>
 
-                                        <h1 className="text-4xl sm:text-6xl lg:text-8xl font-bold text-white tracking-tight leading-[0.9] break-words">
+                                        <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight leading-[0.9] break-words">
                                             {metadata.title}
                                         </h1>
 
@@ -249,7 +337,7 @@ export default function BuyPage() {
                                         </div>
                                     </div>
 
-                                    {/* Price Card - Redesigned for Mobile */}
+                                    {/* Price Card */}
                                     <div className="lg:shrink-0">
                                         <div className="relative group/price">
                                             <div className="absolute inset-0 bg-indigo-600/20 blur-2xl group-hover/price:bg-indigo-600/40 transition-all duration-700 rounded-full" />
@@ -275,46 +363,36 @@ export default function BuyPage() {
                                 </div>
                             </div>
 
-                            {/* Info Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border-b border-white/5">
-                                {[
-                                    { icon: Lock, label: "End-to-End Encryption", desc: "Data is split into encrypted shards across the network.", color: "indigo" },
-                                    { icon: Activity, label: "High-Availability Nodes", desc: "Distributed retrieval ensures zero downtime for your assets.", color: "yellow" },
-                                    { icon: Shield, label: "Aptos Framework", desc: "Secured by the Move language and decentralized coordination.", color: "indigo" }
-                                ].map((item, idx) => (
-                                    <div key={idx} className={`p-8 sm:p-10 flex flex-col gap-4 hover:bg-white/[0.02] transition-colors ${idx !== 2 ? 'md:border-r border-b md:border-b-0 border-white/5' : ''}`}>
-                                        <div className={`w-10 h-10 rounded-xl bg-${item.color}-500/10 flex items-center justify-center text-${item.color}-500`}>
-                                            <item.icon size={20} />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-white font-bold text-xs uppercase tracking-widest mb-1">{item.label}</h4>
-                                            <p className="text-white/30 text-xs leading-relaxed">{item.desc}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
                             {/* Actions Footer */}
                             <div className="p-6 sm:p-12 lg:p-16 flex flex-col gap-8">
                                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:gap-6">
                                     {!purchased ? (
-                                        <button
-                                            onClick={handleBuy}
-                                            disabled={purchasing}
-                                            className="grow sm:grow-0 px-12 py-5 sm:py-6 rounded-2xl bg-white text-black font-black uppercase tracking-[0.3em] text-xs sm:text-sm hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-4 shadow-[0_20px_40px_rgba(255,255,255,0.05)]"
-                                        >
-                                            {purchasing ? (
-                                                <>
-                                                    <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                                                    Authorizing...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    Unlock Dataset <ChevronLeft size={18} className="rotate-180" />
-                                                </>
-                                            )}
-                                        </button>
-                                    ) : (
+                                        connected ? (
+                                            <button
+                                                onClick={handleBuy}
+                                                disabled={purchasing}
+                                                className="grow sm:grow-0 px-12 py-5 sm:py-6 rounded-2xl bg-white text-black font-black uppercase tracking-[0.3em] text-xs sm:text-sm hover:bg-white/90 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-4 shadow-[0_20px_40px_rgba(255,255,255,0.05)]"
+                                            >
+                                                {purchasing ? (
+                                                    <>
+                                                        <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                                        Authorizing...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <ChevronLeft size={18} className="rotate-180" />
+                                                    </>
+                                                )}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => setIsSelectorOpen(true)}
+                                                className="grow sm:grow-0 px-12 py-5 sm:py-6 rounded-2xl bg-indigo-600 text-white font-black uppercase tracking-[0.3em] text-xs sm:text-sm hover:bg-indigo-500 active:scale-[0.98] transition-all flex items-center justify-center gap-4 shadow-[0_20px_40px_rgba(79,70,229,0.2)] animate-pulse"
+                                            >
+                                                <Wallet size={18} /> Connect Wallet
+                                            </button>
+                                        )
+                                    ) : connected ? (
                                         <button
                                             onClick={() => handleDownload(sellerAddress || "unknown")}
                                             disabled={downloading}
@@ -327,9 +405,16 @@ export default function BuyPage() {
                                                 </>
                                             ) : (
                                                 <>
-                                                    Download Securely <Download size={18} />
+                                                    Download <Download size={18} />
                                                 </>
                                             )}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => setIsSelectorOpen(true)}
+                                            className="grow sm:grow-0 px-12 py-5 sm:py-6 rounded-2xl bg-indigo-600 text-white font-black uppercase tracking-[0.3em] text-xs sm:text-sm hover:bg-indigo-500 active:scale-[0.98] transition-all flex items-center justify-center gap-4 shadow-[0_20px_40px_rgba(79,70,229,0.2)] animate-pulse"
+                                        >
+                                            <Wallet size={18} /> Connect to Download
                                         </button>
                                     )}
                                     
@@ -344,43 +429,13 @@ export default function BuyPage() {
                                     </button>
                                 </div>
 
-                                {/* Security Badges */}
-                                <div className="flex flex-wrap items-center justify-between gap-6 pt-8 border-t border-white/5">
-                                    <div className="flex items-center gap-6">
-                                        <div className="flex items-center gap-2">
-                                            <Shield size={14} className="text-indigo-400" />
-                                            <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em]">Verified Creator</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Activity size={14} className="text-yellow-500" />
-                                            <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em]">Live Protocol Feed</span>
-                                        </div>
-                                    </div>
-                                    
-                                    {lastTxHash && (
-                                        <a
-                                            href={`https://explorer.aptoslabs.com/txn/${lastTxHash}?network=testnet`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition-all"
-                                        >
-                                            Transaction Hash <ExternalLink size={11} />
-                                        </a>
-                                    )}
+                                {/* Embedded Security Footer */}
+                                <div className="mt-6 text-center">
+                                    <p className="text-[8px] text-white/30 font-black uppercase tracking-[0.5em]">Secured by Shelby & SoobinVault</p>
                                 </div>
                             </div>
                         </div>
                     </GlassCard>
-                </div>
-
-                {/* Footer Subtle Text */}
-                <div className="mt-12 sm:mt-16 text-center">
-                    <p className="text-[9px] text-white/10 font-black uppercase tracking-[0.8em] mb-4">Secured by Shelby Protocol & SoobinVault</p>
-                    <div className="flex justify-center gap-3">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white/5" />
-                        <div className="w-1.5 h-1.5 rounded-full bg-white/5" />
-                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                    </div>
                 </div>
             </div>
         </main>

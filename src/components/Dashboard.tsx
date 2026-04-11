@@ -194,10 +194,10 @@ export function Dashboard() {
                 }
 
                 if (inContract) {
-                    const confirmDelist = window.confirm(`File "${selectedAsset.name}" is currently On Sale.\n\nFirst, we need to delist it from the Marketplace. Proceed?`);
+                    const confirmDelist = window.confirm(`File "${selectedAsset.name}" currently has an active payment link.\n\nFirst, we need to delete this payment link. Proceed?`);
                     if (!confirmDelist) return;
                     
-                    toast.loading(`Tx 1/2: Approve wallet to Delist Market Asset...`, { id: 'delete-blob-modal' });
+                    toast.loading(`Tx 1/2: Deleting Payment Link...`, { id: 'delete-blob-modal' });
                     try {
                         await signAndSubmitTransaction({
                             sender: account.address,
@@ -936,9 +936,9 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
 
             // If it's still an active marketplace asset, delist it from the smart contract first!
             if (isMarketAsset) {
-                const confirmDelist = window.confirm(`File "${displayName}" is currently On Sale.\n\nFirst, we need to delist it from the Marketplace. Proceed?`);
+                const confirmDelist = window.confirm(`File "${displayName}" currently has an active payment link.\n\nFirst, we need to delete this payment link. Proceed?`);
                 if (!confirmDelist) return;
-                toast.loading(`Tx 1/2: Approve wallet to Delist Market Asset...`, { id: 'delete-blob' });
+                toast.loading(`Tx 1/2: Deleting Payment Link...`, { id: 'delete-blob' });
                 const MARKETPLACE_REGISTRY_ADDRESS = "0xaf41289b3141c2b8f5650dda1ae3fc400270048da3c009e087694d082bdcc263";
                 try {
                     console.log(`[Marketplace] Attempting to delist ${nameSuffix} from Smart Contract...`);
