@@ -55,6 +55,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         blobs: { blobName: string, blobData: Blob }[],
         files: File[]
     } | null>(null);
+    const [generatedLinks, setGeneratedLinks] = useState<{ name: string, id: string }[]>([]);
 
     const uploadBlobs = useUploadBlobs({});
 
@@ -157,7 +158,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
                     // Prefix metadata into name for Indexer Discovery (No-Contract Pattern)
                     const marketName = uploadMode === 'micropayment' 
-                        ? `sv_market::${datasetCategory}::${effectivePrice}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`
+                        ? `sv_market::${datasetCategory}::${effectivePrice}::${account?.address.toString()}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`
                         : originalName;
 
                     return {
@@ -184,7 +185,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     const originalName = b.blobName;
                     const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
                     const priceU64 = Math.floor(parseFloat(effectivePrice) * 100_000_000);
-                    const marketName = `sv_market::${datasetCategory}::${effectivePrice}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`;
+                    const marketName = `sv_market::${datasetCategory}::${effectivePrice}::${account?.address.toString()}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`;
 
                     console.log(`[Marketplace] Registering listing: ${marketName} at ${effectivePrice} SUSD`);
                     
@@ -213,7 +214,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     backupBlobs.forEach((b, i) => {
                         const originalName = b.blobName;
                         const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
-                        const marketName = `sv_market::${datasetCategory}::${effectivePrice}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`;
+                        const marketName = `sv_market::${datasetCategory}::${effectivePrice}::${account?.address.toString()}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`;
                         pendingMarkets.push({
                             blob_name: marketName,
                             owner: account.address.toString(),
@@ -242,16 +243,24 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 }));
             });
 
+            // Capture links for success view
+            if (isMarket) {
+                const newLinks = backupBlobs.map(b => {
+                    const originalName = b.blobName;
+                    const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
+                    const marketName = `sv_market::${datasetCategory}::${effectivePrice}::${account?.address.toString()}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`;
+                    return { name: originalName, id: marketName };
+                });
+                setGeneratedLinks(newLinks);
+            }
+
             setSuccessCount(backupFiles.length);
             setUploadState('success');
-            setUploadStatusText(isMarket ? "Registry Update: Complete." : "Assets secured and backed up.");
+            setUploadStatusText(isMarket ? "Payment handles generated successfully." : "Assets secured and backed up.");
 
-            // --- REDIRECT LOGIC ---
+            // --- REDIRECT LOGIC REMOVED ---
             if (uploadMode === 'micropayment') {
-                toast.success("All steps complete! Redirecting to Marketplace...", { duration: 3000 });
-                setTimeout(() => {
-                    router.push('/marketplace');
-                }, 2000);
+                toast.success("Micropayment links are ready to share!", { duration: 5000 });
             }
         } catch (sdkError) {
             console.error("[Shelby SDK Error]", sdkError);
@@ -369,6 +378,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         setCurrentIndex(0);
         setSuccessCount(0);
         setFailCount(0);
+        setGeneratedLinks([]);
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
         setUploadState('idle');
@@ -801,11 +811,41 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     </a>
                                 )}
 
+                                {generatedLinks.length > 0 && (
+                                    <div className="w-full max-w-md mx-auto mb-8 space-y-3">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 mb-2">Shareable Payment Links</p>
+                                        {generatedLinks.map((link, idx) => {
+                                            const fullUrl = `${window.location.origin}/buy/${encodeURIComponent(link.id)}`;
+                                            return (
+                                                <div key={idx} className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 group hover:border-yellow-500/30 transition-all backdrop-blur-sm">
+                                                    <div className="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-500 shrink-0">
+                                                        <Banknote size={20} />
+                                                    </div>
+                                                    <div className="flex-1 text-left min-w-0">
+                                                        <p className="text-[10px] text-white/40 truncate font-medium mb-0.5">{link.name}</p>
+                                                        <p className="text-xs text-white/90 font-mono truncate">{fullUrl}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigator.clipboard.writeText(fullUrl);
+                                                            toast.success("Link copied!");
+                                                        }}
+                                                        className="px-4 py-2 rounded-lg bg-yellow-500 text-black text-[10px] font-black uppercase tracking-widest hover:bg-yellow-400 transition-all shadow-[0_5px_15px_rgba(234,179,8,0.2)] active:scale-95 shrink-0"
+                                                    >
+                                                        Copy
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
                                 <button
                                     onClick={resetTarget}
-                                    className="w-full sm:w-auto px-8 py-3.5 md:py-4 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 text-white transition-colors font-medium backdrop-blur-md text-sm md:text-base uppercase tracking-widest"
+                                    className="w-full sm:w-auto px-10 py-4 rounded-full bg-white text-black hover:bg-yellow-500 transition-all font-black uppercase tracking-widest text-xs shadow-2xl active:scale-95"
                                 >
-                                    Store More Assets
+                                    Deploy More Assets
                                 </button>
                             </div>
                         )}

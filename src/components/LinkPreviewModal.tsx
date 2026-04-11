@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Download, ExternalLink, FileText, Image as ImageIcon, Info, Lock, Unlock, Maximize2, RefreshCw, Trash2, X, Music, Video, Key, Settings, File as FileIcon, Archive, FileSpreadsheet, Presentation } from 'lucide-react';
+import { AlertCircle, Download, ExternalLink, FileText, Image as ImageIcon, Info, Lock, Unlock, Maximize2, RefreshCw, Trash2, X, Music, Video, Key, Settings, File as FileIcon, Archive, FileSpreadsheet, Presentation, Share2, Banknote } from 'lucide-react';
 import { decryptFile } from '../utils/crypto';
 import { getFileType } from '../utils/file';
 import { useVaultKey } from '../context/VaultKeyContext';
@@ -28,6 +28,7 @@ interface LinkPreviewModalProps {
     accountAddress?: string;
     onDelete?: () => void;
     isEncrypted?: boolean;
+    isMarketAsset?: boolean;
 }
 
 export function LinkPreviewModal({
@@ -52,6 +53,7 @@ export function LinkPreviewModal({
     accountAddress,
     onDelete,
     isEncrypted = true,
+    isMarketAsset = false,
 }: LinkPreviewModalProps) {
     const [copied, setCopied] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
@@ -78,7 +80,7 @@ export function LinkPreviewModal({
 
     const runDecryptionWithRetry = React.useCallback(async (retryCount = 0) => {
         if (!blobName || !blobAccount || !shelbyClient || !accountAddress) return;
-        
+
         setIsProcessing(true);
         setFetchError(null);
         try {
@@ -138,7 +140,7 @@ export function LinkPreviewModal({
             if (!cryptoKey) {
                 throw new Error("Signature required for decryption.");
             }
-            
+
             const { blob: decryptedBlob, metadata } = await decryptFile(rawBuffer, cryptoKey);
 
             // Re-wrap blob with correct MIME type detected from metadata name
@@ -251,7 +253,7 @@ export function LinkPreviewModal({
                 for (const chunk of chunks) { merged.set(chunk, offset); offset += chunk.length; }
                 rawBlob = new Blob([merged]);
             } else {
-                const apiKey = propApiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
+                const apiKey = propApiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_M4q6Cdo5c3v_Ms79TxmEijAh6u1CUzUnan8X1fQnrzNpr";
                 console.log(`[LinkPreviewModal] Fetching with key prefix: ${apiKey.substring(0, 10)}...`);
                 const response = await fetch(assetUrl!, {
                     headers: { 'Authorization': `Bearer ${apiKey.trim()}` }
@@ -470,19 +472,19 @@ export function LinkPreviewModal({
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="space-y-2 w-full">
                                         <h3 className="text-xl md:text-3xl font-bold text-white tracking-tight">Access Denied</h3>
                                         <p className="text-color-support/60 text-xs md:text-base leading-relaxed max-w-sm mx-auto">
                                             Encryption key mismatch. Import your <b>Master Key</b> in Settings to unlock this asset.
                                         </p>
-                                        
+
                                         <div className="mt-4 p-4 md:p-6 rounded-2xl bg-white/[0.03] border border-white/5 text-left space-y-3 w-full">
                                             <div className="flex items-center gap-2 border-b border-white/5 pb-2">
                                                 <Key size={14} className="text-color-primary" />
                                                 <h4 className="text-[10px] md:text-xs font-bold text-white uppercase tracking-wider">Instructions</h4>
                                             </div>
-                                            
+
                                             <div className="space-y-3 pt-1">
                                                 <div className="flex gap-2 items-center">
                                                     <div className="shrink-0 w-5 h-5 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold text-color-support">1</div>
@@ -495,8 +497,8 @@ export function LinkPreviewModal({
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    <button 
+
+                                    <button
                                         onClick={() => {
                                             onClose();
                                             setTimeout(() => {
@@ -531,13 +533,13 @@ export function LinkPreviewModal({
                                         <img src={decryptedData.url} alt={decryptedData.name} className="max-w-full max-h-full object-contain" />
                                     )}
                                     {decryptedData.isVideo && (
-                                        <video 
-                                            src={decryptedData.url} 
-                                            controls 
-                                            className="max-w-full max-h-full" 
-                                            autoPlay 
-                                            muted 
-                                            playsInline 
+                                        <video
+                                            src={decryptedData.url}
+                                            controls
+                                            className="max-w-full max-h-full"
+                                            autoPlay
+                                            muted
+                                            playsInline
                                         />
                                     )}
                                     {decryptedData.isAudio && (
@@ -576,8 +578,8 @@ export function LinkPreviewModal({
                         {/* Footer / Actions - Sticky or bottom flow */}
                         {fetchError !== 'DECRYPTION_FAILED' && (
                             <div className="flex-shrink-0 mt-6 md:mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-white/5 pt-6 md:pt-8 mb-2">
-                                <button 
-                                    onClick={onDelete || onClose} 
+                                <button
+                                    onClick={onDelete || onClose}
                                     className="w-full sm:w-auto px-8 py-4 md:py-3.5 rounded-2xl bg-red-500/5 hover:bg-red-500/10 text-red-500 font-bold transition-all order-2 sm:order-1 flex items-center justify-center gap-2 border border-red-500/10 uppercase text-xs tracking-widest"
                                 >
                                     <Trash2 size={18} />
@@ -599,6 +601,20 @@ export function LinkPreviewModal({
                                     <Download size={20} className="inline-block mr-2" />
                                     Download
                                 </button>
+                                {isMarketAsset && (
+                                    <button
+                                        onClick={() => {
+                                            const fullUrl = `${window.location.origin}/buy/${encodeURIComponent(blobName || '')}`;
+                                            navigator.clipboard.writeText(fullUrl);
+                                            setCopied(true);
+                                            setTimeout(() => setCopied(false), 2000);
+                                        }}
+                                        className="w-full sm:w-auto px-10 py-4 md:py-3.5 rounded-2xl bg-yellow-500 hover:bg-yellow-400 text-black font-bold transition-all shadow-lg order-0 sm:order-3 uppercase text-xs tracking-widest flex items-center justify-center gap-2"
+                                    >
+                                        <Share2 size={18} />
+                                        {copied ? 'Copied!' : 'Share Link'}
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>

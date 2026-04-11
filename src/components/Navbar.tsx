@@ -96,7 +96,6 @@ export default function Navbar(): React.ReactNode {
     const navLinks = [
         { name: 'Home', href: '/', icon: Home },
         { name: 'Upload', href: '/vault', icon: PlusCircle },
-        { name: 'Market', href: '/marketplace', icon: Store },
         { name: 'Vault', href: '/dashboard', icon: FileText },
     ];
 

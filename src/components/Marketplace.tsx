@@ -525,14 +525,26 @@ export function Marketplace() {
                 description = d.contract_description;
 
                 const parts = blobName.split("::");
-                title = parts.length >= 5 ? parts.slice(4).join("::") : blobName;
+                if (parts.length >= 6) {
+                    title = parts.slice(5).join("::");
+                } else {
+                    title = parts.length >= 5 ? parts.slice(4).join("::") : blobName;
+                }
               } else {
                 const parts = blobName.split("::");
-                if (parts.length >= 5) {
+                if (parts.length >= 6) {
+                  // New 6-part format: category::price::seller::description::filename
+                  category = parts[1];
+                  price = parseFloat(parts[2]) || 0;
+                  // seller is parts[3]
+                  description = parts[4];
+                  title = parts.slice(5).join("::");
+                } else if (parts.length === 5) {
+                  // Legacy 5-part format: category::price::description::filename
                   category = parts[1];
                   price = parseFloat(parts[2]) || 0;
                   description = parts[3];
-                  title = parts.slice(4).join("::");
+                  title = parts[4];
                 } else {
                   return null;
                 }

@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Lock, FileText, LayoutGrid, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle, ShieldCheck, Globe, Video, Music, FileSpreadsheet, Presentation, Archive, File as FileGeneral, Code2, BookOpen, UploadCloud, Tag } from 'lucide-react';
+import { Lock, FileText, LayoutGrid, Image as ImageIcon, Database, Link as LinkIcon, Download, PackageOpen, Loader2, CheckCircle2, Clock, Search, Trash2, Key, RefreshCw, MoreVertical, Eye, PlusCircle, ShieldCheck, Globe, Video, Music, FileSpreadsheet, Presentation, Archive, File as FileGeneral, Code2, BookOpen, UploadCloud, Tag, Share2, Banknote } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
@@ -74,6 +74,7 @@ export function Dashboard() {
         blobAccount: string;
         blobName: string;
         isEncrypted: boolean;
+        isMarketAsset: boolean;
     } | null>(null);
 
     const [decryptedNames, setDecryptedNames] = useState<Record<string, string>>({});
@@ -695,6 +696,7 @@ export function Dashboard() {
                                             blobAccount: finalIdentifier,
                                             blobName: fullNameForLink,
                                             isEncrypted,
+                                            isMarketAsset,
                                         });
                                         setIsPreviewModalOpen(true);
                                     };
@@ -763,6 +765,7 @@ export function Dashboard() {
                 accountAddress={account?.address.toString()}
                 onDelete={handleDeleteSelectedAsset}
                 isEncrypted={selectedAsset?.isEncrypted ?? true}
+                isMarketAsset={selectedAsset?.isMarketAsset || false}
             />
 
             {/* Floating Action Button (Mobile) */}
@@ -1101,6 +1104,21 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
 
             {/* Actions (Desktop Only) */}
             <div className="hidden md:flex md:col-span-3 relative z-10 justify-center items-center gap-3">
+                {isMarketAsset && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const fullUrl = `${window.location.origin}/buy/${encodeURIComponent(blobName)}`;
+                            navigator.clipboard.writeText(fullUrl);
+                            toast.success("Payment link copied!");
+                        }}
+                        className="flex items-center justify-center p-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all shadow-lg active:scale-95 group/share"
+                        title="Copy payment link"
+                    >
+                        <Share2 size={16} />
+                    </button>
+                )}
+
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
@@ -1236,6 +1254,27 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                 </div>
                             </button>
 
+                            {isMarketAsset && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const fullUrl = `${window.location.origin}/buy/${encodeURIComponent(blobName)}`;
+                                        navigator.clipboard.writeText(fullUrl);
+                                        toast.success("Payment link copied!");
+                                        setIsMenuOpen(false);
+                                    }}
+                                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 active:bg-yellow-500 active:text-black transition-all active:scale-[0.98] group"
+                                >
+                                    <div className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center group-hover:scale-110 transition-transform shadow-[0_0_20px_rgba(234,179,8,0.2)]">
+                                        <Banknote size={22} />
+                                    </div>
+                                    <div className="text-left">
+                                        <span className="block font-bold text-sm uppercase tracking-widest">Copy Share Link</span>
+                                        <span className="block text-[10px] text-yellow-500/40 mt-0.5 uppercase tracking-wider">Direct payment endpoint</span>
+                                    </div>
+                                </button>
+                            )}
+    
                             <div className="pt-2">
                                 <button
                                     onClick={(e) => {
