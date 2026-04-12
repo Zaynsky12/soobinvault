@@ -115,8 +115,8 @@ export function Dashboard() {
             let nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
             
             // Strip sv_market prefix for display if present
-            if (nameOnly.startsWith('sv_market::')) {
-                const parts = nameOnly.split('::');
+            if (nameOnly.startsWith('sv_market--')) {
+                const parts = nameOnly.split('--');
                 nameOnly = parts[parts.length - 1];
             }
 
@@ -176,7 +176,7 @@ export function Dashboard() {
             toast.loading(`Deleting ${selectedAsset.name}...`, { id: 'delete-blob-modal' });
 
             // If it's a marketplace listing, delist it from the smart contract first!
-            if (nameSuffix.startsWith('sv_market::')) {
+            if (nameSuffix.startsWith('sv_market--')) {
                 // Ghost Buster Pre-Check for Vault
                 let inContract = false;
                 try {
@@ -619,9 +619,9 @@ export function Dashboard() {
 
                                     // Strip sv_market prefix for display and check if currently on sale
                                     let isMarketAsset = activeListings && activeListings.some((l: any) => l.blob_name === fullNameForLink || l.blobName === fullNameForLink);
-                                    if (nameOnly.startsWith('sv_market::')) {
+                                    if (nameOnly.startsWith('sv_market--')) {
 
-                                        const parts = nameOnly.split('::');
+                                        const parts = nameOnly.split('--');
                                         nameOnly = parts[parts.length - 1];
                                     }
 

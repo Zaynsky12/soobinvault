@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, Unlock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ShieldCheck, ChevronRight, ShieldOff, Calendar, Clock, Coins, Check, Folder, ArrowDown, Banknote, Tag, AlignLeft, BrainCircuit, Globe } from 'lucide-react';
+import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, Unlock, AlertCircle, Music, FileText, FileSpreadsheet, Presentation, Archive, Shield, ShieldCheck, ChevronRight, ShieldOff, Calendar, Clock, Coins, Check, Folder, ArrowDown, Banknote, Tag, AlignLeft, BrainCircuit, Globe, Copy } from 'lucide-react';
 import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import { MARKETPLACE_REGISTRY_ADDRESS, SHELBYUSD_FA_METADATA_ADDRESS } from '../lib/constants';
@@ -13,6 +13,68 @@ import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useUploadBlobs } from "@shelby-protocol/react";
 import { getFileType } from '../utils/file';
 import { Network } from "@aptos-labs/ts-sdk";
+
+// Shelby SDK Patch: Intercept fetch responses to prevent internal 'already received' errors
+// and implement a network-level concurrency semaphore to limit multipart uploads.
+// The SDK defaults to Promise.all for all chunks, which massively crashes the node with 500 Internal Server errors.
+if (typeof window !== "undefined") {
+    if (!(window as any)._shelbyPatched) {
+        const originalFetch = window.fetch;
+        (window as any)._shelbyActiveUploads = 0;
+
+        window.fetch = async function (...args) {
+            // Safely parse URL (could be string, URL, or Request)
+            let urlStr = '';
+            if (typeof args[0] === 'string') { urlStr = args[0]; }
+            else if (args[0] && (args[0] as Request).url) { urlStr = (args[0] as Request).url; }
+            else if (args[0] && (args[0] as URL).href) { urlStr = (args[0] as URL).href; }
+            
+            const isPartUpload = urlStr.includes('/parts/') && (args[1] as any)?.method === 'PUT';
+
+            // Custom HTTP connection pooling (1 max concurrent chunk stream)
+            if (isPartUpload) {
+                await new Promise<void>(resolve => {
+                    const tryAcquire = () => {
+                        if ((window as any)._shelbyActiveUploads < 1) {
+                            (window as any)._shelbyActiveUploads++;
+                            resolve();
+                        } else {
+                            setTimeout(tryAcquire, 150 + Math.random() * 200); // Backoff with jitter
+                        }
+                    };
+                    tryAcquire();
+                });
+            }
+
+            try {
+                const response = await originalFetch.apply(this, args);
+                
+                if (!response.ok && response.status === 400 && urlStr.includes('/parts/')) {
+                    const clone = response.clone();
+                    try {
+                        const body = await clone.json();
+                        if (body && body.error && body.error.includes('has already recieved partIdx=')) {
+                            console.warn("[Shelby Patch] Caught false-negative 400 error for already received chunk. Reporting as 200 OK.");
+                            return new Response(JSON.stringify({ success: true, patched: true }), {
+                                status: 200,
+                                statusText: "OK",
+                                headers: response.headers
+                            });
+                        }
+                    } catch (e) {
+                        // ignore JSON parse errors
+                    }
+                }
+                return response;
+            } finally {
+                if (isPartUpload) {
+                    (window as any)._shelbyActiveUploads--;
+                }
+            }
+        };
+        (window as any)._shelbyPatched = true;
+    }
+}
 
 interface VaultDropzoneProps {
     refetch?: () => void;
@@ -77,7 +139,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         if (uploadState === 'uploading' && progressRef.current) {
             // Force reset in case of previous animations
             gsap.set(progressRef.current, { clearProps: "all" });
-            
+
             const anim = gsap.fromTo(progressRef.current,
                 { left: "-50%", width: "50%", position: 'absolute' },
                 { left: "100%", duration: 1.2, repeat: -1, ease: "none" }
@@ -112,22 +174,23 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
         try {
             console.log("[Shelby] Initiating batch upload. Signer address:", account.address.toString());
-            
-            // Re-show progress bar & set status
-            setPendingUploads(null); 
-            // Keep currentFile and currentIndex from the last processed file 
-            // so the progress bar UI stays visible
-            setUploadStatusText("Awaiting wallet approval...");
 
-            // Convert Blobs to Uint8Arrays right before calling the SDK to minimize RAM dwell time
+            // Re-show progress bar & set status
+            setPendingUploads(null);
+            // Keep currentFile and currentIndex from the last processed file 
+            // Convert Blobs to Uint8Arrays right before calling the SDK to meet strict type requirements 
             const blobsForSdk = await Promise.all(backupBlobs.map(async (b) => ({
                 blobName: b.blobName,
                 blobData: new Uint8Array(await b.blobData.arrayBuffer())
             })));
 
             const isMarket = uploadMode === 'micropayment';
-            setUploadStatusText(isMarket ? "Step 1/2: Storing encrypted file on Shelby network..." : "Uploading to secure network...");
-            
+            const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
+            // Heavily truncate description so that the combined blob_name does not exceed the database limit (VARCHAR 255)
+            const safeDesc = datasetDescription.slice(0, 30).replace(/[\r\n\t]+/g, ' ').replace(/--/g, ' ').trim() || "Untitled Dataset";
+
+            setUploadStatusText(isMarket ? "Step 1/2: Storing public file on Shelby network..." : "Uploading to secure network...");
+
             await uploadBlobs.mutateAsync({
                 signer: {
                     account: account.address.toString(),
@@ -155,10 +218,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 },
                 blobs: backupBlobs.map((b, i) => {
                     const originalName = b.blobName;
-                    const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
-                    // Prefix metadata into name for Indexer Discovery (No-Contract Pattern)
-                    const marketName = uploadMode === 'micropayment' 
-                        ? `sv_market::${datasetCategory}::${effectivePrice}::${account?.address.toString()}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`
+                    // Ensure the original filename part doesn't artificially blow out the database limit
+                    const safeOriginal = originalName.replace(/[\r\n]+/g, ' ').trim().slice(-40);
+                    // Prefix metadata into name for Indexer Discovery
+                    const marketName = uploadMode === 'micropayment'
+                        ? `sv_market--${datasetCategory}--${effectivePrice}--${account?.address.toString()}--${safeDesc}--${safeOriginal}`
                         : originalName;
 
                     return {
@@ -179,16 +243,16 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
             // Step 2: Register in Aptos Marketplace Registry (Contract)
             if (isMarket) {
-                setUploadStatusText("Step 2/2: Registering listing on Marketplace Registry...");
+                setUploadStatusText("Step 2/2: Generating Secure Payment Link...");
                 for (let i = 0; i < backupBlobs.length; i++) {
                     const b = backupBlobs[i];
                     const originalName = b.blobName;
-                    const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
+                    const safeOriginal = originalName.replace(/[\r\n]+/g, ' ').trim().slice(-40);
                     const priceU64 = Math.floor(parseFloat(effectivePrice) * 100_000_000);
-                    const marketName = `sv_market::${datasetCategory}::${effectivePrice}::${account?.address.toString()}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`;
+                    const marketName = `sv_market--${datasetCategory}--${effectivePrice}--${account?.address.toString()}--${safeDesc}--${safeOriginal}`;
 
                     console.log(`[Marketplace] Registering listing: ${marketName} at ${effectivePrice} SUSD`);
-                    
+
                     await signAndSubmitTransaction({
                         sender: account.address,
                         data: {
@@ -197,7 +261,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 marketName,
                                 priceU64.toString(),
                                 datasetCategory,
-                                datasetDescription,
+                                safeDesc,
                                 SHELBYUSD_FA_METADATA_ADDRESS
                             ]
                         }
@@ -213,8 +277,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     const pendingMarkets = JSON.parse(localStorage.getItem('sv_pending_markets') || '[]');
                     backupBlobs.forEach((b, i) => {
                         const originalName = b.blobName;
-                        const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
-                        const marketName = `sv_market::${datasetCategory}::${effectivePrice}::${account?.address.toString()}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`;
+                        const safeOriginal = originalName.replace(/[\r\n]+/g, ' ').trim();
+                        const marketName = `sv_market--${datasetCategory}--${effectivePrice}--${account?.address.toString()}--${safeDesc}--${safeOriginal}`;
                         pendingMarkets.push({
                             blob_name: marketName,
                             owner: account.address.toString(),
@@ -227,7 +291,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         });
                     });
                     localStorage.setItem('sv_pending_markets', JSON.stringify(pendingMarkets));
-                } catch(e) {}
+                } catch (e) { }
             }
 
             // Handle success events for each file
@@ -247,8 +311,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             if (isMarket) {
                 const newLinks = backupBlobs.map(b => {
                     const originalName = b.blobName;
-                    const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
-                    const marketName = `sv_market::${datasetCategory}::${effectivePrice}::${account?.address.toString()}::${datasetDescription.slice(0, 100).replace(/::/g, ' ')}::${originalName}`;
+                    const safeOriginal = originalName.replace(/[\r\n]+/g, ' ').trim();
+                    const marketName = `sv_market--${datasetCategory}--${effectivePrice}--${account?.address.toString()}--${safeDesc}--${safeOriginal}`;
                     return { name: originalName, id: marketName };
                 });
                 setGeneratedLinks(newLinks);
@@ -266,7 +330,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             console.error("[Shelby SDK Error]", sdkError);
             const msg = sdkError instanceof Error ? sdkError.message : String(sdkError);
             toast.error(`Upload failed: ${msg.slice(0, 100)}...`, { id: 'upload-error' });
-            
+
             // If it failed, we restore pendingUploads to allow RETRY
             setPendingUploads({ blobs: backupBlobs, files: backupFiles });
             setUploadState('uploading'); // Keep in progress view but wait for user to click retry or cancel
@@ -282,7 +346,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
         setUploadState('uploading');
         setQueue(files);
-        
+
         const sumSize = files.reduce((acc, f) => acc + f.size, 0);
         setTotalSize(sumSize);
 
@@ -334,7 +398,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                     // Use Blob for plaintext to avoid large ArrayBuffer allocation early
                     const fileBlob = new Blob([file]);
-                    
+
                     blobs.push({
                         blobName: file.name,
                         blobData: fileBlob
@@ -490,7 +554,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             </div>
                         ) : uploadState === 'idle' && (
                             <div className="flex flex-col items-center text-center w-full max-w-lg mx-auto px-1 md:px-4">
-                                
+
                                 {/* Mode Switcher */}
                                 <div className="flex w-full max-w-[280px] bg-black/40 rounded-full p-1 mb-6 border border-white/10 relative z-20 shadow-inner">
                                     <button
@@ -508,14 +572,13 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </div>
 
                                 {/* Top SoobinVault Glass Icon */}
-                                <div 
-                                    className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center mb-3 md:mb-4 transition-transform duration-500 ${
-                                        uploadMode === 'micropayment'
-                                            ? 'bg-gradient-to-b from-[#2e2b1c] to-[#0d0d0d] border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.2)]'
-                                            : encryptionEnabled 
-                                                ? 'bg-gradient-to-b from-[#3a1c3b] to-[#1A0D12] border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.2)]'
-                                                : 'glass-panel bg-[#1A0D12]/80 border border-white/10'
-                                    }`}
+                                <div
+                                    className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center mb-3 md:mb-4 transition-transform duration-500 ${uploadMode === 'micropayment'
+                                        ? 'bg-gradient-to-b from-[#2e2b1c] to-[#0d0d0d] border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.2)]'
+                                        : encryptionEnabled
+                                            ? 'bg-gradient-to-b from-[#3a1c3b] to-[#1A0D12] border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.2)]'
+                                            : 'glass-panel bg-[#1A0D12]/80 border border-white/10'
+                                        }`}
                                 >
                                     {uploadMode === 'micropayment' ? (
                                         <Banknote size={28} strokeWidth={2} className="text-yellow-400 drop-shadow-[0_0_10px_rgba(234,179,8,0.6)]" />
@@ -559,8 +622,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                         <Tag size={16} className="text-color-support/50 group-focus-within:text-yellow-400 transition-colors" />
                                                     </div>
-                                                    <input 
-                                                        type="number" 
+                                                    <input
+                                                        type="number"
                                                         min="0"
                                                         step="0.01"
                                                         value={priceShelbyUSD}
@@ -570,11 +633,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                                         placeholder="0.1"
                                                     />
                                                     <div className="absolute inset-y-0 right-1 flex items-center gap-1 pr-1.5">
-                                                        <button 
+                                                        <button
                                                             onClick={(e) => { e.stopPropagation(); setPriceShelbyUSD(prev => (Math.max(0, parseFloat(prev) - 0.1)).toFixed(1)); }}
                                                             className="w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 hover:border-yellow-500/50 transition-all font-bold"
                                                         >-</button>
-                                                        <button 
+                                                        <button
                                                             onClick={(e) => { e.stopPropagation(); setPriceShelbyUSD(prev => (parseFloat(prev) + 0.1).toFixed(1)); }}
                                                             className="w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 hover:border-yellow-500/50 transition-all font-bold"
                                                         >+</button>
@@ -635,49 +698,46 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className={`w-[85%] max-w-xs md:max-w-[420px] py-3.5 md:py-4 rounded-full transition-all duration-500 font-bold uppercase text-[11px] md:text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98] mb-5 md:mb-6 mx-auto ${
-                                        uploadMode === 'micropayment'
-                                            ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)]'
-                                            : encryptionEnabled
-                                                ? 'bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 border border-yellow-200 text-yellow-950 shadow-[0_5px_30px_rgba(250,204,21,0.7)] hover:shadow-[0_10px_40px_rgba(250,204,21,0.9)] scale-105 animate-pulse-slow'
-                                                : 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)]'
-                                    }`}
+                                    className={`w-[85%] max-w-xs md:max-w-[420px] py-3.5 md:py-4 rounded-full transition-all duration-500 font-bold uppercase text-[11px] md:text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98] mb-5 md:mb-6 mx-auto ${uploadMode === 'micropayment'
+                                        ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)]'
+                                        : encryptionEnabled
+                                            ? 'bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 border border-yellow-200 text-yellow-950 shadow-[0_5px_30px_rgba(250,204,21,0.7)] hover:shadow-[0_10px_40px_rgba(250,204,21,0.9)] scale-105 animate-pulse-slow'
+                                            : 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)]'
+                                        }`}
                                 >
                                     Select Files
                                 </button>
 
                                 {/* Checkbox-Style Encryption Toggle */}
                                 {uploadMode !== 'micropayment' && (
-                                    <div 
+                                    <div
                                         onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
                                         className="w-full max-w-xs md:max-w-[420px] mx-auto flex items-center justify-center gap-3 cursor-pointer group px-2"
                                     >
                                         {/* Checkbox square */}
-                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 shrink-0 ${
-                                            encryptionEnabled 
-                                                ? 'bg-color-primary border-color-primary text-white shadow-[0_0_10px_rgba(232,58,118,0.4)]' 
-                                                : 'border-white/40 bg-transparent group-hover:border-white/60'
-                                        }`}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 shrink-0 ${encryptionEnabled
+                                            ? 'bg-color-primary border-color-primary text-white shadow-[0_0_10px_rgba(232,58,118,0.4)]'
+                                            : 'border-white/40 bg-transparent group-hover:border-white/60'
+                                            }`}>
                                             {encryptionEnabled && <Check size={14} strokeWidth={3} />}
                                         </div>
 
                                         {/* Lock Icon */}
                                         {encryptionEnabled ? (
-                                            <Lock 
-                                                size={20} 
+                                            <Lock
+                                                size={20}
                                                 className="shrink-0 text-yellow-400 fill-yellow-400/20 drop-shadow-[0_0_12px_rgba(250,204,21,0.9)] transition-all duration-300 scale-110"
                                             />
                                         ) : (
-                                            <Unlock 
-                                                size={18} 
-                                                className="shrink-0 text-yellow-500/80 transition-colors duration-300 group-hover:text-yellow-400" 
+                                            <Unlock
+                                                size={18}
+                                                className="shrink-0 text-yellow-500/80 transition-colors duration-300 group-hover:text-yellow-400"
                                             />
                                         )}
 
                                         {/* Text */}
-                                        <span className={`text-[12px] md:text-sm tracking-wide transition-colors ${
-                                            encryptionEnabled ? 'text-white font-medium' : 'text-white/60 group-hover:text-white/80'
-                                        }`}>
+                                        <span className={`text-[12px] md:text-sm tracking-wide transition-colors ${encryptionEnabled ? 'text-white font-medium' : 'text-white/60 group-hover:text-white/80'
+                                            }`}>
                                             Encrypt file before upload
                                         </span>
                                     </div>
@@ -711,7 +771,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 <h3 className="text-xl md:text-2xl font-semibold mb-6 text-white tracking-tight">
                                     {encryptionEnabled ? 'Deploy Encrypted Assets' : 'Deploy Assets'}
                                 </h3>
-                                
+
                                 {/* Storage Duration Selection */}
                                 <div className="w-full max-w-2xl flex flex-col gap-2 md:gap-3 mb-6 md:mb-8 text-left">
                                     {/* Estimated Cost Box */}
@@ -742,7 +802,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                             <p className="text-color-support/60 text-[10px] md:text-xs mt-0.5 md:mt-1 font-light truncate">How long to keep files on network</p>
                                         </div>
                                         <div className="relative group shrink-0">
-                                            <select 
+                                            <select
                                                 value={selectedDuration.label}
                                                 onChange={(e) => {
                                                     const opt = DURATION_OPTIONS.find(o => o.label === e.target.value);
@@ -812,28 +872,39 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 )}
 
                                 {generatedLinks.length > 0 && (
-                                    <div className="w-full max-w-md mx-auto mb-8 space-y-3">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 mb-2">Shareable Payment Links</p>
+                                    <div className="w-[80%] md:w-full max-w-sm md:max-w-md mx-auto mb-6 space-y-2 md:space-y-3">
+                                        <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-white/30 mb-2">Shareable Payment Links</p>
                                         {generatedLinks.map((link, idx) => {
                                             const fullUrl = `${window.location.origin}/buy/${encodeURIComponent(link.id)}`;
                                             return (
-                                                <div key={idx} className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 group hover:border-yellow-500/30 transition-all backdrop-blur-sm">
-                                                    <div className="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-500 shrink-0">
-                                                        <Banknote size={20} />
+                                                <div key={idx} className="flex items-center gap-2 md:gap-4 p-2 md:p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/10 group hover:border-yellow-500/30 transition-all backdrop-blur-sm">
+                                                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-500 shrink-0">
+                                                        <Banknote size={16} className="md:w-6 md:h-6" />
                                                     </div>
-                                                    <div className="flex-1 text-left min-w-0">
-                                                        <p className="text-[10px] text-white/40 truncate font-medium mb-0.5">{link.name}</p>
-                                                        <p className="text-xs text-white/90 font-mono truncate">{fullUrl}</p>
+                                                    
+                                                    <div className="flex-1 min-w-0 text-left flex flex-col justify-center">
+                                                        <p className="text-[10px] md:text-[11px] text-white/90 md:text-white/60 truncate font-medium mb-0.5 md:mb-0.5">{link.name}</p>
+                                                        
+                                                        {/* Ultra-clean layout with truncated URL and extra padding to shorten the visible characters */}
+                                                        <p className="text-[9px] md:text-xs text-white/90 font-mono truncate pr-4 md:pr-1">
+                                                            {fullUrl}
+                                                        </p>
                                                     </div>
+                                                    
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             navigator.clipboard.writeText(fullUrl);
                                                             toast.success("Link copied!");
                                                         }}
-                                                        className="px-4 py-2 rounded-lg bg-yellow-500 text-black text-[10px] font-black uppercase tracking-widest hover:bg-yellow-400 transition-all shadow-[0_5px_15px_rgba(234,179,8,0.2)] active:scale-95 shrink-0"
+                                                        className="p-2 md:px-5 md:py-2.5 flex items-center justify-center rounded-lg bg-yellow-500 text-black hover:bg-yellow-400 transition-all shadow-[0_3px_10px_rgba(234,179,8,0.2)] active:scale-95 shrink-0"
                                                     >
-                                                        Copy
+                                                        {/* Icon Only on Mobile */}
+                                                        <Copy size={14} className="md:hidden stroke-[3px]" />
+                                                        {/* Text Only on Desktop */}
+                                                        <span className="hidden md:block text-[10px] font-black uppercase tracking-widest">
+                                                            Copy
+                                                        </span>
                                                     </button>
                                                 </div>
                                             );
@@ -843,7 +914,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                                 <button
                                     onClick={resetTarget}
-                                    className="w-full sm:w-auto px-10 py-4 rounded-full bg-white text-black hover:bg-yellow-500 transition-all font-black uppercase tracking-widest text-xs shadow-2xl active:scale-95"
+                                    className="w-auto px-6 py-3 md:px-10 md:py-4 rounded-full bg-white text-black hover:bg-yellow-500 transition-all font-black uppercase tracking-[0.1em] md:tracking-widest text-[9px] md:text-sm shadow-[0_0_20px_rgba(255,255,255,0.2)] active:scale-95 mx-auto"
                                 >
                                     Deploy More Assets
                                 </button>
