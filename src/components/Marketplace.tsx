@@ -40,13 +40,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import {
-  Aptos,
-  AptosConfig,
-  Network,
   AccountAddress,
+  Ed25519PublicKey,
 } from "@aptos-labs/ts-sdk";
 import { useShelbyClient, useDeleteBlobs } from "@shelby-protocol/react";
+import { ace } from "@aptos-labs/ace-sdk";
 import toast from "react-hot-toast";
 import {
   MARKETPLACE_REGISTRY_ADDRESS,
@@ -143,7 +141,7 @@ const SORT_OPTIONS = [
 ];
 
 export function Marketplace() {
-  const { account, signAndSubmitTransaction, wallet } = useWallet();
+  const { account, signAndSubmitTransaction, wallet, signMessage } = useWallet();
   const shelbyClient = useShelbyClient();
   const deleteBlobs = useDeleteBlobs({ client: shelbyClient });
   const [datasets, setDatasets] = useState<any[]>([]);
@@ -837,7 +835,84 @@ export function Marketplace() {
         `[Marketplace] OMEGA SUCCESS: ${finalMethod}. Byte count: ${buffer.byteLength}`,
       );
 
-      const blob = new Blob([buffer]);
+      let finalBufferData: Uint8Array = new Uint8Array(buffer);
+
+      // --- ACE DECRYPTION ---
+      if (dataset.id.startsWith("sv_market--")) {
+         toast.loading("Verifying permission & deciphering via ACE...", { id: downloadToastId });
+         try {
+             const committee = new ace.Committee({
+                 workerEndpoints: [
+                   "https://ace-worker-0-646682240579.europe-west1.run.app",
+                   "https://ace-worker-1-646682240579.europe-west1.run.app",
+                 ],
+                 threshold: 2,
+             });
+
+             const contractId = ace.ContractID.newAptos({
+                 chainId: 2, 
+                 moduleAddr: AccountAddress.fromString(MARKETPLACE_REGISTRY_ADDRESS),
+                 moduleName: "marketplace",
+                 functionName: "check_permission",
+             });
+
+             const domain = new TextEncoder().encode(dataset.id);
+             const fullDecryptionDomain = new ace.FullDecryptionDomain({ contractId, domain });
+             
+             // Request wallet signature to act as an authentication proof
+             toast.loading("Please sign the message in your wallet to unlock...", { id: downloadToastId });
+             const signOutput = await signMessage({ 
+                 message: fullDecryptionDomain.toPrettyMessage(), 
+                 nonce: "ace_auth" 
+             });
+
+             // The wallet adapter usually gives fullMessage as either a string or Uint8Array. 
+             // Same for signature and pubKey. We trust the typical structure.
+             let pubKeyParam: any = null;
+             if (account && 'publicKey' in account) {
+                 const pk: any = account.publicKey;
+                 if (typeof pk === 'string') {
+                     // Normalize and wrap in Ed25519PublicKey for ACE SDK
+                     const cleanPk = pk.startsWith('0x') ? pk.substring(2) : pk;
+                     pubKeyParam = new Ed25519PublicKey(cleanPk);
+                 } else if (pk && typeof pk.toUint8Array === 'function') {
+                     pubKeyParam = pk;
+                 } else {
+                     const pkStr = pk?.toString();
+                     const cleanPk = pkStr?.startsWith('0x') ? pkStr.substring(2) : pkStr;
+                     pubKeyParam = cleanPk ? new Ed25519PublicKey(cleanPk) : null;
+                 }
+             }
+             if (!pubKeyParam) throw new Error("Could not extract public key from wallet object.");
+
+             const proof = ace.ProofOfPermission.createAptos({
+                 userAddr: AccountAddress.fromString(account.address.toString()),
+                 publicKey: pubKeyParam,
+                 signature: typeof signOutput.signature === 'string' ? signOutput.signature : (signOutput.signature as any)?.toString('hex') || signOutput.signature,
+                 fullMessage: signOutput.fullMessage,
+             });
+
+             toast.loading("Fetching decryption keys from network threshold...", { id: downloadToastId });
+             const decryptionKeyResult = await ace.DecryptionKey.fetch({
+                 committee,
+                 contractId,
+                 domain,
+                 proof,
+             });
+
+             const decipheredResult = ace.decrypt({
+                 decryptionKey: decryptionKeyResult.unwrapOrThrow(new Error("Missing decryption key")),
+                 ciphertext: ace.Ciphertext.fromBytes(finalBufferData).unwrapOrThrow(new Error("Corrupted or invalid encrypted blob on network")),
+             });
+             
+             finalBufferData = decipheredResult.unwrapOrThrow(new Error("Failed to decipher text"));
+         } catch (aceError: any) {
+             console.error("[ACE Error]", aceError);
+             throw new Error(aceError.message || "Failed to decipher dataset. Ensure you have purchased it or are the owner.");
+         }
+      }
+
+      const blob = new Blob([finalBufferData as any]);
       const dUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = dUrl;

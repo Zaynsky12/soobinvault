@@ -10,11 +10,13 @@
     "vercel-build": "npm install --legacy-peer-deps && next build --webpack"
   },
   "dependencies": {
+    "@aptos-labs/ace-sdk": "^0.1.1",
     "@aptos-labs/ts-sdk": "5.2.1",
     "@aptos-labs/wallet-adapter-react": "^8.3.1",
     "@aptos-labs/wallet-standard": "^1.0.0",
     "@shelby-protocol/react": "^1.0.3",
     "@shelby-protocol/sdk": "0.2.3",
+    "@solana/web3.js": "^1.98.4",
     "@tanstack/react-query": "^5.90.21",
     "@telegram-apps/bridge": "^1.4.1",
     "@wallet-standard/base": "^1.0.1",

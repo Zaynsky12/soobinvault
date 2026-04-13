@@ -19,6 +19,8 @@ const aptosClient = new Aptos(aptosConfig);
 import { useVaultKey } from '../context/VaultKeyContext';
 import { getFileType } from '../utils/file';
 import { MARKETPLACE_REGISTRY_ADDRESS } from '../lib/constants';
+import { ace } from "@aptos-labs/ace-sdk";
+import { AccountAddress, Ed25519PublicKey } from "@aptos-labs/ts-sdk";
 
 // Register GSAP plugins
 if (typeof window !== 'undefined') {
@@ -27,7 +29,7 @@ if (typeof window !== 'undefined') {
 
 export function Dashboard() {
     const containerRef = useRef<HTMLDivElement>(null);
-    const { account, connected, signAndSubmitTransaction, wallet } = useWallet();
+    const { account, connected, signAndSubmitTransaction, wallet, signMessage } = useWallet();
     const shelbyClient = useShelbyClient();
     const [assets, setAssets] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -637,11 +639,13 @@ export function Dashboard() {
 
                                     const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
                                     const isEncrypted = nameOnly.endsWith('.vault');
+                                    const isAceEncrypted = isMarketAsset || nameOnly.startsWith('sv_market--');
 
-                                    if (index === 0 || !isEncrypted) {
+                                    if (index === 0 || (!isEncrypted && !isAceEncrypted)) {
                                         console.log(`[Dashboard] processing asset ${index}:`, {
                                             displayName,
                                             isEncrypted,
+                                            isAceEncrypted,
                                             sizeMB,
                                             type: fileInfo
                                         });
@@ -732,6 +736,7 @@ export function Dashboard() {
                                             isDocument={isDocument}
                                             fileInfo={fileInfo}
                                             isEncrypted={isEncrypted}
+                                            isAceEncrypted={isAceEncrypted}
                                             downloadUrl={downloadUrl}
                                             blobAccount={finalIdentifier}
                                             blobName={fullNameForLink}
@@ -780,9 +785,9 @@ export function Dashboard() {
                 blobName={selectedAsset?.blobName}
                 shelbyClient={shelbyClient}
                 accountAddress={account?.address.toString()}
-                onDelete={handleDeleteSelectedAsset}
                 isEncrypted={selectedAsset?.isEncrypted ?? true}
                 isMarketAsset={selectedAsset?.isMarketAsset || false}
+                isAceEncrypted={selectedAsset?.isMarketAsset || (selectedAsset?.blobName?.startsWith('sv_market--') ?? false)}
             />
 
             {/* Floating Action Button (Mobile) */}
@@ -796,8 +801,9 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, downloadUrl, blobAccount, blobName, isMarketAsset, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, isAceEncrypted, downloadUrl, blobAccount, blobName, isMarketAsset, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
     const { ensureKey, encryptionKey } = useVaultKey();
+    const { signMessage } = useWallet();
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -837,6 +843,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
     const handleDownload = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
 
+        // if (isAceEncrypted) handled below within the main block
+
         if (status !== 'live') {
             toast("File is still indexing. Please try again in 30 seconds.", { icon: '⏳' });
             return;
@@ -852,7 +860,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
         try {
             let buffer: ArrayBuffer;
 
-            if (isEncrypted && blobAccount && blobName) {
+            if ((isEncrypted || isAceEncrypted) && blobAccount && blobName) {
                 // Use SDK for encrypted files to ensure proper protocol handling
                 const shelbyBlob = await shelbyClient.download({
                     account: blobAccount,
@@ -892,7 +900,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
             }
 
             if (isEncrypted) {
-                // --- ENCRYPTED: need to decrypt first ---
+                // --- ENCRYPTED: need to decrypt first (.vault master key) ---
                 if (buffer.byteLength < 28) {
                     toast.error("Encrypted data is too small or corrupted.", { id: downloadToastId });
                     return;
@@ -907,6 +915,106 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = metadata.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else if (isAceEncrypted) {
+                // --- ACE ENCRYPTED: need to decipher ---
+                if (!account) throw new Error("Wallet not connected");
+
+                const contractId = ace.ContractID.newAptos({
+                    chainId: 2,
+                    moduleAddr: AccountAddress.fromString(MARKETPLACE_REGISTRY_ADDRESS),
+                    moduleName: "marketplace",
+                    functionName: "check_permission",
+                });
+                
+                const domain = new TextEncoder().encode(blobName!);
+
+                const fullDecryptionDomain = new ace.FullDecryptionDomain({
+                    contractId,
+                    domain,
+                });
+
+                const signOutput = await signMessage({ 
+                    message: fullDecryptionDomain.toPrettyMessage(), 
+                    nonce: "ace_auth" 
+                });
+
+                if (!signOutput) {
+                    toast.error("Failed to sign message via wallet.", { id: downloadToastId });
+                    return;
+                }
+
+                let pubKeyParam: any = null;
+                if (account && 'publicKey' in account) {
+                    const pk: any = account.publicKey;
+                    if (typeof pk === 'string') {
+                        // Ensure it's a valid hex without 0x for internal ACE parsing, but wrap in Ed25519PublicKey for the SDK
+                        const cleanPk = pk.startsWith('0x') ? pk.substring(2) : pk;
+                        pubKeyParam = new Ed25519PublicKey(cleanPk);
+                    } else if (pk && typeof pk.toUint8Array === 'function') {
+                        pubKeyParam = pk;
+                    } else {
+                        const pkStr = pk?.toString();
+                        const cleanPk = pkStr?.startsWith('0x') ? pkStr.substring(2) : pkStr;
+                        pubKeyParam = cleanPk ? new Ed25519PublicKey(cleanPk) : null;
+                    }
+                }
+                if (!pubKeyParam) throw new Error("Could not extract public key from wallet object.");
+
+                const sigAny: any = signOutput.signature;
+                const sigStr = typeof sigAny === 'string' ? sigAny : sigAny?.toString('hex') || sigAny;
+                const finalSignature = typeof sigStr === 'string' && sigStr.startsWith('0x') ? sigStr.substring(2) : sigStr;
+
+                const proof = ace.ProofOfPermission.createAptos({
+                    userAddr: AccountAddress.fromString(account.address.toString()),
+                    publicKey: pubKeyParam as any,
+                    signature: finalSignature as any,
+                    fullMessage: signOutput.fullMessage as any,
+                });
+
+                const committee = new ace.Committee({
+                    workerEndpoints: [
+                    "https://ace-worker-0-646682240579.europe-west1.run.app",
+                    "https://ace-worker-1-646682240579.europe-west1.run.app",
+                    ],
+                    threshold: 2,
+                });
+
+                const decryptionKeyResult = await ace.DecryptionKey.fetch({
+                    committee,
+                    contractId: fullDecryptionDomain.contractId,
+                    domain: fullDecryptionDomain.domain,
+                    proof,
+                });
+
+                const decipheredResult = ace.decrypt({
+                    decryptionKey: decryptionKeyResult.unwrapOrThrow(new Error("Missing decryption key")),
+                    ciphertext: ace.Ciphertext.fromBytes(new Uint8Array(buffer)).unwrapOrThrow(new Error("Corrupted blob")),
+                });
+                
+                const finalBufferData = decipheredResult.unwrapOrThrow(new Error("Failed to decipher text"));
+                
+                const ext = displayName.split('.').pop()?.toLowerCase() || '';
+                const mimeMap: Record<string, string> = {
+                    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+                    webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff',
+                    ico: 'image/x-icon', avif: 'image/avif',
+                    mp4: 'video/mp4', webm: 'video/webm', ogg: 'video/ogg', mov: 'video/quicktime',
+                    mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', aac: 'audio/aac',
+                    m4a: 'audio/mp4',
+                    pdf: 'application/pdf',
+                    txt: 'text/plain', md: 'text/plain', json: 'application/json',
+                };
+                const forcedMimeType = mimeMap[ext] || 'application/octet-stream';
+                const finalBlob = new Blob([finalBufferData as any], { type: forcedMimeType });
+
+                const url = URL.createObjectURL(finalBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = displayName;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -1051,6 +1159,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 <div className="w-14 h-14 rounded-2xl bg-[#080808] flex items-center justify-center shadow-xl group-hover:scale-105 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
                     {isEncrypted && !encryptionKey ? (
                         <Lock className="text-color-primary animate-pulse" size={22} />
+                    ) : isAceEncrypted ? (
+                        <ShieldCheck className="text-blue-400 group-hover:text-blue-300 transition-colors" size={22} />
                     ) : isImg ? (
                         <ImageIcon className="text-yellow-500 group-hover:text-yellow-400 transition-colors" size={22} />
                     ) : isVid ? (
@@ -1087,6 +1197,11 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                 {encryptionKey ? <ShieldCheck size={10} className="text-green-400" /> : <Lock size={10} className="text-color-primary" />}
                                 {encryptionKey ? 'DECRYPTED' : 'LOCKED'}
                             </span>
+                        ) : isAceEncrypted ? (
+                            <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-blue-400">
+                                <ShieldCheck size={10} className="text-blue-400" />
+                                ACE SECURED
+                            </span>
                         ) : (
                             <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-yellow-500">
                                 <Globe size={10} className="text-yellow-500" />
@@ -1110,6 +1225,11 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                     <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border ${encryptionKey ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-color-primary/10 border-color-primary/30 text-color-primary'}`}>
                         <div className={`w-1.5 h-1.5 rounded-full ${encryptionKey ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-color-primary shadow-[0_0_8px_rgba(232,58,118,0.5)] animate-pulse'}`} />
                         {encryptionKey ? 'DECRYPTED' : 'LOCKED'}
+                    </div>
+                ) : isAceEncrypted ? (
+                    <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-blue-500/10 border-blue-500/30 text-blue-400">
+                        <ShieldCheck size={10} className="text-blue-400" />
+                        ACE SECURED
                     </div>
                 ) : (
                     <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
@@ -1144,7 +1264,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                             return;
                         }
                         if (status === 'live') {
-                            handleDownload();
+                            handleDownload(e);
                         } else {
                             toast("File indexing...", { icon: '⏳' });
                         }
@@ -1237,12 +1357,12 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                 }}
                                 className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 text-white active:bg-white/10 transition-all active:scale-[0.98] group"
                             >
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${isEncrypted && !encryptionKey ? 'bg-color-primary/10 text-color-primary' : 'bg-blue-500/10 text-blue-400'}`}>
-                                    {isEncrypted && !encryptionKey ? <Lock size={22} /> : <Eye size={22} />}
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${isEncrypted && !encryptionKey ? 'bg-color-primary/10 text-color-primary' : isAceEncrypted ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                                    {isEncrypted && !encryptionKey ? <Lock size={22} /> : isAceEncrypted ? <ShieldCheck size={22} /> : <Eye size={22} />}
                                 </div>
                                 <div className="text-left">
-                                    <span className="block font-bold text-sm uppercase tracking-widest">{isEncrypted && !encryptionKey ? 'Unlock Asset' : 'Preview Asset'}</span>
-                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">{isEncrypted && !encryptionKey ? 'Authorize to view content' : 'Instant data visualization'}</span>
+                                    <span className="block font-bold text-sm uppercase tracking-widest">{isEncrypted && !encryptionKey ? 'Unlock Asset' : isAceEncrypted ? 'Decrypt & View' : 'Preview Asset'}</span>
+                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">{isEncrypted && !encryptionKey ? 'Authorize to view content' : isAceEncrypted ? 'ACE Worker threshold' : 'Instant data visualization'}</span>
                                 </div>
                             </button>
 

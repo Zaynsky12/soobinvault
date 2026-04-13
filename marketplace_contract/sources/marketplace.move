@@ -6,7 +6,7 @@ module marketplace_addr::marketplace {
     use aptos_framework::signer;
     use aptos_framework::fungible_asset::{Metadata};
     use aptos_framework::primary_fungible_store;
-    use aptos_framework::object::{Object};
+    use aptos_std::table::{Self, Table};
 
     /// Errors
     const E_NOT_AUTHORIZED: u64 = 1;
@@ -25,6 +25,10 @@ module marketplace_addr::marketplace {
 
     struct UserStorefront has key {
         datasets: vector<Dataset>
+    }
+
+    struct UserPurchases has key {
+        datasets: Table<String, bool>
     }
 
     struct GlobalRegistry has key {
@@ -108,7 +112,7 @@ module marketplace_addr::marketplace {
         buyer: &signer,
         seller: address,
         blob_name: String
-    ) acquires UserStorefront {
+    ) acquires UserStorefront, UserPurchases {
         assert!(exists<UserStorefront>(seller), E_STOREFRONT_NOT_FOUND);
         
         let storefront = borrow_global<UserStorefront>(seller);
@@ -138,9 +142,21 @@ module marketplace_addr::marketplace {
             primary_fungible_store::transfer(buyer, metadata, seller, price);
         };
 
+        // Record Purchase for ACE Decryption
+        let buyer_addr = signer::address_of(buyer);
+        if (!exists<UserPurchases>(buyer_addr)) {
+            move_to(buyer, UserPurchases {
+                datasets: table::new<String, bool>()
+            });
+        };
+        let purchases = borrow_global_mut<UserPurchases>(buyer_addr);
+        if (!table::contains(&purchases.datasets, blob_name)) {
+            table::add(&mut purchases.datasets, blob_name, true);
+        };
+
         event::emit(DatasetPurchased {
             blob_name,
-            buyer: signer::address_of(buyer),
+            buyer: buyer_addr,
             seller,
             price
         });
@@ -237,5 +253,41 @@ module marketplace_addr::marketplace {
         } else {
             vector::empty<address>()
         }
+    }
+
+    /// Check if a user has permission to decrypt (Required by ACE)
+    #[view]
+    public fun check_permission(user: address, dataset_id: vector<u8>): bool acquires UserPurchases, UserStorefront {
+        let blob_name_str = std::string::utf8(dataset_id);
+        
+        // 1. If seller is requesting the decryption key, they own it inherently
+        let is_seller = false;
+        if (exists<UserStorefront>(user)) {
+            let storefront = borrow_global<UserStorefront>(user);
+            let len = vector::length(&storefront.datasets);
+            let i = 0;
+            while (i < len) {
+                if (vector::borrow(&storefront.datasets, i).blob_name == blob_name_str) {
+                    is_seller = true;
+                    break
+                };
+                i = i + 1;
+            };
+        };
+
+        if (is_seller) {
+            return true
+        };
+
+        // 2. Check if buyer has purchased it
+        if (exists<UserPurchases>(user)) {
+            let purchases = borrow_global<UserPurchases>(user);
+            if (table::contains(&purchases.datasets, blob_name_str)) {
+                return true
+            }
+        };
+
+        // 3. Fallback for free datasets: check if dataset exists and price is 0 (optional, wait, we don't have global dataset index, but it's simpler to just return false and let buyer "checkout")
+        false
     }
 }

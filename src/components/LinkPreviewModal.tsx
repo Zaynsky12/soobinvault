@@ -29,7 +29,13 @@ interface LinkPreviewModalProps {
     onDelete?: () => void;
     isEncrypted?: boolean;
     isMarketAsset?: boolean;
+    isAceEncrypted?: boolean;
 }
+
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import { ace } from "@aptos-labs/ace-sdk";
+import { AccountAddress, Ed25519PublicKey } from "@aptos-labs/ts-sdk";
+import { MARKETPLACE_REGISTRY_ADDRESS } from '../lib/constants';
 
 export function LinkPreviewModal({
     isOpen,
@@ -54,6 +60,7 @@ export function LinkPreviewModal({
     onDelete,
     isEncrypted = true,
     isMarketAsset = false,
+    isAceEncrypted = false,
 }: LinkPreviewModalProps) {
     const [copied, setCopied] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
@@ -66,6 +73,7 @@ export function LinkPreviewModal({
     const overlayRef = React.useRef<HTMLDivElement>(null);
 
     const { ensureKey } = useVaultKey();
+    const { account, signMessage } = useWallet();
 
     const [decryptedData, setDecryptedData] = useState<{
         url: string;
@@ -131,11 +139,112 @@ export function LinkPreviewModal({
                     isAudio: !!name.match(/\.(mp3|wav|flac|aac|m4a|opus|wma)$/),
                     isDocument: !!name.match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
                 });
+                return;
+            }
+
+            // --- ENCRYPTED: decrypt ---
+            if (isAceEncrypted) {
+                if (!account) throw new Error("Wallet not connected");
+
+                const contractId = ace.ContractID.newAptos({
+                    chainId: 2,
+                    moduleAddr: AccountAddress.fromString(MARKETPLACE_REGISTRY_ADDRESS),
+                    moduleName: "marketplace",
+                    functionName: "check_permission",
+                });
+                const domainStr = new TextEncoder().encode(blobName);
+                const fullDecryptionDomain = new ace.FullDecryptionDomain({
+                    contractId: contractId,
+                    domain: domainStr,
+                });
+
+                const signOutput = await signMessage({ 
+                    message: fullDecryptionDomain.toPrettyMessage(), 
+                    nonce: "ace_auth" 
+                });
+
+                let pubKeyParam: any = null;
+                if (account && 'publicKey' in account) {
+                    const pk: any = account.publicKey;
+                    if (typeof pk === 'string') {
+                        // Normalize and wrap in Ed25519PublicKey for ACE SDK
+                        const cleanPk = pk.startsWith('0x') ? pk.substring(2) : pk;
+                        pubKeyParam = new Ed25519PublicKey(cleanPk);
+                    } else if (pk && typeof pk.toUint8Array === 'function') {
+                        pubKeyParam = pk;
+                    } else {
+                        const pkStr = pk?.toString();
+                        const cleanPk = pkStr?.startsWith('0x') ? pkStr.substring(2) : pkStr;
+                        pubKeyParam = cleanPk ? new Ed25519PublicKey(cleanPk) : null;
+                    }
+                }
+                if (!pubKeyParam) throw new Error("Could not extract public key from wallet object.");
+
+                const sigAny: any = signOutput.signature;
+                const sigStr = typeof sigAny === 'string' ? sigAny : sigAny?.toString('hex') || sigAny;
+                const finalSignature = typeof sigStr === 'string' && sigStr.startsWith('0x') ? sigStr.substring(2) : sigStr;
+
+                const proof = ace.ProofOfPermission.createAptos({
+                    userAddr: AccountAddress.fromString(account.address.toString()),
+                    publicKey: pubKeyParam as any,
+                    signature: finalSignature as any,
+                    fullMessage: signOutput.fullMessage as any,
+                });
+
+                const committee = new ace.Committee({
+                    workerEndpoints: [
+                    "https://ace-worker-0-646682240579.europe-west1.run.app",
+                    "https://ace-worker-1-646682240579.europe-west1.run.app",
+                    ],
+                    threshold: 2,
+                });
+
+                const decryptionKeyResult = await ace.DecryptionKey.fetch({
+                    committee,
+                    contractId: fullDecryptionDomain.contractId,
+                    domain: fullDecryptionDomain.domain,
+                    proof,
+                });
+
+                const decipheredResult = ace.decrypt({
+                    decryptionKey: decryptionKeyResult.unwrapOrThrow(new Error("Missing decryption key")),
+                    ciphertext: ace.Ciphertext.fromBytes(rawBuffer).unwrapOrThrow(new Error("Corrupted or invalid encrypted blob on network")),
+                });
+                
+                const finalBufferData = decipheredResult.unwrapOrThrow(new Error("Failed to decipher text"));
+                
+                const ext = assetName.split('.').pop()?.toLowerCase() || '';
+                const mimeMap: Record<string, string> = {
+                    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+                    webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff',
+                    ico: 'image/x-icon', avif: 'image/avif',
+                    mp4: 'video/mp4', webm: 'video/webm', ogg: 'video/ogg', mov: 'video/quicktime',
+                    mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', aac: 'audio/aac',
+                    m4a: 'audio/mp4',
+                    pdf: 'application/pdf',
+                    txt: 'text/plain', md: 'text/plain', json: 'application/json',
+                };
+                const forcedMimeType = mimeMap[ext] || 'application/octet-stream';
+                const finalBlob = new Blob([finalBufferData as any], { type: forcedMimeType });
+
+                const url = URL.createObjectURL(finalBlob);
+                const name = assetName.toLowerCase();
+
+                setDecryptedData({
+                    url,
+                    name: assetName,
+                    type: forcedMimeType,
+                    isImage: !!name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/),
+                    isVideo: !!name.match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/),
+                    isText: !!name.match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/),
+                    isAudio: !!name.match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
+                    isDocument: !!name.match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
+                });
                 setIsProcessing(false);
                 return;
             }
 
-            // --- ENCRYPTED: decrypt ---            // 2. Decrypt
+            // 2. Decrypt (Standard .vault Local Master Key)
             const cryptoKey = await ensureKey();
             if (!cryptoKey) {
                 throw new Error("Signature required for decryption.");
@@ -216,8 +325,8 @@ export function LinkPreviewModal({
 
     const fetchAsset = async () => {
         if (!assetUrl && !onFetch) return;
-        if (isEncrypted) {
-            console.log('[LinkPreviewModal] isEncrypted is true, skipping direct fetchAsset path.');
+        if (isEncrypted || isAceEncrypted) {
+            console.log('[LinkPreviewModal] Encrypted file detected, skipping direct fetchAsset path.');
             return;
         }
 
@@ -352,10 +461,10 @@ export function LinkPreviewModal({
     };
 
     useEffect(() => {
-        if (isOpen && assetUrl && !isEncrypted) {
+        if (isOpen && assetUrl && !isEncrypted && !isAceEncrypted) {
             fetchAsset();
         }
-    }, [isOpen, assetUrl, isEncrypted]);
+    }, [isOpen, assetUrl, isEncrypted, isAceEncrypted]);
 
     useEffect(() => {
         if (isOpen) {
