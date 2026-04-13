@@ -40,6 +40,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import {
+  Aptos,
+  AptosConfig,
+  Network,
   AccountAddress,
   Ed25519PublicKey,
 } from "@aptos-labs/ts-sdk";
@@ -190,7 +194,7 @@ export function Marketplace() {
             console.log(
               `[Marketplace] Native Registry returned ${sellers.length} unique sellers.`,
             );
-            sellers.forEach((s) => allDiscoveredSellers.add(s));
+            sellers.forEach((s: string) => allDiscoveredSellers.add(s));
           }
         } catch (e) {
           console.warn(
