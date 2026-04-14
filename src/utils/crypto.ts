@@ -219,60 +219,60 @@ export async function decryptAceFile({
         });
 
         // 2. Normalize Public Key (Fixes "unsupported public key type" errors)
-        let pubKeyObj: any = null;
-        
-        console.log("[ACE Debug] Raw account.publicKey type:", typeof account?.publicKey);
+        let rawPubKeyBytes: Uint8Array | null = null;
+        let pubKeyHex = "";
         
         if (account && account.publicKey) {
             const pk: any = account.publicKey;
+            console.log("[ACE Debug] raw account.publicKey details:", {
+                type: typeof pk,
+                constructor: pk.constructor?.name,
+                hasToUint8Array: typeof pk.toUint8Array === 'function',
+                hasToString: typeof pk.toString === 'function'
+            });
+
+            if (pk instanceof Uint8Array) {
+                rawPubKeyBytes = pk;
+            } else if (typeof pk.toUint8Array === 'function') {
+                rawPubKeyBytes = pk.toUint8Array();
+            } else if (typeof pk === 'string') {
+                pubKeyHex = pk;
+            } else if (typeof pk.toString === 'function') {
+                const s = pk.toString();
+                if (s !== "[object Object]") pubKeyHex = s;
+            }
             
-            // If it's already an object, attempt to pass it directly but add polyfills
-            if (typeof pk === 'object' && pk !== null) {
-                pubKeyObj = pk;
-            } else {
-                // If it's a string, we MUST wrap it in a proper PublicKey object
-                const pkStr = pk.toString();
-                const clean = pkStr.startsWith('0x') ? pkStr.substring(2) : pkStr;
-                try {
-                    pubKeyObj = new Ed25519PublicKey(clean);
-                } catch (e) {
-                    console.error("[ACE Debug] Failed to wrap public key string:", e);
-                }
+            if (!rawPubKeyBytes && pubKeyHex) {
+                const cleanHex = pubKeyHex.startsWith('0x') ? pubKeyHex.substring(2) : pubKeyHex;
+                rawPubKeyBytes = new Uint8Array(cleanHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
             }
         }
         
-        if (!pubKeyObj) throw new Error("Could not extract a valid public key from wallet.");
+        if (!rawPubKeyBytes) throw new Error("Could not extract raw public key bytes from wallet.");
+        const finalHex = "0x" + Array.from(rawPubKeyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
-        // IMPORTANT POLYFILL: ACE SDK (Aptos v1 based) checks for .type or .scheme
-        // Aptos v2 objects may not have these, or have different ones.
-        try {
-            // Legacy properties (v1)
-            (pubKeyObj as any).type = 0; // 0 = Ed25519 in legacy
-            (pubKeyObj as any).scheme = 0; 
+        // CONSTRUCT THE "GOD OBJECT" POLYFILL
+        // This object mirrors both Aptos SDK v1 and v2 Ed25519PublicKey interfaces
+        const robustPubKey: any = {
+            // Data
+            publicKey: rawPubKeyBytes,
+            buffer: rawPubKeyBytes, // Legacy v1 property
             
-            // Aptos v2 variants
-            (pubKeyObj as any).variant = 0;
+            // Methods (Aptos v1/v2 support)
+            toUint8Array: () => rawPubKeyBytes,
+            toString: () => finalHex,
+            toBuffer: () => Buffer.from(rawPubKeyBytes!),
             
-            // Legacy getter methods
-            if (typeof (pubKeyObj as any).getScheme !== 'function') {
-                (pubKeyObj as any).getScheme = () => 0;
-            }
-            if (typeof (pubKeyObj as any).getVariant !== 'function') {
-                (pubKeyObj as any).getVariant = () => 0;
-            }
-            // Method-style (used in some SDK versions)
-            (pubKeyObj as any).scheme = () => 0;
-            (pubKeyObj as any).variant = () => 0;
+            // Scheme identification (The core of the issue)
+            type: 0, // Legacy Ed25519 enum
+            scheme: 0, // Legacy Ed25519 scheme
+            variant: 0, // Aptos v2 variant
             
-            // Add a toString method if missing (some SDK checks use it)
-            if (typeof pubKeyObj.toString !== 'function') {
-                pubKeyObj.toString = () => pubKeyObj.toUint8Array ? Array.from(pubKeyObj.toUint8Array()).map((b: any) => b.toString(16).padStart(2, '0')).join('') : "";
-            }
-        } catch (polyfillError) {
-            console.warn("[ACE Debug] Could not polyfill public key object:", polyfillError);
-        }
+            getScheme: () => 0,
+            getVariant: () => 0
+        };
 
-        console.log("[ACE Debug] Final Public Key Object Keys:", Object.keys(pubKeyObj));
+        console.log("[ACE Debug] Robust Polyfill constructed for hex:", finalHex.substring(0, 10) + "...");
 
         // 3. Normalize Signature
         const sigAny: any = signOutput.signature;
@@ -282,11 +282,11 @@ export async function decryptAceFile({
         }
 
         // 4. Create Proof of Permission
-        // We pass the polyfilled object as any. 
+        // We pass the robust polyfill object as any. 
         // We also ensure userAddr is an AccountAddress object.
         const proof = ace.ProofOfPermission.createAptos({
             userAddr: AccountAddress.fromString(account.address.toString()) as any,
-            publicKey: pubKeyObj as any,
+            publicKey: robustPubKey as any,
             signature: finalSignature as any,
             fullMessage: (signOutput as any).fullMessage,
         });
