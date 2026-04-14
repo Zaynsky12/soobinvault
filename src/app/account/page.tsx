@@ -166,7 +166,7 @@ export default function AccountPage() {
     }
 
     return (
-        <main className="min-h-screen bg-[#030303] pt-32 pb-20 px-4 sm:px-6 relative overflow-hidden">
+        <div className="min-h-screen bg-[#030303] pt-32 pb-20 px-4 sm:px-6 relative overflow-hidden">
             {/* Background Aesthetics */}
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-color-primary/5 rounded-full blur-[120px]" />
@@ -310,6 +310,6 @@ export default function AccountPage() {
 
                 </div>
             </div>
-        </main>
+        </div>
     );
 }

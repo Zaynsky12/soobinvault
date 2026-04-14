@@ -31,6 +31,10 @@ module marketplace_addr::marketplace {
         datasets: Table<String, bool>
     }
 
+    struct UserPurchaseHistory has key {
+        blobs: vector<String>
+    }
+
     struct GlobalRegistry has key {
         sellers: vector<address>
     }
@@ -112,7 +116,7 @@ module marketplace_addr::marketplace {
         buyer: &signer,
         seller: address,
         blob_name: String
-    ) acquires UserStorefront, UserPurchases {
+    ) acquires UserStorefront, UserPurchases, UserPurchaseHistory {
         assert!(exists<UserStorefront>(seller), E_STOREFRONT_NOT_FOUND);
         
         let storefront = borrow_global<UserStorefront>(seller);
@@ -149,9 +153,18 @@ module marketplace_addr::marketplace {
                 datasets: table::new<String, bool>()
             });
         };
-        let purchases = borrow_global_mut<UserPurchases>(buyer_addr);
-        if (!table::contains(&purchases.datasets, blob_name)) {
-            table::add(&mut purchases.datasets, blob_name, true);
+
+        if (!exists<UserPurchaseHistory>(buyer_addr)) {
+            move_to(buyer, UserPurchaseHistory {
+                blobs: vector::empty<String>()
+            });
+        };
+        let user_purchases = borrow_global_mut<UserPurchases>(buyer_addr);
+        if (!table::contains(&user_purchases.datasets, blob_name)) {
+            table::add(&mut user_purchases.datasets, blob_name, true);
+
+            let history = borrow_global_mut<UserPurchaseHistory>(buyer_addr);
+            vector::push_back(&mut history.blobs, blob_name);
         };
 
         event::emit(DatasetPurchased {
@@ -289,5 +302,13 @@ module marketplace_addr::marketplace {
 
         // 3. Fallback for free datasets: check if dataset exists and price is 0 (optional, wait, we don't have global dataset index, but it's simpler to just return false and let buyer "checkout")
         false
+    }
+
+    #[view]
+    public fun get_purchased_datasets(user: address): vector<String> acquires UserPurchaseHistory {
+        if (!exists<UserPurchaseHistory>(user)) {
+            return vector::empty<String>()
+        };
+        borrow_global<UserPurchaseHistory>(user).blobs
     }
 }

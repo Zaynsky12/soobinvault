@@ -1,7 +1,7 @@
 "use client";
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { Shield, Menu, X, Settings, LogOut, Key, Globe, ExternalLink, ChevronDown, RefreshCw, PlusCircle, Home, Vault, FileText, Store, User } from 'lucide-react';
 import gsap from 'gsap';
@@ -12,6 +12,8 @@ import { useVaultKey } from '../context/VaultKeyContext';
 import toast from 'react-hot-toast';
 
 export default function Navbar(): React.ReactNode {
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
     const { disconnect, connected, account, isLoading } = useWallet();
     const { encryptionKey, keyFingerprint, lockVault, ensureKey, importKeyManual, requestPin } = useVaultKey();
     const [isScrolled, setIsScrolled] = useState(false);
@@ -20,6 +22,13 @@ export default function Navbar(): React.ReactNode {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [showBackupWarning, setShowBackupWarning] = useState(false);
     const [isKeyBackedUp, setIsKeyBackedUp] = useState(true);
+
+    // Route Watcher: Close all modals/drawers when navigation occurs
+    useEffect(() => {
+        setIsSettingsOpen(false);
+        setMobileMenuOpen(false);
+        setIsSelectorOpen(false);
+    }, [pathname, searchParams]);
 
     useEffect(() => {
         if (typeof window !== 'undefined' && account) {
@@ -235,8 +244,8 @@ export default function Navbar(): React.ReactNode {
                 </div>
             )}
 
-            {/* Desktop Sidebar (Menu only) */}
-            <div className="hidden md:flex fixed left-0 top-0 bottom-0 w-64 bg-[#0B1121]/40 backdrop-blur-3xl border-r border-white/5 flex-col z-[40] shadow-2xl pt-24 overflow-hidden">
+            {/* Desktop Sidebar (Menu only) - High z-index to ensure clickability */}
+            <div className="hidden md:flex fixed left-0 top-0 bottom-0 w-64 bg-[#0B1121]/40 backdrop-blur-3xl border-r border-white/5 flex-col z-[110] shadow-2xl pt-24 overflow-hidden">
                 <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
                     <p className="px-4 text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] mb-4">Navigation</p>
                     <div className="space-y-1">
@@ -269,8 +278,8 @@ export default function Navbar(): React.ReactNode {
                 </div>
             </div>
 
-            {/* Desktop Top Header - Full Width (Covering Sidebar Area) */}
-            <header className={`hidden md:flex fixed top-0 left-0 right-0 z-[50] transition-all duration-500 border-b border-white/5 ${isScrolled ? 'bg-[#0B1121]/90 backdrop-blur-xl py-4' : 'bg-[#0B1121]/40 backdrop-blur-lg py-6'}`}>
+            {/* Desktop Top Header - Full Width (Covering Sidebar Area but at lower z-index than sidebar links if possible, or same) */}
+            <header className={`hidden md:flex fixed top-0 left-0 right-0 z-[100] transition-all duration-500 border-b border-white/5 ${isScrolled ? 'bg-[#0B1121]/90 backdrop-blur-xl py-4' : 'bg-[#0B1121]/40 backdrop-blur-lg py-6'}`}>
                 <div className="flex items-center justify-between w-full px-8">
                     {/* Branding in Header */}
                     <Link href="/" className="flex items-center gap-4 cursor-pointer group">
@@ -336,12 +345,12 @@ export default function Navbar(): React.ReactNode {
             {isSettingsOpen && (
                 <>
                     <div 
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] animate-in fade-in duration-300"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] animate-in fade-in duration-300"
                         onClick={() => setIsSettingsOpen(false)}
                     />
                     
-                    {/* Centered Modal for Desktop / Bottom Drawer for Mobile */}
-                    <div className="fixed inset-0 pointer-events-none z-[101] flex items-center justify-center md:items-center p-4">
+                    {/* Centered Modal for Desktop / Bottom Drawer for Mobile - Top Layer */}
+                    <div className="fixed inset-0 pointer-events-none z-[201] flex items-center justify-center md:items-center p-4">
                         <div className="pointer-events-auto bg-[#0B1121]/95 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[85vh] w-full max-w-lg animate-in zoom-in-95 slide-in-from-bottom-10 md:slide-in-from-bottom-0 duration-500 transform-gpu
                             fixed bottom-0 left-0 right-0 md:relative md:bottom-auto md:left-auto md:right-auto">
                             
@@ -370,8 +379,8 @@ export default function Navbar(): React.ReactNode {
                 </>
             )}
 
-            {/* Mobile Bottom Navigation */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[100]">
+            {/* Mobile Bottom Navigation - Top Layer */}
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[120]">
                 <div className="bg-[#0B1121]/95 backdrop-blur-3xl border-t border-white/10 px-2 py-1.5 flex items-center justify-around shadow-[0_-15px_35px_rgba(0,0,0,0.6)] relative">
                     {navLinks.map((link) => {
                         const Icon = link.icon;

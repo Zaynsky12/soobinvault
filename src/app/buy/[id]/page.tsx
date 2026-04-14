@@ -273,7 +273,7 @@ export default function BuyPage() {
             let finalBufferData: Uint8Array = new Uint8Array(buffer);
 
             // ACE DECRYPTION
-            if (blobName.startsWith("sv_market--")) {
+            if (blobName.startsWith("sv_market--") || blobName.startsWith("sv_market::")) {
                 toast.loading("Verifying permission & deciphering via ACE...", { id: "decryption-status" });
                 try {
                     finalBufferData = await decryptAceFile({

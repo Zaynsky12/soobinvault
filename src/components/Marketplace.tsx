@@ -525,27 +525,36 @@ export function Marketplace() {
                 price = parseFloat(d.contract_price) / 100_000_000; // Octas to SUSD
                 description = d.contract_description;
 
-                const parts = blobName.split("::");
+                const separator = blobName.includes("::") ? "::" : "--";
+                const parts = blobName.split(separator);
+                
                 if (parts.length >= 6) {
-                    title = parts.slice(5).join("::");
+                    title = parts.slice(5).join(separator);
                 } else {
-                    title = parts.length >= 5 ? parts.slice(4).join("::") : blobName;
+                    title = parts.length >= 5 ? parts.slice(4).join(separator) : blobName;
                 }
               } else {
-                const parts = blobName.split("::");
+                const separator = blobName.includes("::") ? "::" : "--";
+                const parts = blobName.split(separator);
+
                 if (parts.length >= 6) {
-                  // New 6-part format: category::price::seller::description::filename
+                  // New 6-part format: prefix--category--price--seller--description--filename
                   category = parts[1];
                   price = parseFloat(parts[2]) || 0;
-                  // seller is parts[3]
                   description = parts[4];
-                  title = parts.slice(5).join("::");
+                  title = parts.slice(5).join(separator);
                 } else if (parts.length === 5) {
-                  // Legacy 5-part format: category::price::description::filename
+                  // Legacy 5-part format: prefix--category--price--description--filename
                   category = parts[1];
                   price = parseFloat(parts[2]) || 0;
                   description = parts[3];
                   title = parts[4];
+                } else if (parts.length >= 2 && blobName.startsWith("sv_market--")) {
+                    // Fallback for simple names
+                    category = "Other";
+                    price = 0;
+                    description = "Securely stored dataset";
+                    title = parts[parts.length - 1];
                 } else {
                   return null;
                 }

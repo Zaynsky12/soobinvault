@@ -38,6 +38,7 @@ export function Dashboard() {
     const [isClient, setIsClient] = useState(false);
     const { ensureKey, encryptionKey, importKeyManual, lockVault } = useVaultKey();
     const [activeListings, setActiveListings] = useState<any[]>([]);
+    const [purchasedAssets, setPurchasedAssets] = useState<any[]>([]);
 
     // Effect for hydration
     useEffect(() => {
@@ -79,6 +80,7 @@ export function Dashboard() {
         blobName: string;
         isEncrypted: boolean;
         isMarketAsset: boolean;
+        isPurchased: boolean;
     } | null>(null);
 
     const [decryptedNames, setDecryptedNames] = useState<Record<string, string>>({});
@@ -93,8 +95,8 @@ export function Dashboard() {
             return 0;
         });
 
-        // Dedup assets
-        const combined = [...optimisticAssets, ...sortedReal]
+        // Dedup and merge assets
+        const combined = [...optimisticAssets, ...sortedReal, ...purchasedAssets]
             .filter((asset, index, self) => {
                 const tx = asset.transaction_hash || asset.tx_hash || asset.upload_tx_hash;
                 const name = asset.blobNameSuffix || asset.name;
@@ -338,6 +340,37 @@ export function Dashboard() {
         }
     };
 
+    const fetchPurchasedDatasets = async () => {
+        if (!account) return;
+        try {
+            const result = await aptosClient.view({
+                payload: {
+                    function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_purchased_datasets`,
+                    functionArguments: [account.address.toString()]
+                }
+            });
+            if (result && Array.isArray(result[0])) {
+                const names = result[0];
+                const purchased = names.map((name: any) => {
+                    const separator = name.includes("::") ? "::" : "--";
+                    const parts = name.split(separator);
+                    const seller = parts[3] || "";
+                    
+                    return {
+                        name: name,
+                        owner: seller,
+                        isPurchased: true,
+                        status: 'verified',
+                        size: 0
+                    };
+                });
+                setPurchasedAssets(purchased);
+            }
+        } catch (err) {
+            console.warn("[Dashboard] Purchased assets sync failed:", err);
+        }
+    };
+
 
     useEffect(() => {
         if (!account) {
@@ -348,6 +381,7 @@ export function Dashboard() {
 
         fetchBlobs();
         fetchMarketListings();
+        fetchPurchasedDatasets();
 
         // Listen for successful uploads from VaultDropzone
         const handleUploadSuccess = (e: any) => {
@@ -642,9 +676,9 @@ export function Dashboard() {
                                     const isAudio = fileInfo.isAudio;
                                     const isDocument = fileInfo.isDocument;
 
-                                    const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
+                                    const identifier = asset.isPurchased ? asset.owner : (nameMatch ? nameMatch[1] : (account?.address?.toString() || ''));
 
-                                    if (index === 0 || (!isEncrypted && !isAceEncrypted)) {
+                                    if (index === 0 || (!isEncrypted && !isAceEncrypted) || asset.isPurchased) {
                                         console.log(`[Dashboard] processing asset ${index}:`, {
                                             displayName,
                                             isEncrypted,
@@ -721,6 +755,7 @@ export function Dashboard() {
                                             blobName: fullNameForLink,
                                             isEncrypted,
                                             isMarketAsset,
+                                            isPurchased: asset.isPurchased || false
                                         });
                                         setIsPreviewModalOpen(true);
                                     };
@@ -744,6 +779,7 @@ export function Dashboard() {
                                             blobAccount={finalIdentifier}
                                             blobName={fullNameForLink}
                                             isMarketAsset={isMarketAsset}
+                                            isPurchased={asset.isPurchased || false}
                                             handleOpenPreview={handleOpenPreviewLocal}
                                             assetHash={assetHash}
                                             txHash={txHash}
@@ -752,6 +788,8 @@ export function Dashboard() {
                                             signAndSubmitTransaction={signAndSubmitTransaction}
                                             wallet={wallet}
                                             account={account}
+                                            connected={connected}
+                                            signMessage={signMessage}
                                             shelbyClient={shelbyClient}
                                             setOptimisticDeletions={setOptimisticAssets}
                                         />
@@ -790,7 +828,7 @@ export function Dashboard() {
                 accountAddress={account?.address.toString()}
                 isEncrypted={selectedAsset?.isEncrypted ?? true}
                 isMarketAsset={selectedAsset?.isMarketAsset || false}
-                isAceEncrypted={selectedAsset?.isMarketAsset || (selectedAsset?.blobName?.startsWith('sv_market--') ?? false)}
+                isAceEncrypted={selectedAsset?.isMarketAsset || selectedAsset?.isPurchased || (selectedAsset?.blobName?.startsWith('sv_market--') ?? false)}
             />
 
             {/* Floating Action Button (Mobile) */}
@@ -804,11 +842,13 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, isAceEncrypted, downloadUrl, blobAccount, blobName, isMarketAsset, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, isAceEncrypted, downloadUrl, blobAccount, blobName, isMarketAsset, isPurchased, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, connected, signMessage, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
     const { ensureKey, encryptionKey } = useVaultKey();
-    const { signMessage } = useWallet();
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    
+    // Purchased assets are always ACE encrypted
+    const effectiveIsAceEncrypted = isAceEncrypted || isPurchased;
 
     useEffect(() => {
         if (!downloadUrl) return;
@@ -853,8 +893,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
             return;
         }
 
-        if (!account) {
-            toast.error("Wallet not connected");
+        if (!account || !connected) {
+            toast.error("Wallet not connected. Please connect your wallet.");
             return;
         }
 
@@ -863,7 +903,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
         try {
             let buffer: ArrayBuffer;
 
-            if ((isEncrypted || isAceEncrypted) && blobAccount && blobName) {
+            if ((isEncrypted || effectiveIsAceEncrypted) && blobAccount && blobName) {
                 // Use SDK for encrypted files to ensure proper protocol handling
                 const shelbyBlob = await shelbyClient.download({
                     account: blobAccount,
@@ -922,7 +962,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-            } else if (isAceEncrypted) {
+            } else if (effectiveIsAceEncrypted) {
                 // --- ACE ENCRYPTED: need to decipher ---
                 const finalBufferData = await decryptAceFile({
                     rawBuffer: new Uint8Array(buffer),
@@ -1113,9 +1153,15 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                             {isEncrypted && !encryptionKey ? "Encrypted Vault Asset" : displayName}
                         </span>
                         {isMarketAsset && (
-                            <span className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/30 text-[9px] font-black uppercase tracking-widest text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]">
-                                <Tag size={10} className="fill-blue-400/20" />
+                            <span className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.2)]">
+                                <Tag size={10} className="fill-emerald-400/20" />
                                 On Sale
+                            </span>
+                        )}
+                        {isPurchased && (
+                            <span className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.2)]">
+                                <Banknote size={10} className="fill-emerald-400/20" />
+                                Purchased
                             </span>
                         )}
                     </div>
@@ -1131,10 +1177,15 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                 {encryptionKey ? <ShieldCheck size={10} className="text-green-400" /> : <Lock size={10} className="text-color-primary" />}
                                 {encryptionKey ? 'DECRYPTED' : 'LOCKED'}
                             </span>
+                        ) : isPurchased ? (
+                            <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-emerald-400">
+                                <ShieldCheck size={10} className="text-emerald-400" />
+                                DECRYPT
+                            </span>
                         ) : isAceEncrypted ? (
-                            <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-blue-400">
-                                <ShieldCheck size={10} className="text-blue-400" />
-                                ACE SECURED
+                            <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-emerald-400">
+                                <ShieldCheck size={10} className="text-emerald-400" />
+                                ENCRYPT
                             </span>
                         ) : (
                             <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-yellow-500">
@@ -1160,10 +1211,15 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         <div className={`w-1.5 h-1.5 rounded-full ${encryptionKey ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-color-primary shadow-[0_0_8px_rgba(232,58,118,0.5)] animate-pulse'}`} />
                         {encryptionKey ? 'DECRYPTED' : 'LOCKED'}
                     </div>
+                ) : isPurchased ? (
+                    <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
+                        <ShieldCheck size={10} className="text-emerald-400" />
+                        DECRYPT
+                    </div>
                 ) : isAceEncrypted ? (
-                    <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-blue-500/10 border-blue-500/30 text-blue-400">
-                        <ShieldCheck size={10} className="text-blue-400" />
-                        ACE SECURED
+                    <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
+                        <ShieldCheck size={10} className="text-emerald-400" />
+                        ENCRYPT
                     </div>
                 ) : (
                     <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-yellow-500/10 border-yellow-500/30 text-yellow-500">

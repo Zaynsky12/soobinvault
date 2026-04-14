@@ -212,11 +212,31 @@ export async function decryptAceFile({
         const domain = new TextEncoder().encode(blobName);
         const fullDecryptionDomain = new ace.FullDecryptionDomain({ contractId, domain });
         
-        // 1. Request wallet signature for authentication proof
-        const signOutput = await signMessage({ 
-            message: fullDecryptionDomain.toPrettyMessage(), 
-            nonce: "ace_auth" 
+        console.log("[ACE Debug] Starting decryption for blob:", blobName);
+        console.log("[ACE Debug] Wallet state:", { 
+            hasAccount: !!account, 
+            addr: account?.address?.toString(),
+            hasSignMessage: !!signMessage 
         });
+
+        // 1. Request wallet signature for authentication proof
+        let signOutput: any;
+        try {
+            // Give the wallet adapter a moment to sync if this was triggered immediately after a render
+            await new Promise(r => setTimeout(r, 100));
+
+            signOutput = await signMessage({ 
+                message: fullDecryptionDomain.toPrettyMessage(), 
+                nonce: "ace_auth" 
+            });
+        } catch (signErr: any) {
+            console.error("[ACE Sign Error]", signErr);
+            const errMsg = signErr.message || String(signErr);
+            if (signErr.name === 'WalletNotConnectedError' || errMsg.includes('not connected') || errMsg.includes('No wallet')) {
+                throw new Error("Wallet connection lost or not initialized. Please refresh the page and ensure your wallet is unlocked.");
+            }
+            throw signErr;
+        }
 
         // 2. Normalize Public Key (Fixes "unsupported public key type" errors)
         let rawPubKeyBytes: Uint8Array | null = null;
@@ -252,32 +272,49 @@ export async function decryptAceFile({
         const finalHex = "0x" + Array.from(rawPubKeyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
         // CONSTRUCT THE "GOD OBJECT" POLYFILL
-        // This object mirrors both Aptos SDK v1 and v2 Ed25519PublicKey interfaces
+        // This object mirrors both Aptos SDK v1 and v2 Ed25519PublicKey interfaces.
+        // The objective is to satisfy internal checks like 'instanceof' (if lucky) or 
+        // property-based scheme detection (getScheme, .type, .scheme, ._type).
         const robustPubKey: any = {
-            // Data
+            // Data properties
             publicKey: rawPubKeyBytes,
-            buffer: rawPubKeyBytes, // Legacy v1 property
+            buffer: rawPubKeyBytes, // Legacy v1
+            value: rawPubKeyBytes,  // Legacy v1
+            bytes: rawPubKeyBytes,  // v2
             
-            // Methods (Aptos v1/v2 support)
-            toUint8Array: () => rawPubKeyBytes,
+            // Core identification properties (Crucial for ACE)
+            type: 0,                // Ed25519 enum
+            scheme: 0,              // Ed25519 enum
+            _type: "Ed25519",       // Marker
+            variant: 0,             // v2 marker
+            identifier: "Ed25519",
+            
+            // Methods
+            toUint8Array: () => rawPubKeyBytes!,
             toString: () => finalHex,
-            toBuffer: () => Buffer.from(rawPubKeyBytes!),
-            
-            // Scheme identification (The core of the issue)
-            type: 0, // Legacy Ed25519 enum
-            scheme: 0, // Legacy Ed25519 scheme
-            variant: 0, // Aptos v2 variant
-            
+            toBuffer: () => rawPubKeyBytes!, // Fallback for browsers
             getScheme: () => 0,
-            getVariant: () => 0
+            getVariant: () => 0,
+            
+            // Mocking class structure if checked via constructor name
+            constructor: { name: "Ed25519PublicKey" }
         };
 
         console.log("[ACE Debug] Robust Polyfill constructed for hex:", finalHex.substring(0, 10) + "...");
 
         // 3. Normalize Signature
         const sigAny: any = signOutput.signature;
-        let finalSignature = typeof sigAny === 'string' ? sigAny : sigAny?.toString('hex') || sigAny;
-        if (finalSignature && !finalSignature.startsWith('0x')) {
+        let finalSignature: string;
+
+        if (typeof sigAny === 'string') {
+            finalSignature = sigAny;
+        } else if (sigAny instanceof Uint8Array || Array.isArray(sigAny)) {
+            finalSignature = Array.from(sigAny as any).map((b: any) => b.toString(16).padStart(2, '0')).join('');
+        } else {
+            finalSignature = sigAny?.toString('hex') || String(sigAny);
+        }
+
+        if (finalSignature && !finalSignature.startsWith('0x') && /^[0-9a-fA-F]+$/.test(finalSignature)) {
             finalSignature = `0x${finalSignature}`;
         }
 

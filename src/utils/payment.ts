@@ -6,9 +6,13 @@ import { SHELBYUSD_FA_METADATA_ADDRESS, MARKETPLACE_REGISTRY_ADDRESS } from '../
  * Format (5-part): sv_market::[category]::[price]::[description]::[filename]
  */
 export function parseAssetId(id: string) {
-  if (!id.startsWith('sv_market--')) return null;
+  const isHyphen = id.startsWith('sv_market--');
+  const isColon = id.startsWith('sv_market::');
+  
+  if (!isHyphen && !isColon) return null;
 
-  const parts = id.split('--');
+  const separator = isHyphen ? '--' : '::';
+  const parts = id.split(separator);
   
   // New 6-part format includes seller address
   if (parts.length >= 6) {
@@ -17,8 +21,8 @@ export function parseAssetId(id: string) {
       price: parts[2],
       seller: parts[3],
       description: parts[4],
-      title: parts.slice(5).join('--'),
-      originalName: parts.slice(5).join('--'),
+      title: parts.slice(5).join(separator),
+      originalName: parts.slice(5).join(separator),
       version: 2
     };
   }
