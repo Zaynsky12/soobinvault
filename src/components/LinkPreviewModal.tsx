@@ -30,6 +30,7 @@ interface LinkPreviewModalProps {
     isEncrypted?: boolean;
     isMarketAsset?: boolean;
     isAceEncrypted?: boolean;
+    isOwner?: boolean;
 }
 
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
@@ -59,6 +60,7 @@ export function LinkPreviewModal({
     isEncrypted = true,
     isMarketAsset = false,
     isAceEncrypted = false,
+    isOwner = false,
 }: LinkPreviewModalProps) {
     const [copied, setCopied] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
@@ -143,9 +145,13 @@ export function LinkPreviewModal({
 
             // --- ENCRYPTED: decrypt ---
             if (isAceEncrypted) {
+                const rawBlobName = blobName!;
+                // Ensure we use the exact marketName used during encryption (no prefix)
+                const aceBlobName = rawBlobName.startsWith('@') ? rawBlobName.split('/').slice(1).join('/') : rawBlobName;
+                
                 const finalBufferData = await decryptAceFile({
                     rawBuffer: rawBuffer,
-                    blobName: blobName,
+                    blobName: aceBlobName,
                     account: account,
                     signMessage: signMessage
                 });
@@ -485,7 +491,7 @@ export function LinkPreviewModal({
                                         {isProcessing ? (isEncrypted ? 'Decrypting...' : 'Loading...') : (decryptedData ? decryptedData.name : 'Vault Asset')}
                                     </h2>
                                     <p className="text-[10px] text-color-support/40 uppercase tracking-widest mt-0.5">
-                                        {assetSizeStr} MB • {isEncrypted ? (decryptedData ? 'DECRYPTED' : 'ENCRYPTED') : 'PUBLIC'}
+                                        {assetSizeStr} MB • {isEncrypted ? (decryptedData ? 'DECRYPTED' : 'ENCRYPTED') : isOwner ? 'ACE OWNER' : 'PUBLIC'}
                                     </p>
                                 </div>
                             </div>
@@ -503,11 +509,11 @@ export function LinkPreviewModal({
                                         <div className="w-16 h-16 rounded-full border-4 border-color-primary/20 border-t-color-primary animate-spin" />
                                         <Lock size={20} className="absolute inset-0 m-auto text-color-primary animate-pulse" />
                                     </div>
-                                    <span className="text-color-primary font-mono text-xs tracking-[0.2em] uppercase animate-pulse">
-                                        {isEncrypted ? 'Decrypting...' : 'Loading...'}
+                                    <span className="text-color-primary font-mono text-[10px] tracking-[0.2em] uppercase animate-pulse">
+                                        {isOwner ? 'Owner Handshake...' : isEncrypted ? 'Decrypting...' : 'Loading...'}
                                     </span>
                                 </div>
-                            ) : fetchError === 'DECRYPTION_FAILED' ? (
+                            ) : (fetchError === 'DECRYPTION_FAILED' && !isAceEncrypted) ? (
                                 <div className="flex flex-col items-center justify-center gap-6 text-center px-4 md:px-12 py-6 md:py-16 w-full max-w-xl mx-auto">
                                     <div className="relative group scale-90 md:scale-100">
                                         <div className="absolute inset-0 bg-red-500/20 rounded-full blur-xl transition-all duration-500 animate-pulse" />

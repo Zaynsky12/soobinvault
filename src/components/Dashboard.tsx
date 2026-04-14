@@ -39,6 +39,7 @@ export function Dashboard() {
     const { ensureKey, encryptionKey, importKeyManual, lockVault } = useVaultKey();
     const [activeListings, setActiveListings] = useState<any[]>([]);
     const [purchasedAssets, setPurchasedAssets] = useState<any[]>([]);
+    const [delistedNames, setDelistedNames] = useState<string[]>([]);
 
     // Effect for hydration
     useEffect(() => {
@@ -54,6 +55,13 @@ export function Dashboard() {
             } catch (e) {
                 console.error("Failed to parse optimistic assets from localStorage", e);
             }
+        }
+
+        const delistedData = localStorage.getItem('sv_deleted_markets');
+        if (delistedData) {
+            try {
+                setDelistedNames(JSON.parse(delistedData));
+            } catch (e) {}
         }
     }, []);
 
@@ -81,6 +89,7 @@ export function Dashboard() {
         isEncrypted: boolean;
         isMarketAsset: boolean;
         isPurchased: boolean;
+        isOwner: boolean;
     } | null>(null);
 
     const [decryptedNames, setDecryptedNames] = useState<Record<string, string>>({});
@@ -145,7 +154,12 @@ export function Dashboard() {
             const matchesName = String(nameToSearch).toLowerCase().includes(query);
             const matchesHash = assetHash && String(assetHash).toLowerCase().includes(query);
 
-            return matchesName || matchesHash;
+            if (!(matchesName || matchesHash)) return false;
+
+            // NEW: Hide assets that have been locally delisted/deleted to avoid indexing lag
+            if (delistedNames.includes(nameOnly)) return false;
+
+            return true;
         });
 
         return {
@@ -153,7 +167,7 @@ export function Dashboard() {
             filteredAssets: filtered,
             counts: { all, images: imagesCount, videos: videosCount, docs: docsCount }
         };
-    }, [assets, optimisticAssets, decryptedNames, searchQuery, currentCategory]);
+    }, [assets, optimisticAssets, decryptedNames, searchQuery, currentCategory, delistedNames, activeListings]);
 
     // Deletion Hook
     const deleteBlobs = useDeleteBlobs({
@@ -212,13 +226,8 @@ export function Dashboard() {
                                 functionArguments: [nameSuffix]
                             }
                         });
-                        try {
-                            const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
-                            if (!deleted.includes(nameSuffix)) {
-                                deleted.push(nameSuffix);
-                                localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
-                            }
-                        } catch(e) {}
+                        // Update local state to hide badge immediately
+                        setDelistedNames((prev: string[]) => [...prev, nameSuffix]);
                     } catch (err) {
                         console.warn("[Dashboard] Marketplace delist aborted or already delisted:", err);
                     }
@@ -652,14 +661,20 @@ export function Dashboard() {
                                     const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
                                     const nameOnlyRaw = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
                                     let nameOnly = nameOnlyRaw;
-                                    const fullNameForLink = nameOnly; // We need this for the download URL
+                        const fullNameForLink = nameOnly; // We need this for the download URL
 
                                     // Strip sv_market prefix for display and check if currently on sale
-                                    let isMarketAsset = activeListings && activeListings.some((l: any) => l.blob_name === fullNameForLink || l.blobName === fullNameForLink);
+                                    let isMarketAsset = activeListings && activeListings.some((l: any) => (l.blob_name === fullNameForLink || l.blobName === fullNameForLink)) && !delistedNames.includes(fullNameForLink);
                                     
                                     // Determine encryption status BEFORE we potentially modify nameOnly for display
                                     const isEncrypted = nameOnly.endsWith('.vault');
-                                    const isAceEncrypted = isMarketAsset || nameOnly.startsWith('sv_market--');
+                                    const isAceEncrypted = !isEncrypted && (isMarketAsset || nameOnly.startsWith('sv_market--'));
+                                    
+                                    // Ownership detection for Micropayments (ACE only)
+                                    const isOwner = isAceEncrypted && !asset.isPurchased && (
+                                        (nameOnly.startsWith('sv_market--') && nameOnly.split('--')[3] === account?.address.toString()) ||
+                                        (!nameOnly.startsWith('sv_market--'))
+                                    );
 
                                     if (nameOnly.startsWith('sv_market--')) {
                                         const parts = nameOnly.split('--');
@@ -755,7 +770,8 @@ export function Dashboard() {
                                             blobName: fullNameForLink,
                                             isEncrypted,
                                             isMarketAsset,
-                                            isPurchased: asset.isPurchased || false
+                                            isPurchased: asset.isPurchased || false,
+                                            isOwner: isOwner
                                         });
                                         setIsPreviewModalOpen(true);
                                     };
@@ -780,6 +796,7 @@ export function Dashboard() {
                                             blobName={fullNameForLink}
                                             isMarketAsset={isMarketAsset}
                                             isPurchased={asset.isPurchased || false}
+                                            isOwner={isOwner}
                                             handleOpenPreview={handleOpenPreviewLocal}
                                             assetHash={assetHash}
                                             txHash={txHash}
@@ -792,6 +809,7 @@ export function Dashboard() {
                                             signMessage={signMessage}
                                             shelbyClient={shelbyClient}
                                             setOptimisticDeletions={setOptimisticAssets}
+                                            setDelistedNames={setDelistedNames}
                                         />
                                     );
                                 })
@@ -829,6 +847,7 @@ export function Dashboard() {
                 isEncrypted={selectedAsset?.isEncrypted ?? true}
                 isMarketAsset={selectedAsset?.isMarketAsset || false}
                 isAceEncrypted={selectedAsset?.isMarketAsset || selectedAsset?.isPurchased || (selectedAsset?.blobName?.startsWith('sv_market--') ?? false)}
+                isOwner={selectedAsset?.isOwner || false}
             />
 
             {/* Floating Action Button (Mobile) */}
@@ -842,7 +861,7 @@ export function Dashboard() {
     );
 }
 
-function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, isAceEncrypted, downloadUrl, blobAccount, blobName, isMarketAsset, isPurchased, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, connected, signMessage, shelbyClient, setOptimisticDeletions }: any): React.ReactNode {
+function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAudio, isDocument, fileInfo, isEncrypted, isAceEncrypted, downloadUrl, blobAccount, blobName, isMarketAsset, isPurchased, isOwner, handleOpenPreview, assetHash, txHash, deleteBlobs, fetchBlobs, signAndSubmitTransaction, wallet, account, connected, signMessage, shelbyClient, setOptimisticDeletions, setDelistedNames }: any): React.ReactNode {
     const { ensureKey, encryptionKey } = useVaultKey();
     const [status, setStatus] = useState<'checking' | 'syncing' | 'live'>('checking');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -926,7 +945,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 }
                 buffer = rawBuffer.buffer;
             } else {
-                const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_8nf7TvDNviM_BvorzGpZdTDDZPsPpPorTcctVeD9F45Fu";
+                const apiKey = shelbyClient.rpc.apiKey || process.env.NEXT_PUBLIC_SHELBY_API_KEY || "aptoslabs_M4q6Cdo5c3v_Ms79TxmEijAh6u1CUzUnan8X1fQnrzNpr";
                 const response = await fetch(downloadUrl!, {
                     headers: { 'Authorization': `Bearer ${apiKey.trim()}` }
                 });
@@ -964,9 +983,15 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 URL.revokeObjectURL(url);
             } else if (effectiveIsAceEncrypted) {
                 // --- ACE ENCRYPTED: need to decipher ---
+                const rawBlobName = blobName!;
+                // Ensure we use the exact marketName used during encryption (no prefix)
+                const aceBlobName = rawBlobName.startsWith('@') ? rawBlobName.split('/').slice(1).join('/') : rawBlobName;
+                
+                console.log(`[ACE Debug] Initiating download decipher for: ${aceBlobName}`);
+
                 const finalBufferData = await decryptAceFile({
                     rawBuffer: new Uint8Array(buffer),
-                    blobName: blobName!,
+                    blobName: aceBlobName,
                     account: account,
                     signMessage: signMessage
                 });
@@ -1049,13 +1074,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         }
                     });
                     console.log(`[Marketplace] Successfully delisted from smart contract!`);
-                    try {
-                        const deleted = JSON.parse(localStorage.getItem('sv_deleted_markets') || '[]');
-                        if (!deleted.includes(nameSuffix)) {
-                            deleted.push(nameSuffix);
-                            localStorage.setItem('sv_deleted_markets', JSON.stringify(deleted));
-                        }
-                    } catch(e) {}
+                    // Update local state to hide badge immediately
+                    setDelistedNames((prev: string[]) => [...prev, nameSuffix]);
                 } catch (contractErr) {
                     console.warn("[Marketplace] Failed to delist from contract (may already be delisted or user cancelled):", contractErr);
                     // Do not strictly abort if this fails, they might still want it deleted from Shelby storage
@@ -1177,14 +1197,14 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                 {encryptionKey ? <ShieldCheck size={10} className="text-green-400" /> : <Lock size={10} className="text-color-primary" />}
                                 {encryptionKey ? 'DECRYPTED' : 'LOCKED'}
                             </span>
-                        ) : isPurchased ? (
+                        ) : (isOwner || isPurchased) ? (
                             <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-emerald-400">
                                 <ShieldCheck size={10} className="text-emerald-400" />
-                                DECRYPT
+                                ENCRYPT
                             </span>
                         ) : isAceEncrypted ? (
-                            <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-emerald-400">
-                                <ShieldCheck size={10} className="text-emerald-400" />
+                            <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-blue-400">
+                                <ShieldCheck size={10} className="text-blue-400" />
                                 ENCRYPT
                             </span>
                         ) : (
@@ -1211,14 +1231,14 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         <div className={`w-1.5 h-1.5 rounded-full ${encryptionKey ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-color-primary shadow-[0_0_8px_rgba(232,58,118,0.5)] animate-pulse'}`} />
                         {encryptionKey ? 'DECRYPTED' : 'LOCKED'}
                     </div>
-                ) : isPurchased ? (
+                ) : (isOwner || isPurchased) ? (
                     <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
                         <ShieldCheck size={10} className="text-emerald-400" />
-                        DECRYPT
+                        ENCRYPT
                     </div>
                 ) : isAceEncrypted ? (
-                    <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
-                        <ShieldCheck size={10} className="text-emerald-400" />
+                    <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-blue-500/10 border-blue-500/30 text-blue-400">
+                        <ShieldCheck size={10} className="text-blue-400" />
                         ENCRYPT
                     </div>
                 ) : (
@@ -1328,7 +1348,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                         </span>
                                     ) : isAceEncrypted ? (
                                         <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-blue-400">
-                                            <ShieldCheck size={10} /> ACE Secured
+                                            <ShieldCheck size={10} /> ENCRYPT
                                         </span>
                                     ) : (
                                         <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-yellow-400">
@@ -1356,7 +1376,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                 </div>
                                 <div className="text-left">
                                     <span className="block font-bold text-sm uppercase tracking-widest">{isEncrypted && !encryptionKey ? 'Unlock Asset' : isAceEncrypted ? 'Decrypt & View' : 'Preview Asset'}</span>
-                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">{isEncrypted && !encryptionKey ? 'Authorize to view content' : isAceEncrypted ? 'ACE Worker threshold' : 'Instant data visualization'}</span>
+                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">{isEncrypted && !encryptionKey ? 'Authorize to view content' : isAceEncrypted ? 'Secured threshold' : 'Instant data visualization'}</span>
                                 </div>
                             </button>
 

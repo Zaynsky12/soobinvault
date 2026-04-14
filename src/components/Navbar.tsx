@@ -245,8 +245,21 @@ export default function Navbar(): React.ReactNode {
             )}
 
             {/* Desktop Sidebar (Menu only) - High z-index to ensure clickability */}
-            <div className="hidden md:flex fixed left-0 top-0 bottom-0 w-64 bg-[#0B1121]/40 backdrop-blur-3xl border-r border-white/5 flex-col z-[110] shadow-2xl pt-24 overflow-hidden">
-                <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
+            <div className="hidden md:flex fixed left-0 top-0 bottom-0 w-64 bg-[#0B1121]/40 backdrop-blur-3xl border-r border-white/5 flex-col z-[110] shadow-2xl pt-0 overflow-hidden">
+                {/* Branding Section at the top of Sidebar */}
+                <div className="p-8 pb-10 border-b border-white/5">
+                    <Link href="/" className="flex items-center gap-4 cursor-pointer group">
+                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.3)] group-hover:shadow-[0_0_40px_rgba(232,58,118,0.5)] transition-all duration-500 border border-white/10">
+                            <Image src="/logo.png" alt="Logo" width={40} height={40} className="rounded-xl w-full h-full p-1" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="font-bold text-xl tracking-tight text-white leading-tight">SoobinVault</span>
+                            <span className="text-[9px] font-bold text-color-primary uppercase tracking-[0.3em] opacity-80 leading-none mt-1">Network</span>
+                        </div>
+                    </Link>
+                </div>
+
+                <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar mt-6">
                     <p className="px-4 text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] mb-4">Navigation</p>
                     <div className="space-y-1">
                         {navLinks.map((link) => {
@@ -280,17 +293,8 @@ export default function Navbar(): React.ReactNode {
 
             {/* Desktop Top Header - Full Width (Covering Sidebar Area but at lower z-index than sidebar links if possible, or same) */}
             <header className={`hidden md:flex fixed top-0 left-0 right-0 z-[100] transition-all duration-500 border-b border-white/5 ${isScrolled ? 'bg-[#0B1121]/90 backdrop-blur-xl py-4' : 'bg-[#0B1121]/40 backdrop-blur-lg py-6'}`}>
-                <div className="flex items-center justify-between w-full px-8">
-                    {/* Branding in Header */}
-                    <Link href="/" className="flex items-center gap-4 cursor-pointer group">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-color-primary to-color-accent flex items-center justify-center shadow-[0_0_20px_rgba(232,58,118,0.3)] group-hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] transition-all duration-500">
-                            <Image src="/logo.png" alt="Logo" width={36} height={36} className="rounded-xl w-full h-full p-1" />
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="font-bold text-xl tracking-tight text-white leading-tight">SoobinVault</span>
-                            <span className="text-[9px] font-bold text-color-primary uppercase tracking-[0.3em] opacity-80 leading-none mt-1">Network</span>
-                        </div>
-                    </Link>
+                <div className="flex items-center justify-end w-full px-8">
+
 
                     {/* Right: Wallet Actions */}
                     <div className="flex items-center gap-4">

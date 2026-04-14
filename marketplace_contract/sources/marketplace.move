@@ -39,12 +39,21 @@ module marketplace_addr::marketplace {
         sellers: vector<address>
     }
 
+    struct BlobOwnership has key {
+        owners: Table<String, address>
+    }
+
     public entry fun initialize_registry(admin: &signer) {
         let admin_addr = signer::address_of(admin);
         assert!(admin_addr == @marketplace_addr, E_NOT_AUTHORIZED);
         if (!exists<GlobalRegistry>(admin_addr)) {
             move_to(admin, GlobalRegistry {
                 sellers: vector::empty<address>()
+            });
+        };
+        if (!exists<BlobOwnership>(admin_addr)) {
+            move_to(admin, BlobOwnership {
+                owners: table::new<String, address>()
             });
         }
     }
@@ -78,13 +87,19 @@ module marketplace_addr::marketplace {
         category: String,
         description: String,
         payment_metadata: address
-    ) acquires UserStorefront, GlobalRegistry {
+    ) acquires UserStorefront, GlobalRegistry, BlobOwnership {
         let sender_addr = signer::address_of(sender);
         
         // Track the seller globally on the registry
         let registry = borrow_global_mut<GlobalRegistry>(@marketplace_addr);
         if (!vector::contains(&registry.sellers, &sender_addr)) {
             vector::push_back(&mut registry.sellers, sender_addr);
+        };
+
+        // Record persistent ownership for ACE decryption (even after delist)
+        let ownership = borrow_global_mut<BlobOwnership>(@marketplace_addr);
+        if (!table::contains(&ownership.owners, blob_name)) {
+            table::add(&mut ownership.owners, blob_name, sender_addr);
         };
         
         if (!exists<UserStorefront>(sender_addr)) {
@@ -270,10 +285,20 @@ module marketplace_addr::marketplace {
 
     /// Check if a user has permission to decrypt (Required by ACE)
     #[view]
-    public fun check_permission(user: address, dataset_id: vector<u8>): bool acquires UserPurchases, UserStorefront {
+    public fun check_permission(user: address, dataset_id: vector<u8>): bool acquires UserPurchases, UserStorefront, BlobOwnership {
         let blob_name_str = std::string::utf8(dataset_id);
         
-        // 1. If seller is requesting the decryption key, they own it inherently
+        // 1. Check persistent ownership first
+        if (exists<BlobOwnership>(@marketplace_addr)) {
+            let ownership = borrow_global<BlobOwnership>(@marketplace_addr);
+            if (table::contains(&ownership.owners, blob_name_str)) {
+                if (*table::borrow(&ownership.owners, blob_name_str) == user) {
+                    return true
+                }
+            }
+        };
+
+        // 2. Fallback: If seller is requesting the decryption key from their active storefront
         let is_seller = false;
         if (exists<UserStorefront>(user)) {
             let storefront = borrow_global<UserStorefront>(user);

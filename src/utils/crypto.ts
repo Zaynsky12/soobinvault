@@ -244,13 +244,6 @@ export async function decryptAceFile({
         
         if (account && account.publicKey) {
             const pk: any = account.publicKey;
-            console.log("[ACE Debug] raw account.publicKey details:", {
-                type: typeof pk,
-                constructor: pk.constructor?.name,
-                hasToUint8Array: typeof pk.toUint8Array === 'function',
-                hasToString: typeof pk.toString === 'function'
-            });
-
             if (pk instanceof Uint8Array) {
                 rawPubKeyBytes = pk;
             } else if (typeof pk.toUint8Array === 'function') {
@@ -271,36 +264,44 @@ export async function decryptAceFile({
         if (!rawPubKeyBytes) throw new Error("Could not extract raw public key bytes from wallet.");
         const finalHex = "0x" + Array.from(rawPubKeyBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
+        // Try to construct official SDK objects first
+        let officialPubKey: any = null;
+        try {
+            officialPubKey = new Ed25519PublicKey(rawPubKeyBytes);
+        } catch (e) {
+            console.warn("[ACE Debug] Failed to construct official Ed25519PublicKey, using polyfill fallback.");
+        }
+
         // CONSTRUCT THE "GOD OBJECT" POLYFILL
         // This object mirrors both Aptos SDK v1 and v2 Ed25519PublicKey interfaces.
-        // The objective is to satisfy internal checks like 'instanceof' (if lucky) or 
-        // property-based scheme detection (getScheme, .type, .scheme, ._type).
-        const robustPubKey: any = {
+        const robustPubKey: any = officialPubKey || {
             // Data properties
             publicKey: rawPubKeyBytes,
-            buffer: rawPubKeyBytes, // Legacy v1
-            value: rawPubKeyBytes,  // Legacy v1
-            bytes: rawPubKeyBytes,  // v2
+            buffer: rawPubKeyBytes,
+            value: rawPubKeyBytes,
+            bytes: rawPubKeyBytes,
             
             // Core identification properties (Crucial for ACE)
-            type: 0,                // Ed25519 enum
-            scheme: 0,              // Ed25519 enum
-            _type: "Ed25519",       // Marker
-            variant: 0,             // v2 marker
+            type: 0,
+            scheme: 0,
+            _type: "Ed25519",
+            variant: 0,
             identifier: "Ed25519",
             
             // Methods
             toUint8Array: () => rawPubKeyBytes!,
             toString: () => finalHex,
-            toBuffer: () => rawPubKeyBytes!, // Fallback for browsers
+            toBuffer: () => rawPubKeyBytes!,
             getScheme: () => 0,
             getVariant: () => 0,
             
-            // Mocking class structure if checked via constructor name
             constructor: { name: "Ed25519PublicKey" }
         };
 
-        console.log("[ACE Debug] Robust Polyfill constructed for hex:", finalHex.substring(0, 10) + "...");
+        console.log("[ACE Debug] Key Handling:", { 
+            isOfficial: !!officialPubKey,
+            hex: finalHex.substring(0, 10) + "..." 
+        });
 
         // 3. Normalize Signature
         const sigAny: any = signOutput.signature;
@@ -319,8 +320,6 @@ export async function decryptAceFile({
         }
 
         // 4. Create Proof of Permission
-        // We pass the robust polyfill object as any. 
-        // We also ensure userAddr is an AccountAddress object.
         const proof = ace.ProofOfPermission.createAptos({
             userAddr: AccountAddress.fromString(account.address.toString()) as any,
             publicKey: robustPubKey as any,
