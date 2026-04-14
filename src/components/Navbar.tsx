@@ -91,7 +91,7 @@ export default function Navbar(): React.ReactNode {
         { name: 'Account', href: '/account', icon: User },
     ];
 
-    const pathname = usePathname();
+
 
     const renderSettingsContent = () => (
         <div className="w-full h-full">
