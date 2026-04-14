@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, Download, ExternalLink, FileText, Image as ImageIcon, Info, Lock, Unlock, Maximize2, RefreshCw, Trash2, X, Music, Video, Key, Settings, File as FileIcon, Archive, FileSpreadsheet, Presentation, Share2, Banknote } from 'lucide-react';
-import { decryptFile } from '../utils/crypto';
+import { decryptFile, decryptAceFile } from '../utils/crypto';
 import { getFileType } from '../utils/file';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -33,8 +33,6 @@ interface LinkPreviewModalProps {
 }
 
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { ace } from "@aptos-labs/ace-sdk";
-import { AccountAddress, Ed25519PublicKey } from "@aptos-labs/ts-sdk";
 import { MARKETPLACE_REGISTRY_ADDRESS } from '../lib/constants';
 
 export function LinkPreviewModal({
@@ -139,79 +137,18 @@ export function LinkPreviewModal({
                     isAudio: !!name.match(/\.(mp3|wav|flac|aac|m4a|opus|wma)$/),
                     isDocument: !!name.match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
                 });
+                setIsProcessing(false);
                 return;
             }
 
             // --- ENCRYPTED: decrypt ---
             if (isAceEncrypted) {
-                if (!account) throw new Error("Wallet not connected");
-
-                const contractId = ace.ContractID.newAptos({
-                    chainId: 2,
-                    moduleAddr: AccountAddress.fromString(MARKETPLACE_REGISTRY_ADDRESS),
-                    moduleName: "marketplace",
-                    functionName: "check_permission",
+                const finalBufferData = await decryptAceFile({
+                    rawBuffer: rawBuffer,
+                    blobName: blobName,
+                    account: account,
+                    signMessage: signMessage
                 });
-                const domainStr = new TextEncoder().encode(blobName);
-                const fullDecryptionDomain = new ace.FullDecryptionDomain({
-                    contractId: contractId,
-                    domain: domainStr,
-                });
-
-                const signOutput = await signMessage({ 
-                    message: fullDecryptionDomain.toPrettyMessage(), 
-                    nonce: "ace_auth" 
-                });
-
-                let pubKeyParam: any = null;
-                if (account && 'publicKey' in account) {
-                    const pk: any = account.publicKey;
-                    if (typeof pk === 'string') {
-                        // Normalize and wrap in Ed25519PublicKey for ACE SDK
-                        const cleanPk = pk.startsWith('0x') ? pk.substring(2) : pk;
-                        pubKeyParam = new Ed25519PublicKey(cleanPk);
-                    } else if (pk && typeof pk.toUint8Array === 'function') {
-                        pubKeyParam = pk;
-                    } else {
-                        const pkStr = pk?.toString();
-                        const cleanPk = pkStr?.startsWith('0x') ? pkStr.substring(2) : pkStr;
-                        pubKeyParam = cleanPk ? new Ed25519PublicKey(cleanPk) : null;
-                    }
-                }
-                if (!pubKeyParam) throw new Error("Could not extract public key from wallet object.");
-
-                const sigAny: any = signOutput.signature;
-                const sigStr = typeof sigAny === 'string' ? sigAny : sigAny?.toString('hex') || sigAny;
-                const finalSignature = typeof sigStr === 'string' && sigStr.startsWith('0x') ? sigStr.substring(2) : sigStr;
-
-                const proof = ace.ProofOfPermission.createAptos({
-                    userAddr: AccountAddress.fromString(account.address.toString()),
-                    publicKey: pubKeyParam as any,
-                    signature: finalSignature as any,
-                    fullMessage: signOutput.fullMessage as any,
-                });
-
-                const committee = new ace.Committee({
-                    workerEndpoints: [
-                    "https://ace-worker-0-646682240579.europe-west1.run.app",
-                    "https://ace-worker-1-646682240579.europe-west1.run.app",
-                    ],
-                    threshold: 2,
-                });
-
-                const decryptionKeyResult = await ace.DecryptionKey.fetch({
-                    committee,
-                    contractId: fullDecryptionDomain.contractId,
-                    domain: fullDecryptionDomain.domain,
-                    proof,
-                });
-
-                const decipheredResult = ace.decrypt({
-                    decryptionKey: decryptionKeyResult.unwrapOrThrow(new Error("Missing decryption key")),
-                    ciphertext: ace.Ciphertext.fromBytes(rawBuffer).unwrapOrThrow(new Error("Corrupted or invalid encrypted blob on network")),
-                });
-                
-                const finalBufferData = decipheredResult.unwrapOrThrow(new Error("Failed to decipher text"));
                 
                 const ext = assetName.split('.').pop()?.toLowerCase() || '';
                 const mimeMap: Record<string, string> = {
@@ -304,7 +241,7 @@ export function LinkPreviewModal({
             }
             setIsProcessing(false);
         }
-    }, [blobName, blobAccount, shelbyClient, accountAddress, ensureKey, isEncrypted, assetName]);
+    }, [blobName, blobAccount, shelbyClient, accountAddress, ensureKey, isEncrypted, assetName, isAceEncrypted, account, signMessage]);
 
     useEffect(() => {
         if (isOpen) {

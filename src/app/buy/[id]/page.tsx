@@ -6,6 +6,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient } from "@shelby-protocol/react";
 import { parseAssetId, handlePurchaseTransaction, downloadWithRetry } from '@/utils/payment';
+import { decryptAceFile } from '@/utils/crypto';
 import { MARKETPLACE_REGISTRY_ADDRESS } from '@/lib/constants';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -45,7 +46,7 @@ export default function BuyPage() {
     const params = useParams();
     const router = useRouter();
     const { id } = params;
-    const { connected, account, signAndSubmitTransaction, disconnect } = useWallet();
+    const { connected, account, signAndSubmitTransaction, disconnect, signMessage } = useWallet();
     const shelbyClient = useShelbyClient();
 
     const [loading, setLoading] = useState(true);
@@ -267,9 +268,29 @@ export default function BuyPage() {
         setDownloading(true);
         try {
             const buffer = await downloadWithRetry(shelbyClient, owner, blobName);
+            if (!buffer) throw new Error("Asset retrieval failed: connection lost.");
+            
+            let finalBufferData: Uint8Array = new Uint8Array(buffer);
+
+            // ACE DECRYPTION
+            if (blobName.startsWith("sv_market--")) {
+                toast.loading("Verifying permission & deciphering via ACE...", { id: "decryption-status" });
+                try {
+                    finalBufferData = await decryptAceFile({
+                        rawBuffer: finalBufferData,
+                        blobName: blobName,
+                        account: account,
+                        signMessage: signMessage
+                    });
+                    toast.success("File deciphered successfully!", { id: "decryption-status" });
+                } catch (aceErr: any) {
+                    toast.error(aceErr.message || "Failed to decipher file.", { id: "decryption-status" });
+                    throw aceErr;
+                }
+            }
             
             // Create download link
-            const blob = new Blob([buffer as any]);
+            const blob = new Blob([finalBufferData as any]);
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;

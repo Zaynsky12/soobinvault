@@ -359,13 +359,15 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     threshold: 2,
                 });
 
-                const encryptionKey = await ace.EncryptionKey.fetch({ committee });
                 const contractId = ace.ContractID.newAptos({
                     chainId: 2, // Testnet
                     moduleAddr: AccountAddress.fromString(MARKETPLACE_REGISTRY_ADDRESS),
                     moduleName: "marketplace",
                     functionName: "check_permission",
                 });
+
+                const encryptionKeyResult = await ace.EncryptionKey.fetch({ committee });
+                const encryptionKey = encryptionKeyResult.unwrapOrThrow(new Error("Failed to fetch ACE encryption key. Worker endpoints might be unreachable."));
 
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
@@ -382,7 +384,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                     const fileBuffer = new Uint8Array(await file.arrayBuffer());
                     const { ciphertext } = ace.encrypt({
-                        encryptionKey: encryptionKey.unwrapOrThrow(new Error("Failed to fetch encryption key")),
+                        encryptionKey,
                         contractId,
                         domain,
                         plaintext: fileBuffer,

@@ -11,7 +11,7 @@ import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient, useDeleteBlobs } from "@shelby-protocol/react";
 import { LinkPreviewModal } from './LinkPreviewModal';
-import { decryptFile, decryptText } from '../utils/crypto';
+import { decryptFile, decryptText, decryptAceFile } from '../utils/crypto';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 
 const aptosConfig = new AptosConfig({ network: Network.TESTNET });
@@ -616,13 +616,18 @@ export function Dashboard() {
                                 filteredAssets.map((asset, index) => {
                                     const nameStr = typeof asset.name === 'string' ? asset.name : '';
                                     const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
-                                    let nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+                                    const nameOnlyRaw = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
+                                    let nameOnly = nameOnlyRaw;
                                     const fullNameForLink = nameOnly; // We need this for the download URL
 
                                     // Strip sv_market prefix for display and check if currently on sale
                                     let isMarketAsset = activeListings && activeListings.some((l: any) => l.blob_name === fullNameForLink || l.blobName === fullNameForLink);
-                                    if (nameOnly.startsWith('sv_market--')) {
+                                    
+                                    // Determine encryption status BEFORE we potentially modify nameOnly for display
+                                    const isEncrypted = nameOnly.endsWith('.vault');
+                                    const isAceEncrypted = isMarketAsset || nameOnly.startsWith('sv_market--');
 
+                                    if (nameOnly.startsWith('sv_market--')) {
                                         const parts = nameOnly.split('--');
                                         nameOnly = parts[parts.length - 1];
                                     }
@@ -638,8 +643,6 @@ export function Dashboard() {
                                     const isDocument = fileInfo.isDocument;
 
                                     const identifier = nameMatch ? nameMatch[1] : (account?.address?.toString() || '');
-                                    const isEncrypted = nameOnly.endsWith('.vault');
-                                    const isAceEncrypted = isMarketAsset || nameOnly.startsWith('sv_market--');
 
                                     if (index === 0 || (!isEncrypted && !isAceEncrypted)) {
                                         console.log(`[Dashboard] processing asset ${index}:`, {
@@ -921,81 +924,12 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 URL.revokeObjectURL(url);
             } else if (isAceEncrypted) {
                 // --- ACE ENCRYPTED: need to decipher ---
-                if (!account) throw new Error("Wallet not connected");
-
-                const contractId = ace.ContractID.newAptos({
-                    chainId: 2,
-                    moduleAddr: AccountAddress.fromString(MARKETPLACE_REGISTRY_ADDRESS),
-                    moduleName: "marketplace",
-                    functionName: "check_permission",
+                const finalBufferData = await decryptAceFile({
+                    rawBuffer: new Uint8Array(buffer),
+                    blobName: blobName!,
+                    account: account,
+                    signMessage: signMessage
                 });
-                
-                const domain = new TextEncoder().encode(blobName!);
-
-                const fullDecryptionDomain = new ace.FullDecryptionDomain({
-                    contractId,
-                    domain,
-                });
-
-                const signOutput = await signMessage({ 
-                    message: fullDecryptionDomain.toPrettyMessage(), 
-                    nonce: "ace_auth" 
-                });
-
-                if (!signOutput) {
-                    toast.error("Failed to sign message via wallet.", { id: downloadToastId });
-                    return;
-                }
-
-                let pubKeyParam: any = null;
-                if (account && 'publicKey' in account) {
-                    const pk: any = account.publicKey;
-                    if (typeof pk === 'string') {
-                        // Ensure it's a valid hex without 0x for internal ACE parsing, but wrap in Ed25519PublicKey for the SDK
-                        const cleanPk = pk.startsWith('0x') ? pk.substring(2) : pk;
-                        pubKeyParam = new Ed25519PublicKey(cleanPk);
-                    } else if (pk && typeof pk.toUint8Array === 'function') {
-                        pubKeyParam = pk;
-                    } else {
-                        const pkStr = pk?.toString();
-                        const cleanPk = pkStr?.startsWith('0x') ? pkStr.substring(2) : pkStr;
-                        pubKeyParam = cleanPk ? new Ed25519PublicKey(cleanPk) : null;
-                    }
-                }
-                if (!pubKeyParam) throw new Error("Could not extract public key from wallet object.");
-
-                const sigAny: any = signOutput.signature;
-                const sigStr = typeof sigAny === 'string' ? sigAny : sigAny?.toString('hex') || sigAny;
-                const finalSignature = typeof sigStr === 'string' && sigStr.startsWith('0x') ? sigStr.substring(2) : sigStr;
-
-                const proof = ace.ProofOfPermission.createAptos({
-                    userAddr: AccountAddress.fromString(account.address.toString()),
-                    publicKey: pubKeyParam as any,
-                    signature: finalSignature as any,
-                    fullMessage: signOutput.fullMessage as any,
-                });
-
-                const committee = new ace.Committee({
-                    workerEndpoints: [
-                    "https://ace-worker-0-646682240579.europe-west1.run.app",
-                    "https://ace-worker-1-646682240579.europe-west1.run.app",
-                    ],
-                    threshold: 2,
-                });
-
-                const decryptionKeyResult = await ace.DecryptionKey.fetch({
-                    committee,
-                    contractId: fullDecryptionDomain.contractId,
-                    domain: fullDecryptionDomain.domain,
-                    proof,
-                });
-
-                const decipheredResult = ace.decrypt({
-                    decryptionKey: decryptionKeyResult.unwrapOrThrow(new Error("Missing decryption key")),
-                    ciphertext: ace.Ciphertext.fromBytes(new Uint8Array(buffer)).unwrapOrThrow(new Error("Corrupted blob")),
-                });
-                
-                const finalBufferData = decipheredResult.unwrapOrThrow(new Error("Failed to decipher text"));
                 
                 const ext = displayName.split('.').pop()?.toLowerCase() || '';
                 const mimeMap: Record<string, string> = {
@@ -1335,6 +1269,10 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                     {isEncrypted ? (
                                         <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest ${encryptionKey ? 'text-green-400' : 'text-color-primary'}`}>
                                             <ShieldCheck size={10} /> {encryptionKey ? 'Decrypted' : 'Locked'}
+                                        </span>
+                                    ) : isAceEncrypted ? (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-blue-400">
+                                            <ShieldCheck size={10} /> ACE Secured
                                         </span>
                                     ) : (
                                         <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-yellow-400">
