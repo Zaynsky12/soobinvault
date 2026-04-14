@@ -2,7 +2,7 @@ import { Marketplace } from "../../components/Marketplace";
 
 export const metadata = {
   title: 'Marketplace | SoobinVault',
-  description: 'Discover and purchase decentralized AI datasets on the Shelby Protocol using Micropayments.',
+  description: 'Discover and purchase decentralized AI datasets on the Shelby Protocol using MicroPaylinks.',
 };
 
 export default function MarketplacePage() {

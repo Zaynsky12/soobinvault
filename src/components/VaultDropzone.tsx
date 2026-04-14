@@ -179,16 +179,17 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             // Re-show progress bar & set status
             setPendingUploads(null);
             // Keep currentFile and currentIndex from the last processed file 
-            // Convert Blobs to Uint8Arrays right before calling the SDK to meet strict type requirements 
-            const blobsForSdk = await Promise.all(backupBlobs.map(async (b) => ({
+            const blobsForSdk = backupBlobs.map((b) => ({
                 blobName: b.blobName,
-                blobData: new Uint8Array(await b.blobData.arrayBuffer())
-            })));
+                blobData: b.blobData instanceof Uint8Array ? b.blobData : new Uint8Array(0) // Should already be Uint8Array
+            }));
 
             const isMarket = uploadMode === 'micropayment';
             const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
-            // Heavily truncate description so that the combined blob_name does not exceed the database limit (VARCHAR 255)
-            const safeDesc = datasetDescription.slice(0, 30).replace(/[\r\n\t]+/g, ' ').replace(/--/g, ' ').trim() || "Untitled Dataset";
+            
+            // Re-confirm sanitization for deployment (redundant but safe)
+            const sanitize = (v: string, l: number) => v.slice(0, l).toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+            const safeDesc = sanitize(datasetDescription, 20) || "untitled";
 
             setUploadStatusText(isMarket ? "Step 1/2: Securing & storing ACE protected file..." : "Uploading to secure network...");
 
@@ -258,7 +259,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             functionArguments: [
                                 marketName,
                                 priceU64.toString(),
-                                datasetCategory,
+                                datasetCategory.toLowerCase(), // Force lowercase for consistency
                                 safeDesc,
                                 SHELBYUSD_FA_METADATA_ADDRESS
                             ]
@@ -317,7 +318,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
             // --- REDIRECT LOGIC REMOVED ---
             if (uploadMode === 'micropayment') {
-                toast.success("Micropayment links are ready to share!", { duration: 5000 });
+                toast.success("MicroPaylink handles are ready to share!", { duration: 5000 });
             }
         } catch (sdkError) {
             console.error("[Shelby SDK Error]", sdkError);
@@ -353,8 +354,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                 const committee = new ace.Committee({
                     workerEndpoints: [
-                        "https://ace-worker-0-646682240579.europe-west1.run.app",
-                        "https://ace-worker-1-646682240579.europe-west1.run.app",
+                        "https://ace-worker-0-646682240579.europe-west1.run.app/",
+                        "https://ace-worker-1-646682240579.europe-west1.run.app/",
                     ],
                     threshold: 2,
                 });
@@ -376,10 +377,20 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     setUploadStatusText(`Encrypting ${file.name} for Marketplace (${i + 1}/${files.length})...`);
 
                     const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
-                    const safeDesc = datasetDescription.slice(0, 30).replace(/[\r\n\t\s]+/g, '_').replace(/--/g, '-').trim() || "Untitled_Dataset";
-                    const safeOriginal = file.name.replace(/[\r\n\s]+/g, '_').trim().slice(-40);
-                    const safeCategory = datasetCategory.replace(/\s+/g, '_');
-                    const marketName = `sv_market--${safeCategory}--${effectivePrice}--${account?.address.toString()}--${safeDesc}--${safeOriginal}`;
+                    
+                    // Stricter sanitization for URL-safe blob names on Shelby nodes
+                    // REMOVED dots entirely from name segments and FORCED lowercase for perfect registry parity
+                    const sanitize = (v: string, l: number) => v.slice(0, l).toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+                    const safeDesc = sanitize(datasetDescription, 20) || "untitled";
+                    const safeCategory = sanitize(datasetCategory, 15) || "uncategorized";
+                    const safePrice = sanitize(effectivePrice, 10) || "0";
+                    
+                    // For original filename, replace dot with underscore and force lowercase
+                    const safeOriginal = sanitize(file.name, 30);
+
+                    // Use toStringLong() for perfect address parity (0x + 64 chars)
+                    const marketName = `sv_market--${safeCategory}--${safePrice}--${AccountAddress.fromString(account?.address.toString()).toStringLong()}--${safeDesc}--${safeOriginal}`;
+                    console.log(`[ACE] Encryption domain (marketName): ${marketName}`);
                     const domain = new TextEncoder().encode(marketName);
 
                     const fileBuffer = new Uint8Array(await file.arrayBuffer());
@@ -390,9 +401,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         plaintext: fileBuffer,
                     }).unwrapOrThrow(new Error("Encryption failed"));
 
+                    const cipherBytes = ciphertext.toBytes ? ciphertext.toBytes() : (ciphertext as any).bcsToBytes();
+                    console.log(`[ACE] Encrypted size: ${cipherBytes.length} bytes`);
+
                     blobs.push({
                         blobName: marketName,
-                        blobData: new Blob([ciphertext.toBytes ? ciphertext.toBytes() : (ciphertext as any).bcsToBytes()])
+                        blobData: cipherBytes
                     });
                     processedFiles.push(file);
 
@@ -618,7 +632,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         onClick={(e) => { e.stopPropagation(); setUploadMode('micropayment'); setEncryptionEnabled(false); }}
                                         className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${uploadMode === 'micropayment' ? 'bg-gradient-to-br from-color-primary to-color-accent text-white shadow-[0_0_15px_rgba(232,58,118,0.4)]' : 'text-white/40 hover:text-white/80'}`}
                                     >
-                                        <Banknote size={14} /> Micropayment
+                                        <Banknote size={14} /> MicroPaylink
                                     </button>
                                 </div>
 
@@ -898,7 +912,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     <CheckCircle size={48} strokeWidth={2} className="hidden md:block" />
                                 </div>
                                 <h3 className="text-xl md:text-3xl font-semibold mb-2 text-white">
-                                    {successCount} Asset{successCount !== 1 ? 's' : ''} Secured
+                                    {successCount} MicroPaylink{successCount !== 1 ? 's' : ''} Secured
                                 </h3>
                                 {failCount > 0 && (
                                     <div className="flex items-center gap-2 text-red-400 text-[10px] md:text-sm mb-2">
@@ -924,7 +938,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                                 {generatedLinks.length > 0 && (
                                     <div className="w-[80%] md:w-full max-w-sm md:max-w-md mx-auto mb-6 space-y-2 md:space-y-3">
-                                        <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-white/30 mb-2">Shareable Payment Links</p>
+                                        <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-white/30 mb-2">Shareable MicroPaylinks</p>
                                         {generatedLinks.map((link, idx) => {
                                             const fullUrl = `${window.location.origin}/buy/${encodeURIComponent(link.id)}`;
                                             return (
