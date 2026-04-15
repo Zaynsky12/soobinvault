@@ -118,7 +118,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         blobs: { blobName: string, blobData: Blob }[],
         files: File[]
     } | null>(null);
-    const [generatedLinks, setGeneratedLinks] = useState<{ name: string, id: string }[]>([]);
+    const [generatedLinks, setGeneratedLinks] = useState<{ name: string, id: string, seller?: string }[]>([]);
 
     const uploadBlobs = useUploadBlobs({});
 
@@ -196,7 +196,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             await uploadBlobs.mutateAsync({
                 signer: {
                     account: account.address.toString(),
-                    signAndSubmitTransaction: (tx: any) => {
+                    signAndSubmitTransaction: async (tx: any) => {
                         console.log("[Shelby] Wallet signing request (direct context):", tx);
 
                         // Update status when wallet is reached
@@ -206,16 +206,56 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             setUploadStatusText("Submitting to network...");
                         }
 
-                        // Defensive transaction cleaning
-                        const { sequence_number, ...cleanTx } = tx;
-
-                        // Social Login (Keyless) often requires the sender address for authorization
+                        // Protect transaction prototypes (e.g. SimpleTransaction) and handle sender rules
+                        let finalTx = tx;
                         const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
-                        const finalTx = isSocialLogin ? cleanTx : { ...cleanTx, sender: undefined };
+                        
+                        if (finalTx && typeof finalTx === 'object') {
+                            if ('sequence_number' in finalTx) delete finalTx.sequence_number;
+                            if (!isSocialLogin && 'sender' in finalTx) delete finalTx.sender;
+                        }
 
-                        const promise = signAndSubmitTransaction(finalTx);
-                        promise.then(res => { caughtResponse = res; });
-                        return promise as any;
+                        const response = await signAndSubmitTransaction(finalTx);
+                        caughtResponse = response;
+
+                        // FIX: Fire the 2nd transaction immediately here while we still have active user interaction context.
+                        // Waiting until uploadBlobs.mutateAsync finishes (seconds/minutes later) causes immediate "User rejected request"
+                        // due to background popup blockers intercepting the second prompt!
+                        if (isMarket) {
+                            setUploadStatusText("Step 2/2: Generating Secure Payment Link...");
+                            for (let i = 0; i < backupBlobs.length; i++) {
+                                const b = backupBlobs[i];
+                                const marketName = b.blobName;
+                                const priceU64 = Math.floor(parseFloat(effectivePrice) * 100_000_000);
+
+                                console.log(`[Marketplace] Registering listing: ${marketName} at ${effectivePrice} SUSD`);
+
+                                // Give the wallet 1 second to close the previous popup cleanly
+                                await new Promise(r => setTimeout(r, 1000));
+
+                                const mkPayload = {
+                                    data: {
+                                        function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::list_dataset`,
+                                        functionArguments: [
+                                            marketName,
+                                            priceU64.toString(),
+                                            datasetCategory.toLowerCase(),
+                                            safeDesc,
+                                            SHELBYUSD_FA_METADATA_ADDRESS
+                                        ]
+                                    }
+                                };
+                                
+                                const finalMkTx: any = { ...mkPayload };
+                                if (isSocialLogin) {
+                                    finalMkTx.sender = account.address;
+                                }
+                                await signAndSubmitTransaction(finalMkTx);
+                            }
+                            setUploadStatusText("Storing encrypted segments...");
+                        }
+
+                        return response;
                     },
                 },
                 blobs: backupBlobs.map((b, i) => {
@@ -239,35 +279,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             if (caughtResponse && (caughtResponse as any).hash) {
                 txHash = (caughtResponse as any).hash;
                 setLastTxHash(txHash || null);
-            }
-
-            // Step 2: Register in Aptos Marketplace Registry (Contract)
-            if (isMarket) {
-                setUploadStatusText("Step 2/2: Generating Secure Payment Link...");
-                for (let i = 0; i < backupBlobs.length; i++) {
-                    const b = backupBlobs[i];
-                    // The marketName was fully constructed in prepareUploads (which includes the sv_market prefix)
-                    const marketName = b.blobName;
-                    const priceU64 = Math.floor(parseFloat(effectivePrice) * 100_000_000);
-
-                    console.log(`[Marketplace] Registering listing: ${marketName} at ${effectivePrice} SUSD`);
-
-                    await signAndSubmitTransaction({
-                        sender: account.address,
-                        data: {
-                            function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::list_dataset`,
-                            functionArguments: [
-                                marketName,
-                                priceU64.toString(),
-                                datasetCategory.toLowerCase(), // Force lowercase for consistency
-                                safeDesc,
-                                SHELBYUSD_FA_METADATA_ADDRESS
-                            ]
-                        }
-                    });
-                }
-                // Invalidate Next.js cache
-                router.refresh();
             }
 
             // Optimistic Store for Marketplace specifically
@@ -307,7 +318,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             // Capture links for success view
             if (isMarket) {
                 const newLinks = backupBlobs.map((b, i) => {
-                    return { name: backupFiles[i].name, id: b.blobName };
+                    return { 
+                        name: backupFiles[i].name, 
+                        id: b.blobName, 
+                        seller: account.address.toString() 
+                    };
                 });
                 setGeneratedLinks(newLinks);
             }
@@ -388,8 +403,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     // For original filename, replace dot with underscore and force lowercase
                     const safeOriginal = sanitize(file.name, 30);
 
-                    // Use toStringLong() for perfect address parity (0x + 64 chars)
-                    const marketName = `sv_market--${safeCategory}--${safePrice}--${AccountAddress.fromString(account?.address.toString()).toStringLong()}--${safeDesc}--${safeOriginal}`;
+                    // Short, clean blob name with 8-char unique suffix for collision avoidance
+                    // Format: originalname_a3f7b2c1.svmarket
+                    // Metadata (price/category/description) is stored on-chain via list_dataset
+                    const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+                        .map(b => b.toString(16).padStart(2, '0')).join('');
+                    const marketName = `${safeOriginal}_${uniqueId}.svmarket`;
                     console.log(`[ACE] Encryption domain (marketName): ${marketName}`);
                     const domain = new TextEncoder().encode(marketName);
 
@@ -940,7 +959,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     <div className="w-[80%] md:w-full max-w-sm md:max-w-md mx-auto mb-6 space-y-2 md:space-y-3">
                                         <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-white/30 mb-2">Shareable MicroPaylinks</p>
                                         {generatedLinks.map((link, idx) => {
-                                            const fullUrl = `${window.location.origin}/buy/${encodeURIComponent(link.id)}`;
+                                            // Embed seller address into newly generated link for instant indexer bypass
+                                            const sellerQuery = link.seller ? `?s=${link.seller}` : '';
+                                            const fullUrl = `${window.location.origin}/buy/${encodeURIComponent(link.id)}${sellerQuery}`;
                                             return (
                                                 <div key={idx} className="flex items-center gap-2 md:gap-4 p-2 md:p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/10 group hover:border-yellow-500/30 transition-all backdrop-blur-sm">
                                                     <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-500 shrink-0">

@@ -1,11 +1,11 @@
 "use client";
 
 import Image from 'next/image';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient } from "@shelby-protocol/react";
-import { parseAssetId, handlePurchaseTransaction, downloadWithRetry } from '@/utils/payment';
+import { parseAssetId, handlePurchaseTransaction, downloadWithRetry, isSvMarketFile } from '@/utils/payment';
 import { decryptAceFile } from '@/utils/crypto';
 import { MARKETPLACE_REGISTRY_ADDRESS } from '@/lib/constants';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
@@ -46,6 +46,8 @@ export default function BuyPage() {
     const params = useParams();
     const router = useRouter();
     const { id } = params;
+    const searchParams = useSearchParams();
+    const sellerParam = searchParams.get('s');
     const { connected, account, signAndSubmitTransaction, disconnect, signMessage } = useWallet();
     const shelbyClient = useShelbyClient();
 
@@ -64,17 +66,34 @@ export default function BuyPage() {
     const blobName = decodeURIComponent(id as string);
     const metadata = useMemo(() => parseAssetId(blobName), [blobName]);
 
+    // For new .svmarket format: on-chain metadata overrides the parse-time placeholder
+    const [overrideMeta, setOverrideMeta] = useState<{
+        price: string;
+        category: string;
+        description: string;
+    } | null>(null);
+
+    // Effective metadata: blend parseAssetId result with on-chain data
+    const effectiveMetadata = useMemo(() => {
+        if (!metadata) return null;
+        if (!overrideMeta) return metadata;
+        return { ...metadata, ...overrideMeta };
+    }, [metadata, overrideMeta]);
+
+    // True once we know the price (avoids false "free" flash for new-format assets)
+    const metadataReady = !metadata?.isNewFormat || overrideMeta !== null;
+
     useEffect(() => {
         const checkAccess = async () => {
-            if (!metadata) return;
+            if (!effectiveMetadata || !metadataReady) return;
 
-            // 1. If price is 0, it's virtually "purchased" (free to all)
-            if (parseFloat(metadata.price) === 0) {
+            // If price is 0, it's free to all
+            if (parseFloat(effectiveMetadata.price) === 0) {
                 setPurchased(true);
                 return;
             }
 
-            // 2. If user is the seller/owner, they don't need to buy
+            // If user is the seller/owner, they don't need to buy
             if (connected && account && sellerAddress) {
                 const addrStr = account.address.toString();
                 if (addrStr === sellerAddress) {
@@ -85,12 +104,43 @@ export default function BuyPage() {
         };
 
         checkAccess();
-    }, [connected, account, metadata, sellerAddress]);
+    }, [connected, account, effectiveMetadata, metadataReady, sellerAddress]);
+
+    // For new .svmarket format: re-fetch real metadata from contract when seller is identified
+    useEffect(() => {
+        if (!metadata?.isNewFormat || !sellerAddress || overrideMeta?.price !== '…') return;
+        const fetchOnChainMeta = async () => {
+            try {
+                const storefront = await aptosClient.view({
+                    payload: {
+                        function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_storefront`,
+                        functionArguments: [sellerAddress]
+                    }
+                });
+                if (storefront && Array.isArray(storefront[0])) {
+                    const dataset = (storefront[0] as any[]).find(
+                        d => d.blob_name === blobName || d.blobName === blobName
+                    );
+                    if (dataset) {
+                        const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toString();
+                        setOverrideMeta({
+                            price: priceDecimal,
+                            category: dataset.category || 'Dataset',
+                            description: dataset.description || '',
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('[Buy] Retry metadata fetch failed:', e);
+            }
+        };
+        fetchOnChainMeta();
+    }, [sellerAddress, metadata?.isNewFormat, overrideMeta?.price, blobName]);
 
     useEffect(() => {
         const init = async () => {
             if (!metadata) {
-                setError("Invalid asset link.");
+                setError('Invalid asset link.');
                 setLoading(false);
                 return;
             }
@@ -100,6 +150,9 @@ export default function BuyPage() {
                 if (metadata.seller) {
                     console.log("[Buy] Instant seller detected in link:", metadata.seller);
                     setSellerAddress(metadata.seller);
+                } else if (sellerParam) {
+                    console.log("[Buy] Instant seller detected in query param:", sellerParam);
+                    setSellerAddress(sellerParam);
                 }
 
                 // Fetch asset stats to find the owner or confirm metadata
@@ -117,7 +170,7 @@ export default function BuyPage() {
                     if (owner) setSellerAddress(owner);
                     setIsIndexerLag(false);
 
-                    // VERIFY LISTING STATUS IN SMART CONTRACT
+                    // VERIFY LISTING STATUS IN SMART CONTRACT + fetch on-chain metadata for new format
                     if (owner) {
                         try {
                             const storefront = await aptosClient.view({
@@ -126,17 +179,28 @@ export default function BuyPage() {
                                     functionArguments: [owner]
                                 }
                             });
-                            
+
                             if (storefront && Array.isArray(storefront[0])) {
-                                const isListed = (storefront[0] as any[]).some(d => d.blob_name === blobName || d.blobName === blobName);
-                                if (!isListed) {
-                                    setError("This payment link is inactive or has been deleted.");
+                                const dataset = (storefront[0] as any[]).find(
+                                    d => d.blob_name === blobName || d.blobName === blobName
+                                );
+                                if (!dataset) {
+                                    setError('This payment link is inactive or has been deleted.');
                                     setLoading(false);
                                     return;
                                 }
+                                // For new .svmarket format: extract real metadata from contract
+                                if (metadata.isNewFormat && dataset) {
+                                    const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toString();
+                                    setOverrideMeta({
+                                        price: priceDecimal,
+                                        category: dataset.category || 'Dataset',
+                                        description: dataset.description || '',
+                                    });
+                                }
                             }
                         } catch (contractErr) {
-                            console.warn("[Buy] Contract verification failed (ignoring for resilience):", contractErr);
+                            console.warn('[Buy] Contract verification failed (ignoring for resilience):', contractErr);
                         }
                     }
                 } else if (metadata.seller) {
@@ -145,31 +209,34 @@ export default function BuyPage() {
                 }
 
                 // FETCH SELLER PROFILE FOR TRUST CARD
-                if (metadata.seller || sellerAddress) {
-                    const target = sellerAddress || metadata.seller;
-                    try {
-                        const profile = await aptosClient.view({
-                            payload: {
-                                function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_profile`,
-                                functionArguments: [target]
+                if (metadata.seller || sellerAddress || sellerParam) {
+                    const target = sellerAddress || metadata.seller || sellerParam;
+                    if (target) {
+                        try {
+                            const profile = await aptosClient.view({
+                                payload: {
+                                    function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_profile`,
+                                    functionArguments: [target]
+                                }
+                            });
+                            if (profile && profile[0]) {
+                                setXHandle(profile[0] as string);
+                                setIsVerified(profile[1] as boolean);
                             }
-                        });
-                        if (profile && profile[0]) {
-                            setXHandle(profile[0] as string);
-                            setIsVerified(profile[1] as boolean);
+                        } catch (e) {
+                            console.warn("[Buy] Profile fetch failed:", e);
                         }
-                    } catch (e) {
-                        console.warn("[Buy] Profile fetch failed:", e);
                     }
                 }
 
-                // VERIFY LISTING STATUS VIA LINK METADATA SELLER
-                if (metadata.seller) {
+                // VERIFY LISTING STATUS VIA LINK METADATA SELLER OR PARAM
+                const fallbackSeller = metadata.seller || sellerParam;
+                if (fallbackSeller) {
                     try {
                         const storefront = await aptosClient.view({
                             payload: {
                                 function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::get_user_storefront`,
-                                functionArguments: [metadata.seller]
+                                functionArguments: [fallbackSeller]
                             }
                         });
                         
@@ -179,6 +246,19 @@ export default function BuyPage() {
                                 setError("This payment link is inactive or has been deleted.");
                                 setLoading(false);
                                 return;
+                            }
+                            
+                            // Load missing metadata since we have the contract storefront!
+                            if (metadata.isNewFormat) {
+                                const dataset = (storefront[0] as any[]).find(d => d.blob_name === blobName || d.blobName === blobName);
+                                if (dataset) {
+                                    const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toString();
+                                    setOverrideMeta({
+                                        price: priceDecimal,
+                                        category: dataset.category || 'Dataset',
+                                        description: dataset.description || '',
+                                    });
+                                }
                             }
                         }
                     } catch (contractErr) {
@@ -197,6 +277,15 @@ export default function BuyPage() {
             } catch (err) {
                 console.error("Discovery failed, but link might still work:", err);
             } finally {
+                // For new .svmarket format: guarantee metadataReady becomes true so the page
+                // can render. If we got real on-chain metadata it won't be overwritten.
+                if (metadata?.isNewFormat) {
+                    setOverrideMeta(prev => prev ?? {
+                        price: '…',          // placeholder until wallet connects & storefront loads
+                        category: 'Dataset',
+                        description: '',
+                    });
+                }
                 setLoading(false);
             }
         };
@@ -210,12 +299,12 @@ export default function BuyPage() {
             return;
         }
 
-        if (!metadata) return;
+        if (!effectiveMetadata) return;
 
         setPurchasing(true);
         try {
             // Final verification of seller address
-            let finalSeller = sellerAddress;
+            let finalSeller = sellerAddress || sellerParam;
             
             if (!finalSeller) {
                 const results = await shelbyClient.coordination.getBlobs({
@@ -236,7 +325,7 @@ export default function BuyPage() {
                 signAndSubmitTransaction,
                 finalSeller,
                 blobName,
-                metadata.price
+                effectiveMetadata?.price ?? '0'
             );
 
             if (response && response.hash) {
@@ -264,7 +353,7 @@ export default function BuyPage() {
     };
 
     const handleDownload = async (owner: string) => {
-        if (!metadata) return;
+        if (!effectiveMetadata) return;
         setDownloading(true);
         try {
             const buffer = await downloadWithRetry(shelbyClient, owner, blobName);
@@ -272,9 +361,9 @@ export default function BuyPage() {
             
             let finalBufferData: Uint8Array = new Uint8Array(buffer);
 
-            // ACE DECRYPTION
-            if (blobName.startsWith("sv_market--") || blobName.startsWith("sv_market::")) {
-                toast.loading("Verifying permission & deciphering via ACE...", { id: "decryption-status" });
+            // ACE DECRYPTION — handles both old sv_market-- and new .svmarket format
+            if (isSvMarketFile(blobName)) {
+                toast.loading('Verifying permission & deciphering via ACE...', { id: 'decryption-status' });
                 try {
                     finalBufferData = await decryptAceFile({
                         rawBuffer: finalBufferData,
@@ -282,9 +371,9 @@ export default function BuyPage() {
                         account: account,
                         signMessage: signMessage
                     });
-                    toast.success("File deciphered successfully!", { id: "decryption-status" });
+                    toast.success('File deciphered successfully!', { id: 'decryption-status' });
                 } catch (aceErr: any) {
-                    toast.error(aceErr.message || "Failed to decipher file.", { id: "decryption-status" });
+                    toast.error(aceErr.message || 'Failed to decipher file.', { id: 'decryption-status' });
                     throw aceErr;
                 }
             }
@@ -294,7 +383,7 @@ export default function BuyPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = metadata.title;
+            a.download = effectiveMetadata?.title || blobName;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -309,7 +398,7 @@ export default function BuyPage() {
         }
     };
 
-    if (loading) return (
+    if (loading || (metadata?.isNewFormat && !metadataReady)) return (
         <div className="min-h-screen flex items-center justify-center bg-[#050505] overflow-hidden">
             <div className="relative">
                 <div className="w-24 h-24 border-2 border-yellow-500/20 rounded-full animate-ping" />
@@ -320,7 +409,7 @@ export default function BuyPage() {
         </div>
     );
 
-    if (error || !metadata) return (
+    if (error || !effectiveMetadata) return (
          <div className="min-h-screen flex items-center justify-center bg-[#050505] px-6">
             <GlassCard className="max-w-md p-10 text-center border-red-500/30">
                 <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
@@ -439,18 +528,18 @@ export default function BuyPage() {
                                     <div className="flex-1 space-y-3 sm:space-y-6 min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <div className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em]">
-                                                {metadata.category}
+                                                {effectiveMetadata.category || 'Dataset'}
                                             </div>
                                         </div>
 
                                         <h1 className="text-xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.1] sm:leading-[0.9] break-words">
-                                            {metadata.title}
+                                            {effectiveMetadata.title}
                                         </h1>
 
                                         <div className="flex items-start gap-3 sm:gap-4 text-white/40">
                                             <div className="mt-1.5 w-6 sm:w-16 h-[1px] bg-indigo-500/50 shrink-0" />
                                             <p className="text-[10px] sm:text-base lg:text-xl font-medium leading-relaxed max-w-2xl italic line-clamp-2 sm:line-clamp-none">
-                                                {metadata.description || "The owner has designated this asset as priority-access."}
+                                                {effectiveMetadata.description || 'The owner has designated this asset as priority-access.'}
                                             </p>
                                         </div>
                                     </div>
@@ -463,7 +552,7 @@ export default function BuyPage() {
                                                 <div>
                                                     <p className="text-[6px] sm:text-[10px] font-black uppercase tracking-[0.3em] mb-1 sm:mb-2 text-indigo-200/60">Asset Price</p>
                                                     <div className="flex items-baseline justify-center gap-1 sm:gap-2">
-                                                        <span className="text-xl sm:text-6xl lg:text-7xl font-black tracking-tight">{metadata.price}</span>
+                                                        <span className="text-xl sm:text-6xl lg:text-7xl font-black tracking-tight">{effectiveMetadata.price}</span>
                                                         <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200">SUSD</span>
                                                     </div>
                                                 </div>

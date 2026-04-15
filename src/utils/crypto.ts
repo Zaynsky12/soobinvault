@@ -1,6 +1,24 @@
 // Implements client-side AES-256-GCM encryption and robust ACE decryption normalization.
 import { ace } from "@aptos-labs/ace-sdk";
-import { AccountAddress, Ed25519PublicKey, Ed25519Signature } from "@aptos-labs/ts-sdk";
+import {
+    AccountAddress,
+    AccountPublicKey,
+    AnyPublicKey,
+    AnySignature,
+    Aptos,
+    AptosConfig,
+    Deserializer,
+    Ed25519PublicKey,
+    Ed25519Signature,
+    KeylessPublicKey,
+    FederatedKeylessPublicKey,
+    KeylessSignature,
+    MultiEd25519PublicKey,
+    MultiEd25519Signature,
+    MultiKey,
+    MultiKeySignature,
+    Network,
+} from "@aptos-labs/ts-sdk";
 import { MARKETPLACE_REGISTRY_ADDRESS } from "../lib/constants";
 
 const ITERATIONS = 100000;
@@ -209,8 +227,11 @@ export async function decryptAceFile({
             functionName: "check_permission",
         });
 
-        // CANONICAL: Ensure the domain is strictly lowercase to match registry parity
-        const canonicalBlobName = blobName.toLowerCase();
+        // DOMAIN PARITY: Use the blobName exactly as stored during encryption & registration.
+        // The ACE encryption domain in VaultDropzone.tsx uses the raw marketName (NOT lowercased).
+        // The BlobOwnership table stores it as-is via list_dataset.
+        // Forcing .toLowerCase() here would produce mismatched domain bytes → check_permission returns false.
+        const canonicalBlobName = blobName; // Preserve original casing for domain byte parity
         const domain = new TextEncoder().encode(canonicalBlobName);
         const fullDecryptionDomain = new ace.FullDecryptionDomain({ contractId, domain });
         
@@ -241,137 +262,161 @@ export async function decryptAceFile({
             throw signErr;
         }
 
-        // 2. Normalize Public Key (Fixes "unsupported public key type" errors)
-        let rawPubKeyBytes: Uint8Array | null = null;
-        
-        if (account && account.publicKey) {
-            const pk: any = account.publicKey;
-            if (pk instanceof Uint8Array) {
-                rawPubKeyBytes = pk;
-            } else if (typeof pk.toUint8Array === 'function') {
-                rawPubKeyBytes = pk.toUint8Array();
-            } else if (typeof pk === 'string') {
-                const cleanHex = pk.startsWith('0x') ? pk.substring(2) : pk;
-                rawPubKeyBytes = new Uint8Array(cleanHex.match(/.{1,2}/g)!.map((byte: string) => parseInt(byte, 16)));
-            } else if (pk && typeof pk.toString === 'function') {
-                const s = pk.toString();
-                if (s && s !== "[object Object]") {
-                    const cleanHex = s.startsWith('0x') ? s.substring(2) : s;
-                    if (/^[0-9a-fA-F]+$/.test(cleanHex)) {
-                        rawPubKeyBytes = new Uint8Array(cleanHex.match(/.{1,2}/g)!.map((byte: string) => parseInt(byte, 16)));
+        // 2. Resolve Public Key
+        // STRATEGY: The wallet adapter's account.publicKey is ALREADY a properly typed
+        // SDK object (Ed25519PublicKey, AnyPublicKey, KeylessPublicKey, etc.).
+        // The ACE SDK performs strict instanceof checks — duck-typed objects WILL fail.
+        // We MUST pass a real instance of a recognized class.
+        let robustPubKey: AccountPublicKey;
+
+        const rawPK: any = account.publicKey;
+        console.log(`[ACE Debug] account.publicKey type: ${rawPK?.constructor?.name || typeof rawPK}`);
+
+        if (
+            rawPK instanceof Ed25519PublicKey ||
+            rawPK instanceof AnyPublicKey ||
+            rawPK instanceof MultiEd25519PublicKey ||
+            rawPK instanceof MultiKey ||
+            rawPK instanceof KeylessPublicKey ||
+            rawPK instanceof FederatedKeylessPublicKey
+        ) {
+            // Already a proper typed instance — pass it directly.
+            console.log("[ACE Debug] account.publicKey is already a recognized ACE-compatible type. Using directly.");
+            robustPubKey = rawPK;
+        } else {
+            // Fallback: extract raw bytes and reconstruct
+            console.log("[ACE Debug] account.publicKey is not a recognized type. Extracting bytes to reconstruct.");
+            let rawPubKeyBytes: Uint8Array | null = null;
+            if (rawPK instanceof Uint8Array) {
+                rawPubKeyBytes = rawPK;
+            } else if (typeof rawPK?.toUint8Array === 'function') {
+                rawPubKeyBytes = rawPK.toUint8Array();
+            } else if (typeof rawPK === 'string') {
+                const h = rawPK.startsWith('0x') ? rawPK.substring(2) : rawPK;
+                rawPubKeyBytes = new Uint8Array(h.match(/.{1,2}/g)!.map((b: string) => parseInt(b, 16)));
+            } else if (typeof rawPK?.toString === 'function') {
+                const s = rawPK.toString();
+                if (s && s !== '[object Object]') {
+                    const h = s.startsWith('0x') ? s.substring(2) : s;
+                    if (/^[0-9a-fA-F]+$/.test(h)) {
+                        rawPubKeyBytes = new Uint8Array(h.match(/.{1,2}/g)!.map((b: string) => parseInt(b, 16)));
                     }
                 }
             }
-        }
-        
-        if (!rawPubKeyBytes) throw new Error("Could not extract raw public key bytes from wallet.");
-        
-        console.log(`[ACE Debug] Extracted Public Key bytes (Length: ${rawPubKeyBytes.length})`);
+            if (!rawPubKeyBytes) throw new Error('Could not extract public key bytes from wallet.');
+            console.log(`[ACE Debug] Extracted key bytes: ${rawPubKeyBytes.length} bytes`);
 
-        // SMART HANDLING: 
-        // 1. Standard Ed25519 (32 bytes) or prefixed Ed25519 (33 bytes with 0x00)
-        // 2. Large Keys (Keyless/Multi-sig/Single-key-wrapped) - DO NOT SLICE these!
-        let robustPubKey: any;
-        
-        if (rawPubKeyBytes.length === 32) {
-            robustPubKey = new Ed25519PublicKey(rawPubKeyBytes);
-        } else if (rawPubKeyBytes.length === 33 && rawPubKeyBytes[0] === 0x00) {
-            console.log("[ACE Debug] Slicing 33-byte prefixed Ed25519 key.");
-            robustPubKey = new Ed25519PublicKey(rawPubKeyBytes.slice(1));
-        } else {
-            // Advanced Signature Type (Keyless, etc.)
-            console.log("[ACE Debug] Advanced Public Key detected. Passing through full bytes.");
-            // We instantiate as Ed25519 to satisfy ACE SDK's type checks, but with FULL bytes.
-            robustPubKey = new Ed25519PublicKey(rawPubKeyBytes);
-        }
-        
-        // POLYFILL: ACE SDK (specifically getPublicKeyScheme) expects these legacy markers
-        (robustPubKey as any).type = 0;
-        (robustPubKey as any).scheme = 0;
-        (robustPubKey as any)._type = "Ed25519";
-        (robustPubKey as any).kind = 0;
-        (robustPubKey as any).identifier = "Ed25519";
-        if (!(robustPubKey as any).getScheme) (robustPubKey as any).getScheme = () => 0;
-
-        console.log("[ACE Debug] Key Handling: Instantiated Ed25519PublicKey with polyfill markers.");
-
-        // 3. Normalize Signature
-        const sigAny: any = signOutput.signature;
-        let rawSigBytes: Uint8Array | null = null;
-        
-        if (typeof sigAny === 'string') {
-            const cleanHex = sigAny.startsWith('0x') ? sigAny.substring(2) : sigAny;
-            rawSigBytes = new Uint8Array(cleanHex.match(/.{1,2}/g)!.map((byte: string) => parseInt(byte, 16)));
-        } else if (sigAny instanceof Uint8Array) {
-            rawSigBytes = sigAny;
-        } else if (Array.isArray(sigAny)) {
-            rawSigBytes = new Uint8Array(sigAny);
-        } else if (sigAny && typeof sigAny.toUint8Array === 'function') {
-            rawSigBytes = sigAny.toUint8Array();
-        } else if (sigAny && typeof sigAny.toString === 'function') {
-            const s = sigAny.toString();
-            if (s && s !== "[object Object]") {
-                const cleanHex = s.startsWith('0x') ? s.substring(2) : s;
-                if (/^[0-9a-fA-F]+$/.test(cleanHex)) {
-                    rawSigBytes = new Uint8Array(cleanHex.match(/.{1,2}/g)!.map((byte: string) => parseInt(byte, 16)));
+            if (rawPubKeyBytes.length === 32) {
+                robustPubKey = new Ed25519PublicKey(rawPubKeyBytes);
+            } else if (rawPubKeyBytes.length === 33 && rawPubKeyBytes[0] === 0x00) {
+                robustPubKey = new Ed25519PublicKey(rawPubKeyBytes.slice(1));
+            } else {
+                // Try to deserialize as AnyPublicKey from BCS bytes (wallet may give BCS-encoded key)
+                try {
+                    const deser = new Deserializer(rawPubKeyBytes);
+                    robustPubKey = deser.deserialize(AnyPublicKey);
+                    console.log("[ACE Debug] Deserialized AnyPublicKey from raw bytes.");
+                } catch {
+                    // Last resort: wrap a dummy 32-byte key in Ed25519 (will fail auth check, but gets past scheme check)
+                    console.warn("[ACE Debug] Cannot reconstruct key from bytes — using placeholder Ed25519 key for scheme resolution.");
+                    robustPubKey = new Ed25519PublicKey(rawPubKeyBytes.slice(0, 32));
                 }
             }
         }
 
-        if (!rawSigBytes) throw new Error("Could not extract raw signature bytes from wallet.");
-        
-        console.log(`[ACE Debug] Extracted Signature bytes (Length: ${rawSigBytes.length})`);
+        console.log(`[ACE Debug] Final public key type: ${robustPubKey?.constructor?.name}`);
 
-        // SMART HANDLING:
-        // 1. Standard Ed25519 (64 bytes) or prefixed Ed25519 (65 bytes with 0x00)
-        // 2. Large Signatures (Keyless ZK Proofs, etc.) - DO NOT SLICE these!
+        // 3. Normalize Signature
+        // STRATEGY: Similarly, try to use the sign output's typed object first.
+        // Then try BCS deserialization as AnySignature. Fall back to Ed25519Signature.
+        const sigOutputRaw: any = signOutput.signature;
+        console.log(`[ACE Debug] signOutput.signature type: ${sigOutputRaw?.constructor?.name || typeof sigOutputRaw}`);
+
         let robustSignature: any;
 
-        if (rawSigBytes.length === 64) {
-            robustSignature = new Ed25519Signature(rawSigBytes);
-        } else if (rawSigBytes.length === 65 && rawSigBytes[0] === 0x00) {
-            console.log("[ACE Debug] Slicing 65-byte prefixed Ed25519 signature.");
-            robustSignature = new Ed25519Signature(rawSigBytes.slice(1));
+        if (
+            sigOutputRaw instanceof Ed25519Signature ||
+            sigOutputRaw instanceof AnySignature ||
+            sigOutputRaw instanceof MultiEd25519Signature ||
+            sigOutputRaw instanceof MultiKeySignature ||
+            sigOutputRaw instanceof KeylessSignature
+        ) {
+            // Already a proper typed signature object — pass directly.
+            console.log("[ACE Debug] signOutput.signature is already a recognized ACE-compatible type. Using directly.");
+            robustSignature = sigOutputRaw;
         } else {
-            console.log("[ACE Debug] Advanced Signature detected (Keyless/Large). Preserving whole proof.");
-            // Instantiate as Ed25519Signature with FULL bytes to satisfy SDK constructor checks
-            robustSignature = new Ed25519Signature(rawSigBytes);
-        }
-        
-        // POLYFILL: ACE SDK expects these markers for getSignatureScheme
-        (robustSignature as any).type = 0; 
-        (robustSignature as any)._type = "Ed25519";
-        (robustSignature as any).identifier = "Ed25519";
-        (robustSignature as any).scale_type = "Ed25519Signature";
+            // Extract raw bytes from whatever format the wallet returns
+            let rawSigBytes: Uint8Array | null = null;
+            if (typeof sigOutputRaw === 'string') {
+                const h = sigOutputRaw.startsWith('0x') ? sigOutputRaw.substring(2) : sigOutputRaw;
+                rawSigBytes = new Uint8Array(h.match(/.{1,2}/g)!.map((b: string) => parseInt(b, 16)));
+            } else if (sigOutputRaw instanceof Uint8Array) {
+                rawSigBytes = sigOutputRaw;
+            } else if (Array.isArray(sigOutputRaw)) {
+                rawSigBytes = new Uint8Array(sigOutputRaw);
+            } else if (typeof sigOutputRaw?.toUint8Array === 'function') {
+                rawSigBytes = sigOutputRaw.toUint8Array();
+            } else if (typeof sigOutputRaw?.bcsToBytes === 'function') {
+                rawSigBytes = sigOutputRaw.bcsToBytes();
+            } else if (typeof sigOutputRaw?.toString === 'function') {
+                const s = sigOutputRaw.toString();
+                if (s && s !== '[object Object]') {
+                    const h = s.startsWith('0x') ? s.substring(2) : s;
+                    if (/^[0-9a-fA-F]+$/.test(h)) {
+                        rawSigBytes = new Uint8Array(h.match(/.{1,2}/g)!.map((b: string) => parseInt(b, 16)));
+                    }
+                }
+            }
 
-        console.log("[ACE Debug] Signature Handling: Instantiated Ed25519Signature with polyfill markers.");
+            if (!rawSigBytes) throw new Error('Could not extract signature bytes from wallet.');
+            console.log(`[ACE Debug] Extracted signature bytes: ${rawSigBytes.length} bytes`);
+
+            if (rawSigBytes.length === 64) {
+                robustSignature = new Ed25519Signature(rawSigBytes);
+                console.log("[ACE Debug] Constructed Ed25519Signature (64 bytes).");
+            } else if (rawSigBytes.length === 65 && rawSigBytes[0] === 0x00) {
+                robustSignature = new Ed25519Signature(rawSigBytes.slice(1));
+                console.log("[ACE Debug] Constructed Ed25519Signature (sliced 65-byte prefixed).");
+            } else {
+                // Try BCS-deserializing as AnySignature (Keyless wallets often return a BCS-encoded AnySignature)
+                try {
+                    const deser = new Deserializer(rawSigBytes);
+                    robustSignature = deser.deserialize(AnySignature);
+                    console.log(`[ACE Debug] Deserialized AnySignature from bytes (variant: ${robustSignature.variant}).`);
+                } catch (deserErr) {
+                    // Last resort: truncate or pad to 64 bytes for Ed25519Signature
+                    console.warn('[ACE Debug] AnySignature deserialization failed, using Ed25519Signature fallback.');
+                    const sig64 = new Uint8Array(64);
+                    sig64.set(rawSigBytes.slice(0, Math.min(64, rawSigBytes.length)));
+                    robustSignature = new Ed25519Signature(sig64);
+                }
+            }
+        }
+
+        console.log(`[ACE Debug] Final signature type: ${robustSignature?.constructor?.name}`);
 
         // 4. Create Proof of Permission
-        // RECONSTRUCTION & VERIFICATION:
         // We MUST use the exact fullMessage that the wallet signed.
-        // If the wallet (like Petra) provides it, we use it directly. This is the gold standard for signature parity.
-        // Otherwise, we fall back to manual reconstruction using Aptos standard prefixes (AIP-26).
-        let finalFullMessage: string = "";
-        
-        if (signOutput && (signOutput as any).fullMessage) {
-            finalFullMessage = (signOutput as any).fullMessage;
-            console.log("[ACE Debug] Using wallet-provided fullMessage (Signature Parity Guaranteed).");
+        // If the wallet (like Petra) provides it, we use it directly.
+        // Otherwise, we reconstruct manually using Aptos standard prefixes (AIP-26).
+        let finalFullMessage: string = '';
+
+        if (signOutput?.fullMessage) {
+            finalFullMessage = signOutput.fullMessage;
+            console.log('[ACE Debug] Using wallet-provided fullMessage (Signature Parity Guaranteed).');
         } else {
-            console.log("[ACE Debug] Wallet did not provide fullMessage; reconstructing manually...");
+            console.log('[ACE Debug] Wallet did not provide fullMessage; reconstructing manually...');
             const msg = fullDecryptionDomain.toPrettyMessage();
-            const nonce = ""; // Matches the empty nonce used in signMessage call above
-            finalFullMessage = `APTOS\nmessage: ${msg}\nnonce: ${nonce}`;
+            finalFullMessage = `APTOS\nmessage: ${msg}\nnonce: `;
         }
 
-        // Get signature as hex string (required for some SDK constructor internal parsing)
-        const signatureHex = Array.from(rawSigBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-        const finalSignature = signatureHex.startsWith('0x') ? signatureHex : `0x${signatureHex}`;
-
-        console.log("[ACE Debug] Proof payload parameters:", {
+        console.log('[ACE Debug] Proof payload parameters:', {
             address: AccountAddress.fromString(account.address.toString()).toStringLong(),
             hasFullMessage: !!finalFullMessage,
             messageLength: finalFullMessage.length,
-            canonicalBlobName
+            canonicalBlobName,
+            pubKeyType: robustPubKey?.constructor?.name,
+            sigType: robustSignature?.constructor?.name,
         });
 
         const proof = ace.ProofOfPermission.createAptos({
@@ -381,9 +426,44 @@ export async function decryptAceFile({
             fullMessage: finalFullMessage,
         });
 
-        console.log("[ACE Debug] Proof of Permission created. Fetching key from committee...");
+        // 5. PRE-FLIGHT: Verify contract check_permission returns true BEFORE calling ACE workers.
+        //    This isolates domain/ownership errors from signature errors.
+        try {
+            const aptosClient = new Aptos(new AptosConfig({ network: Network.TESTNET }));
+            const permCheck = await aptosClient.view({
+                payload: {
+                    function: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::check_permission`,
+                    typeArguments: [],
+                    functionArguments: [
+                        AccountAddress.fromString(account.address.toString()),
+                        domain,
+                    ],
+                },
+            });
+            console.log('[ACE Debug] Pre-flight check_permission result:', permCheck);
+            if (permCheck[0] !== true) {
+                throw new Error(
+                    `Contract denied access for "${canonicalBlobName}".
+` +
+                    `User ${account.address.toString()} has not purchased or listed this asset. ` +
+                    `Please ensure the correct asset ID is being used.`
+                );
+            }
+            console.log('[ACE Debug] Contract pre-flight PASSED. Proceeding to ACE committee...');
+        } catch (preflightErr: any) {
+            // Only rethrow if it's a permission denial (not a view-call infra error)
+            if (
+                preflightErr.message?.includes('Contract denied') ||
+                preflightErr.message?.includes('has not purchased')
+            ) {
+                throw preflightErr;
+            }
+            console.warn('[ACE Debug] Pre-flight check skipped (non-critical error):', preflightErr?.message);
+        }
 
-        // 5. Fetch Decryption Key from Committee
+        console.log('[ACE Debug] Proof of Permission created. Fetching key from committee...');
+
+        // 6. Fetch Decryption Key from Committee
         const decryptionKeyResult = await ace.DecryptionKey.fetch({
             committee,
             contractId,
@@ -391,15 +471,33 @@ export async function decryptAceFile({
             proof,
         });
 
-        // 6. Decrypt Ciphertext
+        // Log the full result for diagnosis before unwrapping
+        if (!decryptionKeyResult.isOk) {
+            console.error('[ACE Debug] DecryptionKey.fetch FAILED.');
+            console.error('[ACE Debug] Error:', decryptionKeyResult.errValue);
+            console.error('[ACE Debug] Extra (worker responses):', JSON.stringify((decryptionKeyResult as any).extra));
+            console.error('[ACE Debug] Proof hex (send to ACE team for debugging):',
+                `publicKeyType=${robustPubKey?.constructor?.name}`,
+                `signatureType=${robustSignature?.constructor?.name}`,
+                `fullMsgPreview=${finalFullMessage.substring(0, 80)}`
+            );
+        }
+
+        // 7. Decrypt Ciphertext
         const decipheredResult = ace.decrypt({
-            decryptionKey: decryptionKeyResult.unwrapOrThrow(new Error("Missing decryption key")),
-            ciphertext: ace.Ciphertext.fromBytes(rawBuffer).unwrapOrThrow(new Error("Corrupted or invalid encrypted blob on network")),
+            decryptionKey: decryptionKeyResult.unwrapOrThrow(new Error(
+                'ACE committee rejected proof. Possible causes:\n' +
+                '1. Wallet public key / signature mismatch (try Petra wallet instead of Aptos Connect)\n' +
+                '2. Asset was not listed via list_dataset (domain mismatch)\n' +
+                '3. ACE worker unreachable (check network/CORS)\n' +
+                'See console for diagnostic details.'
+            )),
+            ciphertext: ace.Ciphertext.fromBytes(rawBuffer).unwrapOrThrow(new Error('Corrupted or invalid encrypted blob on network')),
         });
-        
-        return decipheredResult.unwrapOrThrow(new Error("Failed to decipher text"));
+
+        return decipheredResult.unwrapOrThrow(new Error('Failed to decipher text'));
     } catch (aceError: any) {
-        console.error("[ACE Decryption Utility Error]", aceError);
-        throw new Error(aceError.message || "Failed to decipher dataset. Ensure you have purchased it or are the owner.");
+        console.error('[ACE Decryption Utility Error]', aceError);
+        throw new Error(aceError.message || 'Failed to decipher dataset. Ensure you have purchased it or are the owner.');
     }
 }

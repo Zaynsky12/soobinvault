@@ -21,6 +21,7 @@ import { getFileType } from '../utils/file';
 import { MARKETPLACE_REGISTRY_ADDRESS } from '../lib/constants';
 import { ace } from "@aptos-labs/ace-sdk";
 import { AccountAddress, Ed25519PublicKey } from "@aptos-labs/ts-sdk";
+import { isSvMarketFile, getSvMarketDisplayName } from '../utils/payment';
 
 // Register GSAP plugins
 if (typeof window !== 'undefined') {
@@ -127,10 +128,9 @@ export function Dashboard() {
             const nameMatch = nameStr.match(/^@([^/]+)\/(.+)$/);
             let nameOnly = nameMatch ? nameMatch[2] : (asset.blobNameSuffix || nameStr);
             
-            // Strip sv_market prefix for display if present
-            if (nameOnly.startsWith('sv_market--')) {
-                const parts = nameOnly.split('--');
-                nameOnly = parts[parts.length - 1];
+            // Strip market prefix / suffix for display
+            if (isSvMarketFile(nameOnly)) {
+                nameOnly = getSvMarketDisplayName(nameOnly);
             }
 
             const decryptedName = decryptedNames[nameOnly];
@@ -194,7 +194,7 @@ export function Dashboard() {
             toast.loading(`Deleting ${selectedAsset.name}...`, { id: 'delete-blob-modal' });
 
             // If it's a marketplace listing, delist it from the smart contract first!
-            if (nameSuffix.startsWith('sv_market--')) {
+            if (isSvMarketFile(nameSuffix)) {
                 // Ghost Buster Pre-Check for Vault
                 let inContract = false;
                 try {
@@ -255,10 +255,14 @@ export function Dashboard() {
                     account: account.address.toString(),
                     signAndSubmitTransaction: (tx: any) => {
                         console.log("[Shelby] Deletion request signature:", tx);
-                        const { sequence_number, ...cleanTx } = tx;
-
+                        
+                        let finalTx = tx;
                         const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
-                        const finalTx = isSocialLogin ? cleanTx : { ...cleanTx, sender: undefined };
+
+                        if (finalTx && typeof finalTx === 'object') {
+                            if ('sequence_number' in finalTx) delete finalTx.sequence_number;
+                            if (!isSocialLogin && 'sender' in finalTx) delete finalTx.sender;
+                        }
 
                         return signAndSubmitTransaction(finalTx);
                     },
@@ -668,17 +672,13 @@ export function Dashboard() {
                                     
                                     // Determine encryption status BEFORE we potentially modify nameOnly for display
                                     const isEncrypted = nameOnly.endsWith('.vault');
-                                    const isAceEncrypted = !isEncrypted && (isMarketAsset || nameOnly.startsWith('sv_market--'));
-                                    
-                                    // Ownership detection for Micropayments (ACE only)
-                                    const isOwner = isAceEncrypted && !asset.isPurchased && (
-                                        (nameOnly.startsWith('sv_market--') && nameOnly.split('--')[3] === account?.address.toString()) ||
-                                        (!nameOnly.startsWith('sv_market--'))
-                                    );
+                                    const isAceEncrypted = !isEncrypted && (isMarketAsset || isSvMarketFile(nameOnly));
 
-                                    if (nameOnly.startsWith('sv_market--')) {
-                                        const parts = nameOnly.split('--');
-                                        nameOnly = parts[parts.length - 1];
+                                    // Ownership: asset in user's own vault (not purchased by them from someone else)
+                                    const isOwner = isAceEncrypted && !asset.isPurchased;
+
+                                    if (isSvMarketFile(nameOnly)) {
+                                        nameOnly = getSvMarketDisplayName(nameOnly);
                                     }
 
                                     const decryptedName = decryptedNames[nameOnly];
@@ -846,7 +846,7 @@ export function Dashboard() {
                 accountAddress={account?.address.toString()}
                 isEncrypted={selectedAsset?.isEncrypted ?? true}
                 isMarketAsset={selectedAsset?.isMarketAsset || false}
-                isAceEncrypted={selectedAsset?.isMarketAsset || selectedAsset?.isPurchased || (selectedAsset?.blobName?.startsWith('sv_market--') ?? false)}
+                isAceEncrypted={selectedAsset?.isMarketAsset || selectedAsset?.isPurchased || isSvMarketFile(selectedAsset?.blobName || '')}
                 isOwner={selectedAsset?.isOwner || false}
             />
 

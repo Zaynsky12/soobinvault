@@ -1,29 +1,73 @@
 import { SHELBYUSD_FA_METADATA_ADDRESS, MARKETPLACE_REGISTRY_ADDRESS } from '../lib/constants';
 
 /**
+ * Returns true if a blob name is an ACE-encrypted market file.
+ * Old format: sv_market--... or sv_market::...
+ * New format: filename_abc12345.svmarket
+ */
+export function isSvMarketFile(name: string): boolean {
+  return name.endsWith('.svmarket') || name.startsWith('sv_market--') || name.startsWith('sv_market::');
+}
+
+/**
+ * Extracts a human-readable display name from a market blob name.
+ * Old: sv_market--cat--price--addr--desc--FILENAME → FILENAME
+ * New: myfile_csv_a3f7b2c1.svmarket → myfile_csv
+ */
+export function getSvMarketDisplayName(name: string): string {
+  if (name.startsWith('sv_market--') || name.startsWith('sv_market::')) {
+    const sep = name.startsWith('sv_market--') ? '--' : '::';
+    const parts = name.split(sep);
+    return parts[parts.length - 1];
+  }
+  if (name.endsWith('.svmarket')) {
+    // Strip the _hex8 unique suffix and .svmarket extension
+    return name.replace(/_[0-9a-f]{8}\.svmarket$/i, '').replace(/\.svmarket$/i, '');
+  }
+  return name;
+}
+
+/**
  * Parses the encoded blob name format used for micropayments.
- * Format (6-part): sv_market::[category]::[price]::[seller]::[description]::[filename]
- * Format (5-part): sv_market::[category]::[price]::[description]::[filename]
+ * Legacy (6-part): sv_market--[category]--[price]--[seller]--[desc]--[filename]
+ * Legacy (5-part): sv_market--[category]--[price]--[desc]--[filename]
+ * New format:      [filename]_[8hexchars].svmarket  (metadata fetched from blockchain)
  */
 export function parseAssetId(id: string) {
   const isHyphen = id.startsWith('sv_market--');
   const isColon = id.startsWith('sv_market::');
-  
+
+  // NEW FORMAT: ends with .svmarket — metadata is on-chain, not in blob name
+  if (id.endsWith('.svmarket') && !isHyphen && !isColon) {
+    const displayName = getSvMarketDisplayName(id);
+    return {
+      category: '',       // fetched from blockchain in buy page
+      price: '-1',        // sentinel: -1 means "not yet loaded from chain"
+      seller: null as string | null,
+      description: '',
+      title: displayName,
+      originalName: displayName,
+      version: 3,
+      isNewFormat: true,
+    };
+  }
+
   if (!isHyphen && !isColon) return null;
 
   const separator = isHyphen ? '--' : '::';
   const parts = id.split(separator);
-  
-  // New 6-part format includes seller address
+
+  // 6-part format includes seller address
   if (parts.length >= 6) {
     return {
       category: parts[1],
       price: parts[2],
-      seller: parts[3],
+      seller: parts[3] as string | null,
       description: parts[4],
       title: parts.slice(5).join(separator),
       originalName: parts.slice(5).join(separator),
-      version: 2
+      version: 2,
+      isNewFormat: false,
     };
   }
 
@@ -32,10 +76,12 @@ export function parseAssetId(id: string) {
     return {
       category: parts[1],
       price: parts[2],
+      seller: null as string | null,
       description: parts[3],
       title: parts[4],
       originalName: parts[4],
-      version: 1
+      version: 1,
+      isNewFormat: false,
     };
   }
 
