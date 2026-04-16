@@ -197,6 +197,7 @@ export async function decryptText(encryptedBase64: string, key: CryptoKey): Prom
  * Consolidates complex key/signature normalization and SDK interaction.
  */
 export async function decryptAceFile({
+    rawBuffer,
     blobName,
     ownerAddress,
     account,
