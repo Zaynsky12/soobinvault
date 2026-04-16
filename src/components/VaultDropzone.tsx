@@ -115,7 +115,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const [failCount, setFailCount] = useState<number>(0);
 
     const [pendingUploads, setPendingUploads] = useState<{
-        blobs: { blobName: string, blobData: Blob }[],
+        blobs: { blobName: string, blobData: Blob | Uint8Array }[],
         files: File[]
     } | null>(null);
     const [generatedLinks, setGeneratedLinks] = useState<{ name: string, id: string, seller?: string, price?: string }[]>([]);
@@ -135,6 +135,17 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             gsap.to(iconRef.current, { scale: 1, y: 0, duration: 0.4, ease: "power2.out" });
         }
     }, [isDragging]);
+
+    useEffect(() => {
+        // Enforce logical consistency for marketplace encryption
+        if (uploadMode === 'micropayment') {
+            if (datasetAccess === 'paid' && !encryptionEnabled) {
+                setEncryptionEnabled(true);
+            } else if (!encryptionEnabled && datasetAccess === 'paid') {
+                setDatasetAccess('free');
+            }
+        }
+    }, [uploadMode, datasetAccess, encryptionEnabled]);
 
     useEffect(() => {
         if (uploadState === 'uploading' && progressRef.current) {
@@ -179,61 +190,111 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             // Re-show progress bar & set status
             setPendingUploads(null);
             // Keep currentFile and currentIndex from the last processed file 
-            const blobsForSdk = backupBlobs.map((b) => ({
-                blobName: b.blobName,
-                blobData: b.blobData instanceof Uint8Array ? b.blobData : new Uint8Array(0) 
+            // Robustly prepare blobs for the Shelby SDK
+            const blobsForSdk = await Promise.all(backupBlobs.map(async (b) => {
+                let bytes: Uint8Array;
+                const data = b.blobData as any;
+                if (data instanceof Uint8Array) {
+                    bytes = data;
+                } else if (data instanceof Blob) {
+                    const ab = await data.arrayBuffer();
+                    bytes = new Uint8Array(ab);
+                } else {
+                    console.error("[Shelby] Incompatible blobData type:", typeof data);
+                    bytes = new Uint8Array(0);
+                }
+                return {
+                    blobName: b.blobName,
+                    blobData: bytes
+                };
             }));
 
             const isMarket = uploadMode === 'micropayment';
             const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
             
+            console.log("[Shelby] Dataset stats:", { 
+                mode: isMarket ? "Marketplace" : "Vault", 
+                count: blobsForSdk.length, 
+                totalSize: blobsForSdk.reduce((acc, b) => acc + b.blobData.length, 0),
+                encryption: encryptionEnabled ? "ACE" : "Plaintext"
+            });
             // Re-confirm sanitization for deployment
             const sanitize = (v: string, l: number) => v.slice(0, l).toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
             const safeDesc = sanitize(datasetDescription, 20) || "untitled";
 
-            setUploadStatusText(isMarket ? "Step 1/2: Securing & storing ACE protected file..." : "Uploading to secure network...");
+            // Step 1: Storage Payment and Blob Upload
+            try {
+                setUploadStatusText(isMarket 
+                    ? (encryptionEnabled ? "Step 1/2: Securing & storing ACE protected file..." : "Step 1/2: Storing public marketplace file...") 
+                    : "Uploading to secure network...");
 
-            await uploadBlobs.mutateAsync({
-                signer: {
-                    account: account.address.toString(),
-                    signAndSubmitTransaction: async (tx: any) => {
-                        console.log("[Shelby] Wallet signing request (direct context):", tx);
+                // ONLY cap duration for Public MicroPaylink to avoid Testnet contract limits
+                // Private Vault uploads should keep their full selected duration
+                let actualExpiration = Date.now() * 1000 + selectedDuration.value;
+                if (isMarket && !encryptionEnabled) {
+                    const maxTestnetDuration = 30 * 24 * 60 * 60 * 1000000;
+                    actualExpiration = Date.now() * 1000 + Math.min(selectedDuration.value, maxTestnetDuration);
+                }
 
-                        // Update status when wallet is reached
-                        if (isMarket) {
-                            setUploadStatusText("Step 1/2: Submitting to protocol...");
-                        } else {
-                            setUploadStatusText("Submitting to network...");
-                        }
+                await uploadBlobs.mutateAsync({
+                    signer: {
+                        account: account.address.toString(),
+                        signAndSubmitTransaction: async (tx: any) => {
+                            console.log("[Shelby] Wallet signing request (direct context):", tx);
 
-                        // Protect transaction prototypes (e.g. SimpleTransaction) and handle sender rules
-                        let finalTx = tx;
-                        const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
-                        
-                        if (finalTx && typeof finalTx === 'object') {
-                            if ('sequence_number' in finalTx) delete finalTx.sequence_number;
-                            if (!isSocialLogin && 'sender' in finalTx) delete finalTx.sender;
-                        }
+                            // Update status when wallet is reached
+                            if (isMarket) {
+                                setUploadStatusText(encryptionEnabled 
+                                    ? "Step 1/2: Submitting ACE permit to protocol..." 
+                                    : "Step 1/2: Submitting public link to protocol...");
+                            } else {
+                                setUploadStatusText(encryptionEnabled 
+                                    ? "Securing & submitting to network..." 
+                                    : "Submitting to network...");
+                            }
 
-                        const response = await signAndSubmitTransaction(finalTx);
-                        caughtResponse = response;
-                        
-                        return response;
+                            // Specific transaction cleanup for Aptos wallets
+                            let finalTx = tx;
+                            const walletName = wallet?.name || (account as any)?.wallet?.name || "";
+                            const isSocialLogin = walletName === 'Aptos Connect';
+                            
+                            console.log(`[Shelby] Transaction Step 1 simulation:`, { 
+                                wallet: walletName, 
+                                social: isSocialLogin,
+                                payload: finalTx 
+                            });
+                            
+                            if (finalTx && typeof finalTx === 'object') {
+                                if ('sequence_number' in finalTx) delete finalTx.sequence_number;
+                                if (isSocialLogin && 'sender' in finalTx) {
+                                    delete finalTx.sender;
+                                }
+                            }
+
+                            return await signAndSubmitTransaction(finalTx);
+                        },
                     },
-                },
-                blobs: backupBlobs.map((b, i) => {
-                    return {
-                        blobName: b.blobName,
-                        blobData: blobsForSdk[i].blobData
-                    };
-                }),
-                expirationMicros: Date.now() * 1000 + selectedDuration.value,
-            });
+                    blobs: backupBlobs.map((b, i) => {
+                        return {
+                            blobName: b.blobName,
+                            // Pass the original object (File/Blob or Uint8Array) to match Vault's success
+                            blobData: b.blobData as any
+                        };
+                    }),
+                    expirationMicros: actualExpiration,
+                });
+            } catch (step1Err: any) {
+                console.error("[Shelby] Step 1 (Storage) Error:", step1Err);
+                const msg = step1Err.message || String(step1Err);
+                // More helpful error but less 'scary' for standard vault rejection
+                throw new Error(isMarket ? `Storage Payment Simulation Failed: ${msg.slice(0, 100)}` : `Vault Upload Failed: ${msg.slice(0, 100)}`);
+            }
 
             // Step 2: Marketplace Registration (On-Chain)
             if (isMarket) {
                 setUploadStatusText("Step 2/2: Registering in Marketplace Registry...");
-                const isSocialLogin = wallet?.name === 'Aptos Connect' || (account as any)?.wallet?.name === 'Aptos Connect';
+                const walletName = wallet?.name || (account as any)?.wallet?.name || "";
+                const isSocialLogin = walletName === 'Aptos Connect';
                 
                 for (let i = 0; i < backupBlobs.length; i++) {
                     const b = backupBlobs[i];
@@ -243,7 +304,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     console.log(`[Marketplace] Dedicated registration phase for: ${marketName}`);
                     
                     // Delay slightly to ensure wallet resets
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 1500)); 
 
                     try {
                         const mkPayload: any = {
@@ -259,21 +320,27 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             }
                         };
                         
+                        // For social login, we MUST provide sender
                         if (isSocialLogin) {
                             mkPayload.sender = account.address;
                         }
 
+                        console.log(`[Marketplace] Transaction Step 2 simulation:`, { 
+                            wallet: walletName, 
+                            payload: mkPayload 
+                        });
+
                         const mkResponse = await signAndSubmitTransaction(mkPayload);
                         console.log("[Marketplace] Registration Success. Hash:", (mkResponse as any)?.hash);
                         
-                        // Capture the latest hash for display
                         if (mkResponse && (mkResponse as any).hash) {
                             caughtResponse = mkResponse;
                         }
                     } catch (regErr: any) {
-                        console.error("[Marketplace] Registration failed:", regErr);
-                        toast.error(`Stored but failed to register: ${regErr.message || "Wallet error"}`);
-                        // We continue to show success for the upload part if this was the last file
+                        console.error("[Marketplace] Step 2 (Registration) Error:", regErr);
+                        const simError = regErr?.simulation_error || regErr?.reason || regErr?.message || String(regErr);
+                        toast.error(`Registration Simulation Failed: ${simError.slice(0, 50)}...`);
+                        // We don't throw here to allow the process to finish if storage succeeded
                     }
                 }
             }
@@ -295,7 +362,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             owner: account.address.toString(),
                             account_address: account.address.toString(),
                             signer: account.address.toString(),
-                            size: b.blobData.size,
+                            size: b.blobData instanceof Uint8Array ? b.blobData.length : b.blobData.size,
                             created_at: Date.now(),
                             is_deleted: false,
                             is_optimistic: true
@@ -333,7 +400,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
             setSuccessCount(backupFiles.length);
             setUploadState('success');
-            setUploadStatusText(isMarket ? "Payment handles generated successfully." : "Assets secured and backed up.");
+            setUploadStatusText(isMarket 
+                ? (encryptionEnabled ? "Payment handles & ACE permits generated successfully." : "Public MicroPaylink handles generated successfully.") 
+                : (encryptionEnabled ? "Assets secured and backed up." : "Assets stored successfully."));
 
             if (uploadMode === 'micropayment') {
                 toast.success("MicroPaylink handles are ready to share!", { duration: 5000 });
@@ -362,11 +431,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         const sumSize = files.reduce((acc, f) => acc + f.size, 0);
         setTotalSize(sumSize);
 
-        const blobs: { blobName: string, blobData: Blob }[] = [];
+        const blobs: { blobName: string, blobData: Blob | Uint8Array }[] = [];
         const processedFiles: File[] = [];
 
         try {
-            if (uploadMode === 'micropayment') {
+            if (uploadMode === 'micropayment' && encryptionEnabled) {
                 // --- ACE ENCRYPTED MICROPAYMENT PATH ---
                 setUploadStatusText("Initializing ACE Protocol...");
 
@@ -441,6 +510,38 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                 setPendingUploads({ blobs, files: processedFiles });
                 setUploadStatusText("Assets encrypted via ACE and ready for deployment.");
+            } else if (uploadMode === 'micropayment' && !encryptionEnabled) {
+                // --- PLAINTEXT MICROPAYMENT PATH (ALIGNED WITH VAULT) ---
+                // We use original File objects to avoid simulation errors, same as Private Vault
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    setCurrentFile(file);
+                    setCurrentIndex(i);
+                    setUploadStatusText(`Preparing ${file.name} for Marketplace (${i + 1}/${files.length})...`);
+
+                    const sanitize = (v: string, l: number) => v.slice(0, l).toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+                    const safeOriginal = sanitize(file.name, 20);
+                    const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(3)))
+                        .map(b => b.toString(16).padStart(2, '0')).join('');
+                    
+                    // Simple unique name matching the vault's simplicity
+                    const marketName = `${safeOriginal}_${uniqueId}`;
+                    
+                    blobs.push({
+                        blobName: marketName,
+                        blobData: file // USE ORIGINAL FILE OBJECT (SAME AS VAULT)
+                    });
+                    processedFiles.push(file);
+
+                    const fileInfo = getFileType(file.name, file.type);
+                    if (fileInfo.isImage || fileInfo.isVideo) {
+                        const url = URL.createObjectURL(file);
+                        setPreviewUrl(url);
+                    }
+                }
+
+                setPendingUploads({ blobs, files: processedFiles });
+                setUploadStatusText("Assets ready for marketplace (unencrypted).");
             } else if (encryptionEnabled) {
                 // --- ENCRYPTED PATH ---
                 setUploadStatusText("Initializing security protocol...");
@@ -651,7 +752,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                         <Shield size={14} /> Private Vault
                                     </button>
                                     <button
-                                        onClick={(e) => { e.stopPropagation(); setUploadMode('micropayment'); setEncryptionEnabled(false); }}
+                                        onClick={(e) => { e.stopPropagation(); setUploadMode('micropayment'); }}
                                         className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${uploadMode === 'micropayment' ? 'bg-gradient-to-br from-color-primary to-color-accent text-white shadow-[0_0_15px_rgba(232,58,118,0.4)]' : 'text-white/40 hover:text-white/80'}`}
                                     >
                                         <Banknote size={14} /> MicroPaylink
@@ -677,30 +778,46 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </div>
 
                                 <h3 className="text-xl md:text-3xl font-bold mb-1 md:mb-2 text-white tracking-tight">
-                                    {uploadMode === 'micropayment' ? 'Monetize AI Dataset' : 'Deploy Assets'}
+                                    {uploadMode === 'micropayment' 
+                                        ? (encryptionEnabled ? 'Monetize AI Dataset' : 'Share Public Dataset')
+                                        : 'Deploy Assets'}
                                 </h3>
                                 <p className="text-color-support/80 mb-4 md:mb-6 text-xs md:text-sm px-4">
-                                    {uploadMode === 'micropayment' ? 'Upload files and set a price in ShelbyUSD for encrypt access.' : 'Drag and drop your files, or select from your device.'}
+                                    {uploadMode === 'micropayment' 
+                                        ? (encryptionEnabled ? 'Upload files and set a price in ShelbyUSD for encrypted access.' : 'Upload files for public access. These assets will be free for everyone.')
+                                        : 'Drag and drop your files, or select from your device.'}
                                 </p>
 
                                 {uploadMode === 'micropayment' && (
                                     <div className="w-full max-w-xs md:max-w-[420px] mb-4 text-left animate-in fade-in duration-300">
 
                                         <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1">Access Type</label>
-                                        <div className="flex w-full bg-black/40 rounded-full p-1 mb-4 border border-yellow-500/30 shadow-inner">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setDatasetAccess('free'); }}
-                                                className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'free' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'text-white/40 hover:text-white/80'}`}
-                                            >
-                                                <Globe size={14} /> Free
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setDatasetAccess('paid'); }}
-                                                className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'paid' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'text-white/40 hover:text-white/80'}`}
-                                            >
-                                                <Banknote size={14} /> Paid
-                                            </button>
-                                        </div>
+                                        {!encryptionEnabled ? (
+                                            <div className="flex w-full bg-white/5 rounded-xl p-3.5 mb-4 border border-white/10 items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                <div className="w-8 h-8 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
+                                                    <Globe size={16} className="text-yellow-400" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-bold text-white tracking-wide">Public Access</span>
+                                                    <span className="text-[10px] text-white/40 font-medium tracking-tight">Encryption disabled. This asset will be free to everyone.</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex w-full bg-black/40 rounded-full p-1 mb-4 border border-yellow-500/30 shadow-inner">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setDatasetAccess('free'); }}
+                                                    className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'free' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'text-white/40 hover:text-white/80'}`}
+                                                >
+                                                    <Globe size={14} /> Free
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setDatasetAccess('paid'); }}
+                                                    className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'paid' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'text-white/40 hover:text-white/80'}`}
+                                                >
+                                                    <Banknote size={14} /> Paid
+                                                </button>
+                                            </div>
+                                        )}
 
                                         {datasetAccess === 'paid' && (
                                             <>
@@ -784,51 +901,79 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </div>
 
                                 <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className={`w-[85%] max-w-xs md:max-w-[420px] py-3.5 md:py-4 rounded-full transition-all duration-500 font-bold uppercase text-[11px] md:text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98] mb-5 md:mb-6 mx-auto ${uploadMode === 'micropayment'
-                                        ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)]'
-                                        : encryptionEnabled
-                                            ? 'bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 border border-yellow-200 text-yellow-950 shadow-[0_5px_30px_rgba(250,204,21,0.7)] hover:shadow-[0_10px_40px_rgba(250,204,21,0.9)] scale-105 animate-pulse-slow'
-                                            : 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)]'
+                                    onClick={() => {
+                                        if (uploadMode === 'micropayment' && encryptionEnabled) {
+                                            toast.error("Monetization via ACE is under maintenance.");
+                                            return;
+                                        }
+                                        fileInputRef.current?.click();
+                                    }}
+                                    disabled={uploadMode === 'micropayment' && encryptionEnabled}
+                                    className={`w-[85%] max-w-xs md:max-w-[420px] py-3.5 md:py-4 rounded-full transition-all duration-500 font-bold uppercase text-[11px] md:text-xs tracking-widest mb-5 md:mb-6 mx-auto ${uploadMode === 'micropayment' && encryptionEnabled
+                                        ? 'bg-white/5 border border-white/10 text-white/20 cursor-not-allowed grayscale'
+                                        : uploadMode === 'micropayment'
+                                            ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)] hover:scale-[1.02] active:scale-[0.98]'
+                                            : encryptionEnabled
+                                                ? 'bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 border border-yellow-200 text-yellow-950 shadow-[0_5px_30px_rgba(250,204,21,0.7)] hover:shadow-[0_10px_40px_rgba(250,204,21,0.9)] scale-105 animate-pulse-slow active:scale-[0.98]'
+                                                : 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)] hover:scale-[1.02] active:scale-[0.98]'
                                         }`}
                                 >
-                                    Select Files
+                                    {uploadMode === 'micropayment' && encryptionEnabled ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <Clock size={14} className="animate-spin-slow" /> Coming Soon
+                                        </span>
+                                    ) : (
+                                        'Select Files'
+                                    )}
                                 </button>
 
-                                {/* Checkbox-Style Encryption Toggle */}
-                                {uploadMode !== 'micropayment' && (
-                                    <div
-                                        onClick={(e) => { e.stopPropagation(); setEncryptionEnabled(v => !v); }}
-                                        className="w-full max-w-xs md:max-w-[420px] mx-auto flex items-center justify-center gap-3 cursor-pointer group px-2"
-                                    >
-                                        {/* Checkbox square */}
-                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 shrink-0 ${encryptionEnabled
-                                            ? 'bg-color-primary border-color-primary text-white shadow-[0_0_10px_rgba(232,58,118,0.4)]'
-                                            : 'border-white/40 bg-transparent group-hover:border-white/60'
-                                            }`}>
-                                            {encryptionEnabled && <Check size={14} strokeWidth={3} />}
-                                        </div>
-
-                                        {/* Lock Icon */}
-                                        {encryptionEnabled ? (
-                                            <Lock
-                                                size={20}
-                                                className="shrink-0 text-yellow-400 fill-yellow-400/20 drop-shadow-[0_0_12px_rgba(250,204,21,0.9)] transition-all duration-300 scale-110"
-                                            />
-                                        ) : (
-                                            <Unlock
-                                                size={18}
-                                                className="shrink-0 text-yellow-500/80 transition-colors duration-300 group-hover:text-yellow-400"
-                                            />
-                                        )}
-
-                                        {/* Text */}
-                                        <span className={`text-[12px] md:text-sm tracking-wide transition-colors ${encryptionEnabled ? 'text-white font-medium' : 'text-white/60 group-hover:text-white/80'
-                                            }`}>
-                                            Encrypt file before upload
-                                        </span>
+                                {uploadMode === 'micropayment' && encryptionEnabled && (
+                                    <div className="w-[85%] max-w-xs md:max-w-[420px] mx-auto mb-6 p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 flex items-start gap-3 animate-in fade-in zoom-in duration-500">
+                                        <AlertCircle size={16} className="text-yellow-500 shrink-0 mt-0.5" />
+                                        <p className="text-[10px] text-yellow-500/70 text-left leading-relaxed">
+                                            ACE-Monetization is currently undergoing protocol maintenance. You can still upload <b>Public Datasets</b> by turning off the encryption toggle below.
+                                        </p>
                                     </div>
                                 )}
+
+                                <div
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (uploadMode === 'micropayment' && datasetAccess === 'paid') {
+                                            toast.error("Paid assets must be encrypted via ACE.");
+                                            return;
+                                        }
+                                        setEncryptionEnabled(v => !v);
+                                    }}
+                                    className={`w-full max-w-xs md:max-w-[420px] mx-auto flex items-center justify-center gap-3 cursor-pointer group px-2 ${uploadMode === 'micropayment' && datasetAccess === 'paid' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    {/* Checkbox square */}
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 shrink-0 ${encryptionEnabled
+                                        ? 'bg-color-primary border-color-primary text-white shadow-[0_0_10px_rgba(232,58,118,0.4)]'
+                                        : 'border-white/40 bg-transparent group-hover:border-white/60'
+                                        }`}>
+                                        {encryptionEnabled && <Check size={14} strokeWidth={3} />}
+                                    </div>
+
+                                    {/* Lock Icon */}
+                                    {encryptionEnabled ? (
+                                        <Lock
+                                            size={20}
+                                            className="shrink-0 text-yellow-400 fill-yellow-400/20 drop-shadow-[0_0_12px_rgba(250,204,21,0.9)] transition-all duration-300 scale-110"
+                                        />
+                                    ) : (
+                                        <Unlock
+                                            size={18}
+                                            className="shrink-0 text-yellow-500/80 transition-colors duration-300 group-hover:text-yellow-400"
+                                        />
+                                    )}
+
+                                    {/* Text */}
+                                    <span className={`text-[12px] md:text-sm tracking-wide transition-colors ${encryptionEnabled ? 'text-white font-medium' : 'text-white/60 group-hover:text-white/80'
+                                        }`}>
+                                        {uploadMode === 'micropayment' && !encryptionEnabled ? 'Upload as Public (Free)' : 'Encrypt file before upload'}
+                                    </span>
+                                </div>
                             </div>
                         )}
                         {/* Uploading / Encrypting state */}
