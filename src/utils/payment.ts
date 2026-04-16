@@ -6,7 +6,7 @@ import { SHELBYUSD_FA_METADATA_ADDRESS, MARKETPLACE_REGISTRY_ADDRESS } from '../
  * New format: filename_abc12345.svmarket
  */
 export function isSvMarketFile(name: string): boolean {
-  return name.endsWith('.svmarket') || name.startsWith('sv_market--') || name.startsWith('sv_market::');
+  return name.endsWith('.svmarket') || name.startsWith('sv_market--') || name.startsWith('sv_market::') || name.startsWith('paylink--');
 }
 
 /**
@@ -24,6 +24,10 @@ export function getSvMarketDisplayName(name: string): string {
     // Strip the _hex8 unique suffix and .svmarket extension
     return name.replace(/_[0-9a-f]{8}\.svmarket$/i, '').replace(/\.svmarket$/i, '');
   }
+  if (name.startsWith('paylink--')) {
+    const parts = name.split('--');
+    return parts[parts.length - 1].replace(/_[0-9a-f]{6}$/, ''); // Strip unique ID
+  }
   return name;
 }
 
@@ -36,6 +40,26 @@ export function getSvMarketDisplayName(name: string): string {
 export function parseAssetId(id: string) {
   const isHyphen = id.startsWith('sv_market--');
   const isColon = id.startsWith('sv_market::');
+
+  // PAYLINK FORMAT: paylink--[address]--[filename]_[id]
+  if (id.startsWith('paylink--')) {
+    const parts = id.split('--');
+    const seller = parts[1];
+    const originalName = parts.slice(2).join('--');
+    const title = originalName.replace(/_[0-9a-f]+$/, '');
+    
+    return {
+      category: 'Public Dataset',
+      price: '0.00',
+      seller: seller,
+      description: 'Public marketplace asset',
+      title: title,
+      originalName: originalName,
+      version: 4,
+      isNewFormat: true,
+      isPublic: true
+    };
+  }
 
   // NEW FORMAT: ends with .svmarket — metadata is on-chain, not in blob name
   if (id.endsWith('.svmarket') && !isHyphen && !isColon) {

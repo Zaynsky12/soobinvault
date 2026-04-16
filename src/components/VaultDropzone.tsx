@@ -524,8 +524,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(3)))
                         .map(b => b.toString(16).padStart(2, '0')).join('');
                     
-                    // Simple unique name matching the vault's simplicity
-                    const marketName = `${safeOriginal}_${uniqueId}`;
+                    // Restore prefix for identification across the app
+                    const marketName = `paylink--${account.address.toString()}--${safeOriginal}_${uniqueId}`;
                     
                     blobs.push({
                         blobName: marketName,

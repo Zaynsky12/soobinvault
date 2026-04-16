@@ -221,7 +221,10 @@ export function Marketplace() {
                             _or: [
                                 { blob_name: { _ilike: "%sv_market--%" } },
                                 { blobName: { _ilike: "%sv_market--%" } },
-                                { name: { _ilike: "%sv_market--%" } }
+                                { name: { _ilike: "%sv_market--%" } },
+                                { blob_name: { _ilike: "%paylink--%" } },
+                                { blobName: { _ilike: "%paylink--%" } },
+                                { name: { _ilike: "%paylink--%" } }
                             ],
                             is_deleted: { _eq: false }
                         },
@@ -363,7 +366,7 @@ export function Marketplace() {
                     b.blob_name ||
                     b.name ||
                     "";
-                  return n.includes("sv_market--");
+                  return n.includes("sv_market--") || n.includes("paylink--");
                 });
                 for (const umb of userMarketBlobs) {
                   const rawNameStr =
@@ -423,7 +426,12 @@ export function Marketplace() {
               const fallbackResult = await (
                 shelbyClient as any
               ).coordination.indexer.getBlobs({
-                where: { blob_name: { _ilike: "%sv_market--%" } },
+                where: { 
+                  _or: [
+                    { blob_name: { _ilike: "%sv_market--%" } },
+                    { blob_name: { _ilike: "%paylink--%" } }
+                  ]
+                },
                 limit: 20,
               });
               blobs = fallbackResult?.blobs || [];

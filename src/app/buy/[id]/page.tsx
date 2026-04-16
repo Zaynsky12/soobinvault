@@ -361,8 +361,10 @@ export default function BuyPage() {
             
             let finalBufferData: Uint8Array = new Uint8Array(buffer);
 
-            // ACE DECRYPTION — handles both old sv_market-- and new .svmarket format
-            if (isSvMarketFile(blobName)) {
+            // ACE DECRYPTION — only for encrypted formats
+            const isEncrypted = blobName.endsWith('.svmarket') || blobName.startsWith('sv_market') || blobName.includes('.vault');
+            
+            if (isEncrypted) {
                 toast.loading('Verifying permission & deciphering via ACE...', { id: 'decryption-status' });
                 try {
                     finalBufferData = await decryptAceFile({
