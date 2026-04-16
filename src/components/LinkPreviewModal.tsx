@@ -152,6 +152,7 @@ export function LinkPreviewModal({
                 const finalBufferData = await decryptAceFile({
                     rawBuffer: rawBuffer,
                     blobName: aceBlobName,
+                    ownerAddress: blobAccount || '',
                     account: account,
                     signMessage: signMessage
                 });

@@ -992,6 +992,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 const finalBufferData = await decryptAceFile({
                     rawBuffer: new Uint8Array(buffer),
                     blobName: aceBlobName,
+                    ownerAddress: blobAccount || '',
                     account: account,
                     signMessage: signMessage
                 });

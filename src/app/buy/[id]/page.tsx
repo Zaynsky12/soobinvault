@@ -122,7 +122,7 @@ export default function BuyPage() {
                         d => d.blob_name === blobName || d.blobName === blobName
                     );
                     if (dataset) {
-                        const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toString();
+                        const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toFixed(2);
                         setOverrideMeta({
                             price: priceDecimal,
                             category: dataset.category || 'Dataset',
@@ -191,7 +191,7 @@ export default function BuyPage() {
                                 }
                                 // For new .svmarket format: extract real metadata from contract
                                 if (metadata.isNewFormat && dataset) {
-                                    const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toString();
+                                    const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toFixed(2);
                                     setOverrideMeta({
                                         price: priceDecimal,
                                         category: dataset.category || 'Dataset',
@@ -252,7 +252,7 @@ export default function BuyPage() {
                             if (metadata.isNewFormat) {
                                 const dataset = (storefront[0] as any[]).find(d => d.blob_name === blobName || d.blobName === blobName);
                                 if (dataset) {
-                                    const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toString();
+                                    const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toFixed(2);
                                     setOverrideMeta({
                                         price: priceDecimal,
                                         category: dataset.category || 'Dataset',
@@ -291,7 +291,7 @@ export default function BuyPage() {
         };
 
         if (id) init();
-    }, [id, metadata, blobName]);
+    }, [id, metadata, blobName, sellerParam]);
 
     const handleBuy = async () => {
         if (!connected || !account) {
@@ -368,6 +368,7 @@ export default function BuyPage() {
                     finalBufferData = await decryptAceFile({
                         rawBuffer: finalBufferData,
                         blobName: blobName,
+                        ownerAddress: sellerAddress || '',
                         account: account,
                         signMessage: signMessage
                     });

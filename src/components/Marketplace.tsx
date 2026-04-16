@@ -856,8 +856,9 @@ export function Marketplace() {
               finalBufferData = await decryptAceFile({
                   rawBuffer: finalBufferData,
                   blobName: dataset.id,
+                  ownerAddress: dataset.sellerFull,
                   account: account,
-                  signMessage: signMessage
+                  signMessage: signMessage as any
               });
           } catch (aceError: any) {
               console.error("[ACE Error]", aceError);

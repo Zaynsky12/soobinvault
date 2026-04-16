@@ -197,13 +197,14 @@ export async function decryptText(encryptedBase64: string, key: CryptoKey): Prom
  * Consolidates complex key/signature normalization and SDK interaction.
  */
 export async function decryptAceFile({
-    rawBuffer,
     blobName,
+    ownerAddress,
     account,
     signMessage,
 }: {
     rawBuffer: Uint8Array;
     blobName: string;
+    ownerAddress: string;
     account: any;
     signMessage: (msg: { message: string; nonce: string }) => Promise<any>;
 }): Promise<Uint8Array> {
@@ -227,13 +228,21 @@ export async function decryptAceFile({
             functionName: "check_permission",
         });
 
-        // DOMAIN PARITY: Use the blobName exactly as stored during encryption & registration.
-        // The ACE encryption domain in VaultDropzone.tsx uses the raw marketName (NOT lowercased).
-        // The BlobOwnership table stores it as-is via list_dataset.
-        // Forcing .toLowerCase() here would produce mismatched domain bytes → check_permission returns false.
-        const canonicalBlobName = blobName; // Preserve original casing for domain byte parity
+        // DOMAIN PARITY: Use the paylink--{owner}--{id} format to ensure a unique and matching domain.
+        // We first check if the blobName already has the prefix (from a new upload).
+        const canonicalBlobName = blobName.startsWith('paylink--') 
+            ? blobName 
+            : `paylink--${ownerAddress}--${blobName}`;
+            
         const domain = new TextEncoder().encode(canonicalBlobName);
         const fullDecryptionDomain = new ace.FullDecryptionDomain({ contractId, domain });
+        
+        console.log("[ACE Debug] Reconstructed Domain String:", canonicalBlobName);
+        console.log("[ACE Debug] Contract ID (Aptos):", {
+            chainId: 2,
+            module: MARKETPLACE_REGISTRY_ADDRESS,
+            func: "check_permission"
+        });
         
         console.log("[ACE Debug] Starting decryption for blob:", blobName);
         console.log("[ACE Debug] Wallet state:", { 
@@ -462,6 +471,11 @@ export async function decryptAceFile({
         }
 
         console.log('[ACE Debug] Proof of Permission created. Fetching key from committee...');
+        console.log('[ACE Debug] Request Parameters:', {
+            domain: canonicalBlobName,
+            contractId: `${MARKETPLACE_REGISTRY_ADDRESS}::marketplace::check_permission`,
+            userAddr: AccountAddress.fromString(account.address.toString()).toStringLong()
+        });
 
         // 6. Fetch Decryption Key from Committee
         const decryptionKeyResult = await ace.DecryptionKey.fetch({
