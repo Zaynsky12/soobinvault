@@ -228,12 +228,18 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     ? (encryptionEnabled ? "Step 1/2: Securing & storing ACE protected file..." : "Step 1/2: Storing public marketplace file...") 
                     : "Uploading to secure network...");
 
-                // ONLY cap duration for Public MicroPaylink to avoid Testnet contract limits
-                // Private Vault uploads should keep their full selected duration
-                let actualExpiration = Date.now() * 1000 + selectedDuration.value;
+                // Robustly calculate expiration to prevent NaN -> BigInt crashes
+                const durationValue = Number(selectedDuration?.value) || 0;
+                let actualExpiration = Date.now() * 1000 + durationValue;
+                
                 if (isMarket && !encryptionEnabled) {
                     const maxTestnetDuration = 30 * 24 * 60 * 60 * 1000000;
-                    actualExpiration = Date.now() * 1000 + Math.min(selectedDuration.value, maxTestnetDuration);
+                    actualExpiration = Date.now() * 1000 + Math.min(durationValue, maxTestnetDuration);
+                }
+
+                if (isNaN(actualExpiration)) {
+                    console.error("[Shelby] Expiration calculation resulted in NaN. Falling back to default.");
+                    actualExpiration = Date.now() * 1000 + 30 * 24 * 60 * 60 * 1000000;
                 }
 
                 await uploadBlobs.mutateAsync({
@@ -299,7 +305,10 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 for (let i = 0; i < backupBlobs.length; i++) {
                     const b = backupBlobs[i];
                     const marketName = b.blobName;
-                    const priceU64 = Math.floor(parseFloat(effectivePrice) * 100_000_000);
+                    
+                    // Robustly parse price to prevent NaN -> BigInt crashes
+                    const parsedPrice = parseFloat(effectivePrice);
+                    const priceU64 = isNaN(parsedPrice) ? 0 : Math.floor(parsedPrice * 100_000_000);
 
                     console.log(`[Marketplace] Dedicated registration phase for: ${marketName}`);
                     
