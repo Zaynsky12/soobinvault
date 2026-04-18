@@ -15,24 +15,24 @@ import { getFileType } from '../utils/file';
 import { Network, AccountAddress } from "@aptos-labs/ts-sdk";
 import { ace } from "@aptos-labs/ace-sdk";
 
-// Shelby SDK Patch: Intercept fetch responses to prevent internal 'already received' errors
-// and implement a network-level concurrency semaphore to limit multipart uploads.
-// The SDK defaults to Promise.all for all chunks, which massively crashes the node with 500 Internal Server errors.
+// Shelby SDK Patch: Intercept fetch responses to prevent internal 'already received' errors,
+// implement network-level concurrency control, and add automatic retries for transient 500 errors.
 if (typeof window !== "undefined") {
     if (!(window as any)._shelbyPatched) {
         const originalFetch = window.fetch;
         (window as any)._shelbyActiveUploads = 0;
 
         window.fetch = async function (...args) {
-            // Safely parse URL (could be string, URL, or Request)
+            // Safely parse URL
             let urlStr = '';
             if (typeof args[0] === 'string') { urlStr = args[0]; }
             else if (args[0] && (args[0] as Request).url) { urlStr = (args[0] as Request).url; }
             else if (args[0] && (args[0] as URL).href) { urlStr = (args[0] as URL).href; }
 
             const isPartUpload = urlStr.includes('/parts/') && (args[1] as any)?.method === 'PUT';
+            const isCompleteRequest = urlStr.includes('/complete') && (args[1] as any)?.method === 'POST';
 
-            // Custom HTTP connection pooling (1 max concurrent chunk stream)
+            // Custom HTTP connection pooling for chunks (1 max concurrent)
             if (isPartUpload) {
                 await new Promise<void>(resolve => {
                     const tryAcquire = () => {
@@ -40,33 +40,67 @@ if (typeof window !== "undefined") {
                             (window as any)._shelbyActiveUploads++;
                             resolve();
                         } else {
-                            setTimeout(tryAcquire, 150 + Math.random() * 200); // Backoff with jitter
+                            setTimeout(tryAcquire, 150 + Math.random() * 200);
                         }
                     };
                     tryAcquire();
                 });
             }
 
-            try {
-                const response = await originalFetch.apply(this, args);
+            // Retry logic with exponential backoff
+            const maxRetries = 3;
+            let attempt = 0;
 
-                if (!response.ok && response.status === 400 && urlStr.includes('/parts/')) {
-                    const clone = response.clone();
-                    try {
-                        const body = await clone.json();
-                        if (body && body.error && body.error.includes('has already recieved partIdx=')) {
-                            console.warn("[Shelby Patch] Caught false-negative 400 error for already received chunk. Reporting as 200 OK.");
-                            return new Response(JSON.stringify({ success: true, patched: true }), {
-                                status: 200,
-                                statusText: "OK",
-                                headers: response.headers
-                            });
-                        }
-                    } catch (e) {
-                        // ignore JSON parse errors
+            const executeFetch = async (): Promise<Response> => {
+                try {
+                    // Small delay before completion to allow nodes to sync
+                    if (isCompleteRequest && attempt === 0) {
+                        await new Promise(r => setTimeout(r, 2000));
                     }
+
+                    const response = await originalFetch.apply(this, args);
+
+                    // Handle success or non-retryable errors
+                    if (response.ok) return response;
+
+                    // Specific Shelby 400 'already received' fix
+                    if (response.status === 400 && urlStr.includes('/parts/')) {
+                        const clone = response.clone();
+                        try {
+                            const body = await clone.json();
+                            if (body?.error?.includes('has already recieved partIdx=')) {
+                                console.warn("[Shelby Patch] Caught false-negative 400. Reporting as 200 OK.");
+                                return new Response(JSON.stringify({ success: true, patched: true }), {
+                                    status: 200, statusText: "OK", headers: response.headers
+                                });
+                            }
+                        } catch (e) {}
+                    }
+
+                    // Retry on transient server errors (500, 502, 503, 504)
+                    if ([500, 502, 503, 504].includes(response.status) && attempt < maxRetries) {
+                        attempt++;
+                        const delay = Math.pow(2, attempt) * 1000 + (Math.random() * 500);
+                        console.warn(`[Shelby Patch] Server Error ${response.status}. Retrying in ${Math.round(delay)}ms... (Attempt ${attempt}/${maxRetries})`);
+                        await new Promise(r => setTimeout(r, delay));
+                        return executeFetch();
+                    }
+
+                    return response;
+                } catch (err) {
+                    if (attempt < maxRetries) {
+                        attempt++;
+                        const delay = Math.pow(2, attempt) * 1000;
+                        console.warn(`[Shelby Patch] Network Error. Retrying in ${delay}ms... (Attempt ${attempt}/${maxRetries})`, err);
+                        await new Promise(r => setTimeout(r, delay));
+                        return executeFetch();
+                    }
+                    throw err;
                 }
-                return response;
+            };
+
+            try {
+                return await executeFetch();
             } finally {
                 if (isPartUpload) {
                     (window as any)._shelbyActiveUploads--;
@@ -106,6 +140,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const [datasetDescription, setDatasetDescription] = useState<string>('');
     const [datasetAccess, setDatasetAccess] = useState<'paid' | 'free'>('free');
 
+    // Utility to ensure blob names are URL and SDK friendly (replaces spaces with underscores)
+    const getSafeMarketName = (name: string) => {
+        return name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
+    };
+
     // Multi-file queue state
     const [queue, setQueue] = useState<File[]>([]);
     const [currentIndex, setCurrentIndex] = useState<number>(0);
@@ -136,16 +175,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         }
     }, [isDragging]);
 
-    useEffect(() => {
-        // Enforce logical consistency for marketplace encryption
-        if (uploadMode === 'micropayment') {
-            if (datasetAccess === 'paid' && !encryptionEnabled) {
-                setEncryptionEnabled(true);
-            } else if (!encryptionEnabled && datasetAccess === 'paid') {
-                setDatasetAccess('free');
-            }
-        }
-    }, [uploadMode, datasetAccess, encryptionEnabled]);
+    // Removed restrictive logical enforcement to allow Paid Public Datasets
+    // while ACE monetization is under maintenance.
 
     useEffect(() => {
         if (uploadState === 'uploading' && progressRef.current) {
@@ -225,7 +256,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             // Step 1: Storage Payment and Blob Upload
             try {
                 setUploadStatusText(isMarket 
-                    ? (encryptionEnabled ? "Step 1/2: Securing & storing ACE protected file..." : "Step 1/2: Storing public marketplace file...") 
+                    ? (encryptionEnabled ? "Step 1/2: Securing & storing ACE protected file..." : "Step 1/2: Storing dataset on secure storage...") 
                     : "Uploading to secure network...");
 
                 // Robustly calculate expiration to prevent NaN -> BigInt crashes
@@ -252,7 +283,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             if (isMarket) {
                                 setUploadStatusText(encryptionEnabled 
                                     ? "Step 1/2: Submitting ACE permit to protocol..." 
-                                    : "Step 1/2: Submitting public link to protocol...");
+                                    : "Step 1/2: Storing asset on decentralized network...");
                             } else {
                                 setUploadStatusText(encryptionEnabled 
                                     ? "Securing & submitting to network..." 
@@ -264,29 +295,29 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                             const walletName = wallet?.name || (account as any)?.wallet?.name || "";
                             const isSocialLogin = walletName === 'Aptos Connect';
                             
-                            console.log(`[Shelby] Transaction Step 1 simulation:`, { 
-                                wallet: walletName, 
-                                social: isSocialLogin,
-                                payload: finalTx 
-                            });
-                            
-                            if (finalTx && typeof finalTx === 'object') {
-                                if ('sequence_number' in finalTx) delete finalTx.sequence_number;
-                                if (isSocialLogin && 'sender' in finalTx) {
-                                    delete finalTx.sender;
-                                }
-                            }
+                             console.log(`[Shelby] Transaction Step 1 simulation:`, { 
+                                 wallet: walletName, 
+                                 social: isSocialLogin,
+                                 payload: JSON.parse(JSON.stringify(finalTx, (_, v) => typeof v === 'bigint' ? v.toString() : v))
+                             });
+                             
+                             if (finalTx && typeof finalTx === 'object') {
+                                 if ('sequence_number' in finalTx) delete finalTx.sequence_number;
+                                 if (isSocialLogin && 'sender' in finalTx) {
+                                     delete finalTx.sender;
+                                 }
+                             }
 
-                            return await signAndSubmitTransaction(finalTx);
+                             // Final sanity check for NaN in the payload before it leaves to wallet
+                             const txStr = JSON.stringify(finalTx);
+                             if (txStr.includes(':null') || txStr.includes(':NaN')) {
+                                 console.error("[Shelby] CRITICAL: Transaction payload contains sanitized null/NaN values!", finalTx);
+                             }
+
+                             return await signAndSubmitTransaction(finalTx);
                         },
                     },
-                    blobs: backupBlobs.map((b, i) => {
-                        return {
-                            blobName: b.blobName,
-                            // Pass the original object (File/Blob or Uint8Array) to match Vault's success
-                            blobData: b.blobData as any
-                        };
-                    }),
+                    blobs: blobsForSdk,
                     expirationMicros: actualExpiration,
                 });
             } catch (step1Err: any) {
@@ -298,7 +329,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
             // Step 2: Marketplace Registration (On-Chain)
             if (isMarket) {
-                setUploadStatusText("Step 2/2: Registering in Marketplace Registry...");
+                setUploadStatusText("Step 2/2: Generating MicroPaylink handle...");
                 const walletName = wallet?.name || (account as any)?.wallet?.name || "";
                 const isSocialLogin = walletName === 'Aptos Connect';
                 
@@ -527,14 +558,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     setCurrentFile(file);
                     setCurrentIndex(i);
                     setUploadStatusText(`Preparing ${file.name} for Marketplace (${i + 1}/${files.length})...`);
-
-                    const sanitize = (v: string, l: number) => v.slice(0, l).toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
-                    const safeOriginal = sanitize(file.name, 20);
-                    const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(3)))
-                        .map(b => b.toString(16).padStart(2, '0')).join('');
                     
-                    // Restore prefix for identification across the app
-                    const marketName = `paylink--${account.address.toString()}--${safeOriginal}_${uniqueId}`;
+                    // Sanitize filename for public links to prevent SDK/Browser issues with spaces
+                    const marketName = getSafeMarketName(file.name);
                     
                     blobs.push({
                         blobName: marketName,
@@ -596,8 +622,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     // Use Blob for plaintext to avoid large ArrayBuffer allocation early
                     const fileBlob = new Blob([file]);
 
+                    // Use safe market name for plaintext links to prevent SDK/Browser issues
+                    const marketName = getSafeMarketName(file.name);
+
                     blobs.push({
-                        blobName: file.name,
+                        blobName: marketName,
                         blobData: fileBlob
                     });
                     processedFiles.push(file);
@@ -847,11 +876,23 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                                     />
                                                     <div className="absolute inset-y-0 right-1 flex items-center gap-1 pr-1.5">
                                                         <button
-                                                            onClick={(e) => { e.stopPropagation(); setPriceShelbyUSD(prev => (Math.max(0, parseFloat(prev) - 0.1)).toFixed(1)); }}
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                setPriceShelbyUSD(prev => {
+                                                                    const val = parseFloat(prev) || 0;
+                                                                    return (Math.max(0, val - 0.1)).toFixed(1);
+                                                                }); 
+                                                            }}
                                                             className="w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 hover:border-yellow-500/50 transition-all font-bold"
                                                         >-</button>
                                                         <button
-                                                            onClick={(e) => { e.stopPropagation(); setPriceShelbyUSD(prev => (parseFloat(prev) + 0.1).toFixed(1)); }}
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                setPriceShelbyUSD(prev => {
+                                                                    const val = parseFloat(prev) || 0;
+                                                                    return (val + 0.1).toFixed(1);
+                                                                }); 
+                                                            }}
                                                             className="w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 hover:border-yellow-500/50 transition-all font-bold"
                                                         >+</button>
                                                         <span className="text-[9px] font-black text-yellow-400 uppercase tracking-widest ml-1 mr-1.5 select-none">SUSD</span>
@@ -948,13 +989,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 <div
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        if (uploadMode === 'micropayment' && datasetAccess === 'paid') {
-                                            toast.error("Paid assets must be encrypted via ACE.");
-                                            return;
-                                        }
                                         setEncryptionEnabled(v => !v);
                                     }}
-                                    className={`w-full max-w-xs md:max-w-[420px] mx-auto flex items-center justify-center gap-3 cursor-pointer group px-2 ${uploadMode === 'micropayment' && datasetAccess === 'paid' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    className={`w-full max-w-xs md:max-w-[420px] mx-auto flex items-center justify-center gap-3 cursor-pointer group px-2`}
                                 >
                                     {/* Checkbox square */}
                                     <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 shrink-0 ${encryptionEnabled
@@ -1088,7 +1125,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     <CheckCircle size={48} strokeWidth={2} className="hidden md:block" />
                                 </div>
                                 <h3 className="text-xl md:text-3xl font-semibold mb-2 text-white">
-                                    {successCount} MicroPaylink{successCount !== 1 ? 's' : ''} Secured
+                                    {successCount} {uploadMode === 'micropayment' 
+                                        ? (encryptionEnabled ? 'Encrypted MicroPaylink' : 'Public MicroPaylink') 
+                                        : (encryptionEnabled ? 'Encrypted Vault File' : 'Public Vault File')}{successCount !== 1 ? 's' : ''} Secured
                                 </h3>
                                 {failCount > 0 && (
                                     <div className="flex items-center gap-2 text-red-400 text-[10px] md:text-sm mb-2">
@@ -1097,24 +1136,23 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     </div>
                                 )}
                                 <p className="text-color-support text-xs md:text-lg mb-6 max-w-xs mx-auto">
-                                    {successCount > 0 ? 'Your files are now immutably stored on the soobinvault network.' : 'No files were uploaded successfully.'}
+                                    {successCount > 0 
+                                        ? (uploadMode === 'micropayment' 
+                                            ? (encryptionEnabled 
+                                                ? 'Your assets are encrypted and monetization links are ready to be shared.' 
+                                                : 'Your public assets are now listed and monetization links are ready to be shared.')
+                                            : (encryptionEnabled 
+                                                ? 'Decryption of these files will only be possible with your unique vault key.' 
+                                                : 'These files are now stored as public assets on the soobinvault network.')) 
+                                        : 'No files were uploaded successfully.'}
                                 </p>
 
-                                {lastTxHash && (
-                                    <a
-                                        href={`https://explorer.aptoslabs.com/txn/${lastTxHash}?network=testnet`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="mb-6 md:mb-8 px-5 md:px-6 py-2 rounded-xl bg-color-primary/10 border border-color-primary/20 text-color-primary hover:bg-color-primary/20 transition-all flex items-center gap-2 font-mono text-[10px] md:text-xs"
-                                    >
-                                        <LinkIcon size={12} className="md:w-3.5 md:h-3.5" />
-                                        <span>Last tx: {lastTxHash.substring(0, 6)}...{lastTxHash.substring(lastTxHash.length - 6)}</span>
-                                    </a>
-                                )}
 
                                 {generatedLinks.length > 0 && (
                                     <div className="w-[80%] md:w-full max-w-sm md:max-w-md mx-auto mb-6 space-y-2 md:space-y-3">
-                                        <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-white/30 mb-2">Shareable MicroPaylinks</p>
+                                        <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-white/30 mb-2">
+                                            {uploadMode === 'micropayment' ? 'Shareable MicroPaylinks' : 'Access Your Secured Assets'}
+                                        </p>
                                         {generatedLinks.map((link, idx) => {
                                             // Embed seller address into newly generated link for instant indexer bypass
                                             const sellerQuery = link.seller ? `?s=${link.seller}` : '';
@@ -1130,7 +1168,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                                             <p className="text-[10px] md:text-[11px] text-white/90 md:text-white/60 truncate font-medium">{link.name}</p>
                                                             {link.price && (
                                                                 <span className="px-1.5 py-0.5 rounded-md bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-[8px] font-black uppercase tracking-wider">
-                                                                    {link.price} SUSD
+                                                                    {link.price === '0' || link.price === '0.00' ? 'FREE' : `${link.price} SUSD`}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1140,11 +1178,6 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                                             {fullUrl}
                                                         </p>
 
-                                                        {link.seller && (
-                                                            <p className="text-[8px] text-white/30 uppercase tracking-[0.2em] font-bold">
-                                                                Creator: {link.seller.slice(0, 6)}...{link.seller.slice(-4)}
-                                                            </p>
-                                                        )}
                                                     </div>
 
                                                     <button

@@ -101,7 +101,10 @@ export function Dashboard() {
         const sortedReal = [...assets].sort((a, b) => {
             const timeA = a.timestamp || a.creationMicros || a.createdAt || a.indexedAt || a.indexed_at || a.block_timestamp || 0;
             const timeB = b.timestamp || b.creationMicros || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
-            if (timeA && timeB) return Number(timeB) - Number(timeA);
+            if (timeA && timeB) {
+                const diff = Number(timeB) - Number(timeA);
+                return isNaN(diff) ? 0 : diff;
+            }
             return 0;
         });
 
@@ -300,12 +303,10 @@ export function Dashboard() {
                 const timeB = b.creationMicros || b.timestamp || b.createdAt || b.indexedAt || b.indexed_at || b.block_timestamp || 0;
 
                 // If we have timestamps, sort by them (descending: newest first)
-                if (timeA && timeB) return Number(timeB) - Number(timeA);
-
-                // If only one has a timestamp, the other goes to the bottom
-                if (timeA && !timeB) return -1;
-                if (!timeA && timeB) return 1;
-
+                if (timeA && timeB) {
+                    const diff = Number(timeB) - Number(timeA);
+                    return isNaN(diff) ? 0 : diff;
+                }
                 return 0;
             });
 
@@ -670,9 +671,9 @@ export function Dashboard() {
                                     // Strip sv_market prefix for display and check if currently on sale
                                     let isMarketAsset = activeListings && activeListings.some((l: any) => (l.blob_name === fullNameForLink || l.blobName === fullNameForLink)) && !delistedNames.includes(fullNameForLink);
                                     
-                                    // Determine encryption status BEFORE we potentially modify nameOnly for display
+                                    // Determine encryption status STRICTLY by file extension or standard vault convention
                                     const isEncrypted = nameOnly.endsWith('.vault');
-                                    const isAceEncrypted = !isEncrypted && (isMarketAsset || isSvMarketFile(nameOnly));
+                                    const isAceEncrypted = !isEncrypted && (nameOnly.endsWith('.svmarket') || nameOnly.startsWith('sv_market--'));
 
                                     // Ownership: asset in user's own vault (not purchased by them from someone else)
                                     const isOwner = isAceEncrypted && !asset.isPurchased;
@@ -1176,7 +1177,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         {isMarketAsset && (
                             <span className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.2)]">
                                 <Tag size={10} className="fill-emerald-400/20" />
-                                On Sale
+                                {!isAceEncrypted && !isEncrypted ? 'Free' : 'On Sale'}
                             </span>
                         )}
                         {isPurchased && (
@@ -1240,11 +1241,11 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 ) : isAceEncrypted ? (
                     <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-blue-500/10 border-blue-500/30 text-blue-400">
                         <ShieldCheck size={10} className="text-blue-400" />
-                        ENCRYPT
+                        SECURED
                     </div>
                 ) : (
                     <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
-                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]" />
+                        <Globe size={10} className="text-yellow-500" />
                         PUBLIC
                     </div>
                 )}
@@ -1372,12 +1373,12 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                 }}
                                 className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 text-white active:bg-white/10 transition-all active:scale-[0.98] group"
                             >
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${isEncrypted && !encryptionKey ? 'bg-color-primary/10 text-color-primary' : isAceEncrypted ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${isEncrypted && !encryptionKey ? 'bg-color-primary/10 text-color-primary' : isAceEncrypted ? 'bg-blue-500/10 text-blue-400' : 'bg-yellow-500/10 text-yellow-500'}`}>
                                     {isEncrypted && !encryptionKey ? <Lock size={22} /> : isAceEncrypted ? <ShieldCheck size={22} /> : <Eye size={22} />}
                                 </div>
                                 <div className="text-left">
                                     <span className="block font-bold text-sm uppercase tracking-widest">{isEncrypted && !encryptionKey ? 'Unlock Asset' : isAceEncrypted ? 'Decrypt & View' : 'Preview Asset'}</span>
-                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">{isEncrypted && !encryptionKey ? 'Authorize to view content' : isAceEncrypted ? 'Secured threshold' : 'Instant data visualization'}</span>
+                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">{isEncrypted && !encryptionKey ? 'Authorize to view content' : isAceEncrypted ? 'Secured threshold' : 'Instant public view'}</span>
                                 </div>
                             </button>
 

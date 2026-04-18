@@ -122,7 +122,8 @@ export default function BuyPage() {
                         d => d.blob_name === blobName || d.blobName === blobName
                     );
                     if (dataset) {
-                        const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toFixed(2);
+                        const rawPrice = parseInt(dataset.price ?? '0');
+                        const priceDecimal = (isNaN(rawPrice) ? 0 : rawPrice / 100_000_000).toFixed(2);
                         setOverrideMeta({
                             price: priceDecimal,
                             category: dataset.category || 'Dataset',
@@ -136,6 +137,11 @@ export default function BuyPage() {
         };
         fetchOnChainMeta();
     }, [sellerAddress, metadata?.isNewFormat, overrideMeta?.price, blobName]);
+    useEffect(() => {
+        if (sellerParam) {
+            setSellerAddress(sellerParam);
+        }
+    }, [sellerParam]);
 
     useEffect(() => {
         const init = async () => {
@@ -145,16 +151,14 @@ export default function BuyPage() {
                 return;
             }
 
-            try {
-                // Determine seller immediately from link if possible (Instant Mode)
-                if (metadata.seller) {
-                    console.log("[Buy] Instant seller detected in link:", metadata.seller);
-                    setSellerAddress(metadata.seller);
-                } else if (sellerParam) {
-                    console.log("[Buy] Instant seller detected in query param:", sellerParam);
-                    setSellerAddress(sellerParam);
-                }
+            // Determine seller IMMEDIATELY from link/query to avoid "Authenticating..." hang
+            if (metadata.seller) {
+                setSellerAddress(metadata.seller);
+            } else if (sellerParam) {
+                setSellerAddress(sellerParam);
+            }
 
+            try {
                 // Fetch asset stats to find the owner or confirm metadata
                 console.log("[Buy] Attempting indexer discovery for:", blobName);
                 
@@ -182,7 +186,10 @@ export default function BuyPage() {
 
                             if (storefront && Array.isArray(storefront[0])) {
                                 const dataset = (storefront[0] as any[]).find(
-                                    d => d.blob_name === blobName || d.blobName === blobName
+                                (d: any) => {
+                                    const onChainName = (d.blob_name || d.blobName || '').toString().trim();
+                                    return onChainName === blobName.trim() || encodeURIComponent(onChainName) === encodeURIComponent(blobName.trim());
+                                }
                                 );
                                 if (!dataset) {
                                     setError('This payment link is inactive or has been deleted.');
@@ -190,8 +197,9 @@ export default function BuyPage() {
                                     return;
                                 }
                                 // For new .svmarket format: extract real metadata from contract
-                                if (metadata.isNewFormat && dataset) {
-                                    const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toFixed(2);
+                                if (metadata && metadata.isNewFormat && dataset) {
+                                    const rawPrice = parseInt(dataset.price ?? '0');
+                                    const priceDecimal = (isNaN(rawPrice) ? 0 : rawPrice / 100_000_000).toFixed(2);
                                     setOverrideMeta({
                                         price: priceDecimal,
                                         category: dataset.category || 'Dataset',
@@ -203,13 +211,13 @@ export default function BuyPage() {
                             console.warn('[Buy] Contract verification failed (ignoring for resilience):', contractErr);
                         }
                     }
-                } else if (metadata.seller) {
+                } else if (metadata && metadata.seller) {
                     console.warn("[Buy] Indexer lag detected. Proceeding with link metadata.");
                     setIsIndexerLag(true);
                 }
 
                 // FETCH SELLER PROFILE FOR TRUST CARD
-                if (metadata.seller || sellerAddress || sellerParam) {
+                if (metadata && (metadata.seller || sellerAddress || sellerParam)) {
                     const target = sellerAddress || metadata.seller || sellerParam;
                     if (target) {
                         try {
@@ -241,24 +249,27 @@ export default function BuyPage() {
                         });
                         
                         if (storefront && Array.isArray(storefront[0])) {
-                            const isListed = (storefront[0] as any[]).some(d => d.blob_name === blobName || d.blobName === blobName);
-                            if (!isListed) {
+                            const storefrontItems = storefront[0] as any[];
+                            const matchingItem = storefrontItems.find((d: any) => {
+                                const onChainName = (d.blob_name || d.blobName || '').toString().trim();
+                                return onChainName === blobName.trim() || encodeURIComponent(onChainName) === encodeURIComponent(blobName.trim());
+                            });
+
+                            if (!matchingItem) {
                                 setError("This payment link is inactive or has been deleted.");
                                 setLoading(false);
                                 return;
                             }
                             
                             // Load missing metadata since we have the contract storefront!
-                            if (metadata.isNewFormat) {
-                                const dataset = (storefront[0] as any[]).find(d => d.blob_name === blobName || d.blobName === blobName);
-                                if (dataset) {
-                                    const priceDecimal = (parseInt(dataset.price ?? '0') / 100_000_000).toFixed(2);
-                                    setOverrideMeta({
-                                        price: priceDecimal,
-                                        category: dataset.category || 'Dataset',
-                                        description: dataset.description || '',
-                                    });
-                                }
+                            if (metadata && metadata.isNewFormat) {
+                                const rawPrice = parseInt(matchingItem.price ?? '0');
+                                const priceDecimal = (isNaN(rawPrice) ? 0 : rawPrice / 100_000_000).toFixed(2);
+                                setOverrideMeta({
+                                    price: priceDecimal,
+                                    category: matchingItem.category || 'Dataset',
+                                    description: matchingItem.description || '',
+                                });
                             }
                         }
                     } catch (contractErr) {
@@ -277,13 +288,15 @@ export default function BuyPage() {
             } catch (err) {
                 console.error("Discovery failed, but link might still work:", err);
             } finally {
-                // For new .svmarket format: guarantee metadataReady becomes true so the page
-                // can render. If we got real on-chain metadata it won't be overwritten.
-                if (metadata?.isNewFormat) {
-                    setOverrideMeta(prev => prev ?? {
-                        price: '…',          // placeholder until wallet connects & storefront loads
-                        category: 'Dataset',
-                        description: '',
+                // For new .svmarket format or Clean links: guarantee metadataReady becomes true
+                if (metadata && metadata.isNewFormat) {
+                    setOverrideMeta(prev => {
+                        if (prev && prev.price !== '…') return prev;
+                        return {
+                            price: metadata.isPublic ? '0.00' : '…', 
+                            category: metadata.category || 'Dataset',
+                            description: metadata.description || '',
+                        };
                     });
                 }
                 setLoading(false);
@@ -361,10 +374,12 @@ export default function BuyPage() {
             
             let finalBufferData: Uint8Array = new Uint8Array(buffer);
 
-            // ACE DECRYPTION — only for encrypted formats
-            const isEncrypted = blobName.endsWith('.svmarket') || blobName.startsWith('sv_market') || blobName.includes('.vault');
+            // SECURE DECRYPTION CHECK: Only decrypt if the file is explicitly an ACE manifest or Vault archive
+            const isAce = blobName.endsWith('.svmarket') || blobName.startsWith('sv_market::') || blobName.startsWith('sv_market--');
+            const isVault = blobName.endsWith('.vault');
+            const needsDecryption = isAce || isVault;
             
-            if (isEncrypted) {
+            if (needsDecryption) {
                 toast.loading('Verifying permission & deciphering via ACE...', { id: 'decryption-status' });
                 try {
                     finalBufferData = await decryptAceFile({
@@ -395,7 +410,7 @@ export default function BuyPage() {
             toast.success("Download complete!");
         } catch (err: any) {
             console.error("Download failed:", err);
-            toast.error("Decentralized retrieval failed. The asset might still be migrating.");
+            toast.error("Decentralized retrieval failed. If this is a Public Asset, it should download instantly once finalized.", { id: 'decryption-status' });
         } finally {
             setDownloading(false);
         }
@@ -555,8 +570,12 @@ export default function BuyPage() {
                                                 <div>
                                                     <p className="text-[6px] sm:text-[10px] font-black uppercase tracking-[0.3em] mb-1 sm:mb-2 text-indigo-200/60">Asset Price</p>
                                                     <div className="flex items-baseline justify-center gap-1 sm:gap-2">
-                                                        <span className="text-xl sm:text-6xl lg:text-7xl font-black tracking-tight">{effectiveMetadata.price}</span>
-                                                        <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200">SUSD</span>
+                                                        <span className="text-xl sm:text-6xl lg:text-7xl font-black tracking-tight">
+                                                            {effectiveMetadata.price === '…' ? 'SYNC' : (effectiveMetadata.price === '0.00' ? 'FREE' : effectiveMetadata.price)}
+                                                        </span>
+                                                        {effectiveMetadata.price !== '…' && effectiveMetadata.price !== '0.00' && (
+                                                            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200">SUSD</span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -596,9 +615,9 @@ export default function BuyPage() {
                                         )
                                     ) : connected ? (
                                         <button
-                                            onClick={() => handleDownload(sellerAddress || "unknown")}
+                                            onClick={() => handleDownload(sellerAddress || sellerParam || "unknown")}
                                             disabled={downloading}
-                                            className="grow sm:grow-0 px-12 py-5 sm:py-6 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-black uppercase tracking-[0.3em] text-xs sm:text-sm shadow-[0_20px_40px_rgba(16,185,129,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-4"
+                                            className="grow sm:grow-0 px-12 py-5 sm:py-6 rounded-2xl bg-gradient-to-r from-indigo-500 to-indigo-700 text-white font-black uppercase tracking-[0.3em] text-xs sm:text-sm shadow-[0_20px_40px_rgba(79,70,229,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-4"
                                         >
                                             {downloading ? (
                                                 <>

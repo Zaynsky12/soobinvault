@@ -76,7 +76,21 @@ export function parseAssetId(id: string) {
     };
   }
 
-  if (!isHyphen && !isColon) return null;
+  if (!isHyphen && !isColon) {
+    // FALLBACK: Support for "Clean" public links (no paylink-- prefix)
+    const displayName = getSvMarketDisplayName(id);
+    return {
+      category: 'Public Asset', 
+      price: '0.00', // Default to free for clean public links to avoid SYNC hang
+      seller: null,
+      description: 'Listed on SoobinVault Marketplace',
+      title: displayName,
+      originalName: displayName,
+      version: 5,
+      isNewFormat: true,
+      isPublic: true
+    };
+  }
 
   const separator = isHyphen ? '--' : '::';
   const parts = id.split(separator);
@@ -121,7 +135,8 @@ export async function handlePurchaseTransaction(
   blobName: string,
   price: string
 ) {
-  const amount = Math.floor(parseFloat(price) * 100_000_000);
+  const parsedPrice = parseFloat(price);
+  const amount = isNaN(parsedPrice) ? 0 : Math.floor(parsedPrice * 100_000_000);
   
   if (amount === 0) {
     return { hash: "free_access" };
