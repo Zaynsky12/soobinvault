@@ -26,7 +26,7 @@ export function getSvMarketDisplayName(name: string): string {
   }
   if (name.startsWith('paylink--')) {
     const parts = name.split('--');
-    return parts[parts.length - 1].replace(/_[0-9a-f]{6}$/, ''); // Strip unique ID
+    return parts[parts.length - 1].replace(/_[0-9a-f]+$/, ''); // Strip unique ID
   }
   return name;
 }

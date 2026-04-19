@@ -559,8 +559,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     setCurrentIndex(i);
                     setUploadStatusText(`Preparing ${file.name} for Marketplace (${i + 1}/${files.length})...`);
                     
-                    // Sanitize filename for public links to prevent SDK/Browser issues with spaces
-                    const marketName = getSafeMarketName(file.name);
+                    // Add creator address and unique ID to allow immediate identification on the buy page
+                    const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(3)))
+                        .map(b => b.toString(16).padStart(2, '0')).join('');
+                    const safeName = getSafeMarketName(file.name);
+                    const marketName = `paylink--${account.address.toString()}--${safeName}_${uniqueId}`;
                     
                     blobs.push({
                         blobName: marketName,
