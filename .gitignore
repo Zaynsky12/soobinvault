@@ -33,7 +33,18 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# vercel
+# .vercel
+
+# SECURITY and LOGS
+.env*
+.npmrc
+.aptos/
+aptos-bin/
+.vscode/
+compile_error*.txt
+compile_tail*.txt
+scratch_*.ts
+scratch_ace.ts
 # aptos build
 marketplace_contract/build/
 
