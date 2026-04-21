@@ -742,7 +742,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         <section id="vault" className="py-20 md:py-24 relative z-10 px-6">
             <div className="container mx-auto max-w-4xl text-center mb-8 md:mb-12">
                 <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white tracking-tight">The Storage Vault</h2>
-                <p className="text-color-support/70 text-base md:text-xl font-light max-w-2xl mx-auto">Drag &amp; drop your digital assets to encrypt and fracture them across the global network.</p>
+                <p className="text-color-support/70 text-base md:text-xl font-light max-w-2xl mx-auto">Drag &amp; drop your digital assets to fracture them across the global network.</p>
             </div>
 
             <div className="container mx-auto max-w-2xl relative">
