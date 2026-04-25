@@ -11,7 +11,7 @@ import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient, useDeleteBlobs } from "@shelby-protocol/react";
 import { LinkPreviewModal } from './LinkPreviewModal';
-import { decryptFile, decryptText, decryptAceFile } from '../utils/crypto';
+import { decryptFile, decryptText } from '../utils/crypto';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 
 const aptosConfig = new AptosConfig({ network: Network.TESTNET });
@@ -19,7 +19,6 @@ const aptosClient = new Aptos(aptosConfig);
 import { useVaultKey } from '../context/VaultKeyContext';
 import { getFileType } from '../utils/file';
 import { MARKETPLACE_REGISTRY_ADDRESS } from '../lib/constants';
-import { ace } from "@aptos-labs/ace-sdk";
 import { AccountAddress, Ed25519PublicKey } from "@aptos-labs/ts-sdk";
 import { isSvMarketFile, getSvMarketDisplayName } from '../utils/payment';
 
@@ -983,21 +982,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             } else if (effectiveIsAceEncrypted) {
-                // --- ACE ENCRYPTED: need to decipher ---
-                const rawBlobName = blobName!;
-                // Ensure we use the exact marketName used during encryption (no prefix)
-                const aceBlobName = rawBlobName.startsWith('@') ? rawBlobName.split('/').slice(1).join('/') : rawBlobName;
-                
-                console.log(`[ACE Debug] Initiating download decipher for: ${aceBlobName}`);
-
-                const finalBufferData = await decryptAceFile({
-                    rawBuffer: new Uint8Array(buffer),
-                    blobName: aceBlobName,
-                    ownerAddress: blobAccount || '',
-                    account: account,
-                    signMessage: signMessage
-                });
-                
+                // --- SHELBY ON-CHAIN POLICY: natively decrypted ---
                 const ext = displayName.split('.').pop()?.toLowerCase() || '';
                 const mimeMap: Record<string, string> = {
                     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
@@ -1010,7 +995,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                     txt: 'text/plain', md: 'text/plain', json: 'application/json',
                 };
                 const forcedMimeType = mimeMap[ext] || 'application/octet-stream';
-                const finalBlob = new Blob([finalBufferData as any], { type: forcedMimeType });
+                const finalBlob = new Blob([buffer], { type: forcedMimeType });
 
                 const url = URL.createObjectURL(finalBlob);
                 const a = document.createElement('a');
@@ -1155,8 +1140,6 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                 <div className="w-14 h-14 rounded-2xl bg-[#080808] flex items-center justify-center shadow-xl group-hover:scale-105 group-hover:border-color-primary/30 transition-all duration-500 border border-white/5 shrink-0">
                     {isEncrypted && !encryptionKey ? (
                         <Lock className="text-color-primary animate-pulse" size={22} />
-                    ) : isAceEncrypted ? (
-                        <ShieldCheck className="text-blue-400 group-hover:text-blue-300 transition-colors" size={22} />
                     ) : isImg ? (
                         <ImageIcon className="text-yellow-500 group-hover:text-yellow-400 transition-colors" size={22} />
                     ) : isVid ? (
@@ -1165,6 +1148,8 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         <Music className="text-blue-400 group-hover:text-blue-300 transition-colors" size={22} />
                     ) : isDocument ? (
                         <FileText className="text-emerald-400 group-hover:text-emerald-300 transition-colors" size={22} />
+                    ) : isAceEncrypted ? (
+                        (isOwner || isPurchased) ? <ShieldCheck className="text-emerald-400 group-hover:text-emerald-300 transition-colors" size={22} /> : <Lock className="text-color-primary group-hover:text-color-primary/80 transition-colors" size={22} />
                     ) : (
                         <FileGeneral className="text-color-support/40 transition-colors" size={22} />
                     )}
@@ -1205,9 +1190,9 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                 ENCRYPT
                             </span>
                         ) : isAceEncrypted ? (
-                            <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-blue-400">
-                                <ShieldCheck size={10} className="text-blue-400" />
-                                ENCRYPT
+                            <span className={`text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 ${(isOwner || isPurchased) ? 'text-emerald-400' : 'text-color-primary'}`}>
+                                {(isOwner || isPurchased) ? <ShieldCheck size={10} /> : <Lock size={10} />}
+                                {(isOwner || isPurchased) ? 'DECRYPT' : 'ENCRYPT'}
                             </span>
                         ) : (
                             <span className="text-[9px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 text-yellow-500">
@@ -1239,9 +1224,9 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                         ENCRYPT
                     </div>
                 ) : isAceEncrypted ? (
-                    <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-blue-500/10 border-blue-500/30 text-blue-400">
-                        <ShieldCheck size={10} className="text-blue-400" />
-                        SECURED
+                    <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border ${(isOwner || isPurchased) ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-color-primary/10 border-color-primary/30 text-color-primary'}`}>
+                        {(isOwner || isPurchased) ? <ShieldCheck size={10} /> : <Lock size={10} />}
+                        {(isOwner || isPurchased) ? 'DECRYPT' : 'ENCRYPT'}
                     </div>
                 ) : (
                     <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] flex items-center gap-2 border bg-yellow-500/10 border-yellow-500/30 text-yellow-500">
@@ -1333,7 +1318,7 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
 
                         <div className="mb-4 flex items-center gap-4 border-b border-white/5 pb-5">
                             <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 shadow-inner">
-                                {isEncrypted && !encryptionKey ? <Lock size={28} className="text-color-primary animate-pulse" /> : isImg ? <ImageIcon size={28} className="text-color-accent" /> : isVid ? <PackageOpen size={28} className="text-color-primary" /> : <FileText size={28} className="text-color-support" />}
+                                {(isEncrypted && !encryptionKey) || isAceEncrypted ? <Lock size={28} className="text-color-primary animate-pulse" /> : isImg ? <ImageIcon size={28} className="text-color-accent" /> : isVid ? <PackageOpen size={28} className="text-color-primary" /> : <FileText size={28} className="text-color-support" />}
                             </div>
                             <div className="min-w-0 flex-1">
                                 <h3 className={`text-white font-bold truncate text-xl leading-snug ${isEncrypted && !encryptionKey ? 'blur-[6px] select-none opacity-50' : ''}`}>
@@ -1349,8 +1334,9 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                             <ShieldCheck size={10} /> {encryptionKey ? 'Decrypted' : 'Locked'}
                                         </span>
                                     ) : isAceEncrypted ? (
-                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-blue-400">
-                                            <ShieldCheck size={10} /> ENCRYPT
+                                        <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest ${(isOwner || isPurchased) ? 'text-emerald-400' : 'text-color-primary'}`}>
+                                            {(isOwner || isPurchased) ? <ShieldCheck size={10} /> : <Lock size={10} />}
+                                            {(isOwner || isPurchased) ? 'DECRYPT' : 'ENCRYPT'}
                                         </span>
                                     ) : (
                                         <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-yellow-400">
@@ -1373,12 +1359,12 @@ function AssetRow({ asset, index, displayName, sizeMB, isImg, isVid, isTxt, isAu
                                 }}
                                 className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 text-white active:bg-white/10 transition-all active:scale-[0.98] group"
                             >
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${isEncrypted && !encryptionKey ? 'bg-color-primary/10 text-color-primary' : isAceEncrypted ? 'bg-blue-500/10 text-blue-400' : 'bg-yellow-500/10 text-yellow-500'}`}>
-                                    {isEncrypted && !encryptionKey ? <Lock size={22} /> : isAceEncrypted ? <ShieldCheck size={22} /> : <Eye size={22} />}
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${isEncrypted && !encryptionKey ? 'bg-color-primary/10 text-color-primary' : isAceEncrypted ? ((isOwner || isPurchased) ? 'bg-emerald-500/10 text-emerald-400' : 'bg-color-primary/10 text-color-primary') : 'bg-yellow-500/10 text-yellow-500'}`}>
+                                    {isEncrypted && !encryptionKey ? <Lock size={22} /> : isAceEncrypted ? ((isOwner || isPurchased) ? <ShieldCheck size={22} /> : <Lock size={22} />) : <Eye size={22} />}
                                 </div>
                                 <div className="text-left">
-                                    <span className="block font-bold text-sm uppercase tracking-widest">{isEncrypted && !encryptionKey ? 'Unlock Asset' : isAceEncrypted ? 'Decrypt & View' : 'Preview Asset'}</span>
-                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">{isEncrypted && !encryptionKey ? 'Authorize to view content' : isAceEncrypted ? 'Secured threshold' : 'Instant public view'}</span>
+                                    <span className="block font-bold text-sm uppercase tracking-widest">{isEncrypted && !encryptionKey ? 'Unlock Asset' : isAceEncrypted ? 'Open & View' : 'Preview Asset'}</span>
+                                    <span className="block text-[10px] text-color-support/40 mt-0.5 uppercase tracking-wider">{isEncrypted && !encryptionKey ? 'Authorize to view content' : isAceEncrypted ? 'Accessible via Shelby' : 'Instant public view'}</span>
                                 </div>
                             </button>
 

@@ -6,7 +6,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useShelbyClient } from "@shelby-protocol/react";
 import { parseAssetId, handlePurchaseTransaction, downloadWithRetry, isSvMarketFile } from '@/utils/payment';
-import { decryptAceFile } from '@/utils/crypto';
+import { decryptFile } from '@/utils/crypto';
 import { MARKETPLACE_REGISTRY_ADDRESS } from '@/lib/constants';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -372,36 +372,34 @@ export default function BuyPage() {
             const buffer = await downloadWithRetry(shelbyClient, owner, blobName);
             if (!buffer) throw new Error("Asset retrieval failed: connection lost.");
             
-            let finalBufferData: Uint8Array = new Uint8Array(buffer);
+            const finalBufferData = new Uint8Array(buffer);
 
-            // SECURE DECRYPTION CHECK: Only decrypt if the file is explicitly an ACE manifest or Vault archive
-            const isAce = blobName.endsWith('.svmarket') || blobName.startsWith('sv_market::') || blobName.startsWith('sv_market--');
-            const isVault = blobName.endsWith('.vault');
-            const needsDecryption = isAce || isVault;
+            // Determine file extension and MIME type for proper browser handling
+            const assetTitle = effectiveMetadata.title || blobName;
+            const ext = assetTitle.split('.').pop()?.toLowerCase() || '';
+            const mimeMap: Record<string, string> = {
+                jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+                webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff',
+                ico: 'image/x-icon', avif: 'image/avif',
+                mp4: 'video/mp4', webm: 'video/webm', ogg: 'video/ogg', mov: 'video/quicktime',
+                mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', aac: 'audio/aac',
+                m4a: 'audio/mp4',
+                pdf: 'application/pdf',
+                txt: 'text/plain', md: 'text/plain', json: 'application/json',
+                zip: 'application/zip', rar: 'application/x-rar-compressed',
+                '7z': 'application/x-7z-compressed', tar: 'application/x-tar'
+            };
             
-            if (needsDecryption) {
-                toast.loading('Verifying permission & deciphering via ACE...', { id: 'decryption-status' });
-                try {
-                    finalBufferData = await decryptAceFile({
-                        rawBuffer: finalBufferData,
-                        blobName: blobName,
-                        ownerAddress: sellerAddress || '',
-                        account: account,
-                        signMessage: signMessage
-                    });
-                    toast.success('File deciphered successfully!', { id: 'decryption-status' });
-                } catch (aceErr: any) {
-                    toast.error(aceErr.message || 'Failed to decipher file.', { id: 'decryption-status' });
-                    throw aceErr;
-                }
-            }
+            const forcedMimeType = mimeMap[ext] || 'application/octet-stream';
             
-            // Create download link
-            const blob = new Blob([finalBufferData as any]);
+            // Create download link with explicit MIME type
+            const blob = new Blob([finalBufferData], { type: forcedMimeType });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = effectiveMetadata?.title || blobName;
+            
+            // Ensure download name is clean and has extension
+            a.download = assetTitle;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -410,7 +408,7 @@ export default function BuyPage() {
             toast.success("Download complete!");
         } catch (err: any) {
             console.error("Download failed:", err);
-            toast.error("Decentralized retrieval failed. If this is a Public Asset, it should download instantly once finalized.", { id: 'decryption-status' });
+            toast.error("Decentralized retrieval failed. Please try again in a few moments.", { id: 'decryption-status' });
         } finally {
             setDownloading(false);
         }

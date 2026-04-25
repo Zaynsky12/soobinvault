@@ -47,7 +47,7 @@ import {
   AccountAddress,
 } from "@aptos-labs/ts-sdk";
 import { useShelbyClient, useDeleteBlobs } from "@shelby-protocol/react";
-import { decryptAceFile } from "../utils/crypto";
+import { decryptFile } from "../utils/crypto";
 import toast from "react-hot-toast";
 import {
   MARKETPLACE_REGISTRY_ADDRESS,
@@ -857,22 +857,8 @@ export function Marketplace() {
 
       let finalBufferData: Uint8Array = new Uint8Array(buffer);
 
-      // --- ACE DECRYPTION ---
-      if (dataset.id.startsWith("sv_market--")) {
-          try {
-              toast.loading("Verifying permission & deciphering via ACE...", { id: downloadToastId });
-              finalBufferData = await decryptAceFile({
-                  rawBuffer: finalBufferData,
-                  blobName: dataset.id,
-                  ownerAddress: dataset.sellerFull,
-                  account: account,
-                  signMessage: signMessage as any
-              });
-          } catch (aceError: any) {
-              console.error("[ACE Error]", aceError);
-              throw new Error(aceError.message || "Failed to decipher dataset. Ensure you have purchased it or are the owner.");
-          }
-      }
+      // --- SHELBY ON-CHAIN POLICY ---
+      // The Shelby SDK natively decrypts the buffer if the user is authorized.
 
       const blob = new Blob([finalBufferData as any]);
       const dUrl = URL.createObjectURL(blob);

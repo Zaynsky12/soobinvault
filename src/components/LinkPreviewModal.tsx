@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, Download, ExternalLink, FileText, Image as ImageIcon, Info, Lock, Unlock, Maximize2, RefreshCw, Trash2, X, Music, Video, Key, Settings, File as FileIcon, Archive, FileSpreadsheet, Presentation, Share2, Banknote } from 'lucide-react';
-import { decryptFile, decryptAceFile } from '../utils/crypto';
+import { decryptFile } from '../utils/crypto';
 import { getFileType } from '../utils/file';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
@@ -143,20 +143,8 @@ export function LinkPreviewModal({
                 return;
             }
 
-            // --- ENCRYPTED: decrypt ---
+            // --- SHELBY ON-CHAIN POLICY ---
             if (isAceEncrypted) {
-                const rawBlobName = blobName!;
-                // Ensure we use the exact marketName used during encryption (no prefix)
-                const aceBlobName = rawBlobName.startsWith('@') ? rawBlobName.split('/').slice(1).join('/') : rawBlobName;
-                
-                const finalBufferData = await decryptAceFile({
-                    rawBuffer: rawBuffer,
-                    blobName: aceBlobName,
-                    ownerAddress: blobAccount || '',
-                    account: account,
-                    signMessage: signMessage
-                });
-                
                 const ext = assetName.split('.').pop()?.toLowerCase() || '';
                 const mimeMap: Record<string, string> = {
                     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
@@ -169,7 +157,7 @@ export function LinkPreviewModal({
                     txt: 'text/plain', md: 'text/plain', json: 'application/json',
                 };
                 const forcedMimeType = mimeMap[ext] || 'application/octet-stream';
-                const finalBlob = new Blob([finalBufferData as any], { type: forcedMimeType });
+                const finalBlob = new Blob([rawBuffer], { type: forcedMimeType });
 
                 const url = URL.createObjectURL(finalBlob);
                 const name = assetName.toLowerCase();
@@ -492,7 +480,7 @@ export function LinkPreviewModal({
                                         {isProcessing ? (isEncrypted ? 'Decrypting...' : 'Loading...') : (decryptedData ? decryptedData.name : 'Vault Asset')}
                                     </h2>
                                     <p className="text-[10px] text-color-support/40 uppercase tracking-widest mt-0.5">
-                                        {assetSizeStr} MB • {isEncrypted ? (decryptedData ? 'DECRYPTED' : 'ENCRYPTED') : isOwner ? 'ACE OWNER' : 'PUBLIC'}
+                                        {assetSizeStr} MB • {isEncrypted ? (decryptedData ? 'DECRYPTED' : 'ENCRYPTED') : isOwner ? 'DECRYPT' : 'PUBLIC'}
                                     </p>
                                 </div>
                             </div>

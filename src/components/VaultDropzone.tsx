@@ -12,8 +12,8 @@ import { GlassCard } from './ui/GlassCard';
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { useUploadBlobs } from "@shelby-protocol/react";
 import { getFileType } from '../utils/file';
-import { Network, AccountAddress } from "@aptos-labs/ts-sdk";
-import { ace } from "@aptos-labs/ace-sdk";
+
+
 
 // Shelby SDK Patch: Intercept fetch responses to prevent internal 'already received' errors,
 // implement network-level concurrency control, and add automatic retries for transient 500 errors.
@@ -190,6 +190,13 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             return () => { anim.kill(); };
         }
     }, [uploadState, currentIndex, pendingUploads]);
+
+    // Automatically set access to 'free' for Public MicroPaylinks
+    useEffect(() => {
+        if (uploadMode === 'micropayment' && !encryptionEnabled) {
+            setDatasetAccess('free');
+        }
+    }, [uploadMode, encryptionEnabled]);
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -441,7 +448,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
             setSuccessCount(backupFiles.length);
             setUploadState('success');
             setUploadStatusText(isMarket 
-                ? (encryptionEnabled ? "Payment handles & ACE permits generated successfully." : "Public MicroPaylink handles generated successfully.") 
+                ? (encryptionEnabled ? "Payment handles & secure permits generated successfully." : "Public MicroPaylink handles generated successfully.") 
                 : (encryptionEnabled ? "Assets secured and backed up." : "Assets stored successfully."));
 
             if (uploadMode === 'micropayment') {
@@ -476,68 +483,32 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
         try {
             if (uploadMode === 'micropayment' && encryptionEnabled) {
-                // --- ACE ENCRYPTED MICROPAYMENT PATH ---
-                setUploadStatusText("Initializing ACE Protocol...");
-
-                const committee = new ace.Committee({
-                    workerEndpoints: [
-                        "https://ace-worker-0-646682240579.europe-west1.run.app/",
-                        "https://ace-worker-1-646682240579.europe-west1.run.app/",
-                    ],
-                    threshold: 2,
-                });
-
-                const contractId = ace.ContractID.newAptos({
-                    chainId: 2, // Testnet
-                    moduleAddr: AccountAddress.fromString(MARKETPLACE_REGISTRY_ADDRESS),
-                    moduleName: "marketplace",
-                    functionName: "check_permission",
-                });
-
-                const encryptionKeyResult = await ace.EncryptionKey.fetch({ committee });
-                const encryptionKey = encryptionKeyResult.unwrapOrThrow(new Error("Failed to fetch ACE encryption key. Worker endpoints might be unreachable."));
+                // --- SHELBY ENCRYPTED MICROPAYMENT PATH ---
+                setUploadStatusText("Initializing security protocol...");
 
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
                     setCurrentFile(file);
                     setCurrentIndex(i);
-                    setUploadStatusText(`Encrypting ${file.name} for Marketplace (${i + 1}/${files.length})...`);
+                    setUploadStatusText(`Securing ${file.name} for Marketplace (${i + 1}/${files.length})...`);
 
                     const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
                     
                     // Stricter sanitization for URL-safe blob names on Shelby nodes
-                    // REMOVED dots entirely from name segments and FORCED lowercase for perfect registry parity
+                    const fileExt = file.name.split('.').pop() || '';
+                    const baseName = file.name.includes('.') ? file.name.split('.').slice(0, -1).join('.') : file.name;
                     const sanitize = (v: string, l: number) => v.slice(0, l).toLowerCase().replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
-                    const safeDesc = sanitize(datasetDescription, 20) || "untitled";
-                    const safeCategory = sanitize(datasetCategory, 15) || "uncategorized";
-                    const safePrice = sanitize(effectivePrice, 10) || "0";
-                    
-                    // For original filename, replace dot with underscore and force lowercase
-                    const safeOriginal = sanitize(file.name, 30);
-
-                    // Short, clean blob name with 8-char unique suffix for collision avoidance
-                    // Format: originalname_a3f7b2c1.svmarket
-                    // Metadata (price/category/description) is stored on-chain via list_dataset
+                    const safeBase = sanitize(baseName, 25);
                     const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(4)))
                         .map(b => b.toString(16).padStart(2, '0')).join('');
-                    const marketName = `paylink--${account.address.toString()}--${safeOriginal}_${uniqueId}.svmarket`;
-                    console.log(`[ACE] Encryption domain (marketName): ${marketName}`);
-                    const domain = new TextEncoder().encode(marketName);
+                    const marketName = `paylink--${account.address.toString()}--${safeBase}${fileExt ? '.' + fileExt : ''}_${uniqueId}.svmarket`;
+                    console.log(`[Shelby Access Control] Blob name: ${marketName}`);
 
-                    const fileBuffer = new Uint8Array(await file.arrayBuffer());
-                    const { ciphertext } = ace.encrypt({
-                        encryptionKey,
-                        contractId,
-                        domain,
-                        plaintext: fileBuffer,
-                    }).unwrapOrThrow(new Error("Encryption failed"));
-
-                    const cipherBytes = ciphertext.toBytes ? ciphertext.toBytes() : (ciphertext as any).bcsToBytes();
-                    console.log(`[ACE] Encrypted size: ${cipherBytes.length} bytes`);
+                    const fileBlob = new Blob([file]);
 
                     blobs.push({
                         blobName: marketName,
-                        blobData: cipherBytes
+                        blobData: fileBlob
                     });
                     processedFiles.push(file);
 
@@ -549,7 +520,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 }
 
                 setPendingUploads({ blobs, files: processedFiles });
-                setUploadStatusText("Assets encrypted via ACE and ready for deployment.");
+                setUploadStatusText("Assets secured via Shelby On-Chain Policy and ready for deployment.");
             } else if (uploadMode === 'micropayment' && !encryptionEnabled) {
                 // --- PLAINTEXT MICROPAYMENT PATH (ALIGNED WITH VAULT) ---
                 // We use original File objects to avoid simulation errors, same as Private Vault
@@ -800,19 +771,19 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     </button>
                                 </div>
 
-                                {/* Top SoobinVault Glass Icon */}
                                 <div
-                                    className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center mb-3 md:mb-4 transition-transform duration-500 ${uploadMode === 'micropayment'
-                                        ? 'bg-gradient-to-b from-[#2e2b1c] to-[#0d0d0d] border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.2)]'
-                                        : encryptionEnabled
+                                    className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center mb-3 md:mb-4 transition-transform duration-500 ${
+                                        encryptionEnabled
                                             ? 'bg-gradient-to-b from-[#3a1c3b] to-[#1A0D12] border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.2)]'
-                                            : 'glass-panel bg-[#1A0D12]/80 border border-white/10'
-                                        }`}
+                                            : uploadMode === 'micropayment'
+                                                ? 'bg-gradient-to-b from-[#2e2b1c] to-[#0d0d0d] border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.2)]'
+                                                : 'glass-panel bg-[#1A0D12]/80 border border-white/10'
+                                    }`}
                                 >
-                                    {uploadMode === 'micropayment' ? (
+                                    {encryptionEnabled ? (
+                                        <Lock size={28} strokeWidth={2} className="text-yellow-400 drop-shadow-[0_0_10px_rgba(234,179,8,0.6)]" />
+                                    ) : uploadMode === 'micropayment' ? (
                                         <Banknote size={28} strokeWidth={2} className="text-yellow-400 drop-shadow-[0_0_10px_rgba(234,179,8,0.6)]" />
-                                    ) : encryptionEnabled ? (
-                                        <ShieldCheck size={28} strokeWidth={2} className="text-yellow-400 drop-shadow-[0_0_10px_rgba(234,179,8,0.6)]" />
                                     ) : (
                                         <Shield size={28} strokeWidth={2} className="text-yellow-500/50" />
                                     )}
@@ -832,32 +803,24 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 {uploadMode === 'micropayment' && (
                                     <div className="w-full max-w-xs md:max-w-[420px] mb-4 text-left animate-in fade-in duration-300">
 
-                                        <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1">Access Type</label>
-                                        {!encryptionEnabled ? (
-                                            <div className="flex w-full bg-white/5 rounded-xl p-3.5 mb-4 border border-white/10 items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
-                                                <div className="w-8 h-8 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
-                                                    <Globe size={16} className="text-yellow-400" />
+                                        {encryptionEnabled && (
+                                            <>
+                                                <label className="block text-[11px] md:text-sm text-white/70 font-semibold mb-1.5 ml-1">Access Type</label>
+                                                <div className="flex w-full bg-black/40 rounded-full p-1 mb-4 border border-yellow-500/30 shadow-inner">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setDatasetAccess('free'); }}
+                                                        className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'free' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'text-white/40 hover:text-white/80'}`}
+                                                    >
+                                                        <Globe size={14} /> Free
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setDatasetAccess('paid'); }}
+                                                        className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'paid' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'text-white/40 hover:text-white/80'}`}
+                                                    >
+                                                        <Banknote size={14} /> Paid
+                                                    </button>
                                                 </div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-xs font-bold text-white tracking-wide">Public Access</span>
-                                                    <span className="text-[10px] text-white/40 font-medium tracking-tight">Encryption disabled. This asset will be free to everyone.</span>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex w-full bg-black/40 rounded-full p-1 mb-4 border border-yellow-500/30 shadow-inner">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setDatasetAccess('free'); }}
-                                                    className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'free' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'text-white/40 hover:text-white/80'}`}
-                                                >
-                                                    <Globe size={14} /> Free
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setDatasetAccess('paid'); }}
-                                                    className={`flex-1 flex justify-center items-center gap-1.5 py-2.5 text-[11px] md:text-xs font-bold rounded-full transition-all duration-300 ${datasetAccess === 'paid' ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-black shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'text-white/40 hover:text-white/80'}`}
-                                                >
-                                                    <Banknote size={14} /> Paid
-                                                </button>
-                                            </div>
+                                            </>
                                         )}
 
                                         {datasetAccess === 'paid' && (
@@ -955,39 +918,17 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                                 <button
                                     onClick={() => {
-                                        if (uploadMode === 'micropayment' && encryptionEnabled) {
-                                            toast.error("Monetization via ACE is under maintenance.");
-                                            return;
-                                        }
                                         fileInputRef.current?.click();
                                     }}
-                                    disabled={uploadMode === 'micropayment' && encryptionEnabled}
-                                    className={`w-[85%] max-w-xs md:max-w-[420px] py-3.5 md:py-4 rounded-full transition-all duration-500 font-bold uppercase text-[11px] md:text-xs tracking-widest mb-5 md:mb-6 mx-auto ${uploadMode === 'micropayment' && encryptionEnabled
-                                        ? 'bg-white/5 border border-white/10 text-white/20 cursor-not-allowed grayscale'
-                                        : uploadMode === 'micropayment'
+                                    className={`w-[85%] max-w-xs md:max-w-[420px] py-3.5 md:py-4 rounded-full transition-all duration-500 font-bold uppercase text-[11px] md:text-xs tracking-widest mb-5 md:mb-6 mx-auto ${uploadMode === 'micropayment'
                                             ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)] hover:scale-[1.02] active:scale-[0.98]'
                                             : encryptionEnabled
                                                 ? 'bg-gradient-to-r from-yellow-300 via-yellow-400 to-yellow-500 border border-yellow-200 text-yellow-950 shadow-[0_5px_30px_rgba(250,204,21,0.7)] hover:shadow-[0_10px_40px_rgba(250,204,21,0.9)] scale-105 animate-pulse-slow active:scale-[0.98]'
                                                 : 'bg-gradient-to-r from-yellow-500 to-yellow-600 border border-yellow-400/50 text-black shadow-[0_5px_15px_rgba(234,179,8,0.2)] hover:from-yellow-400 hover:to-yellow-500 hover:shadow-[0_8px_20px_rgba(234,179,8,0.4)] hover:scale-[1.02] active:scale-[0.98]'
                                         }`}
                                 >
-                                    {uploadMode === 'micropayment' && encryptionEnabled ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <Clock size={14} className="animate-spin-slow" /> Coming Soon
-                                        </span>
-                                    ) : (
-                                        'Select Files'
-                                    )}
+                                    Select Files
                                 </button>
-
-                                {uploadMode === 'micropayment' && encryptionEnabled && (
-                                    <div className="w-[85%] max-w-xs md:max-w-[420px] mx-auto mb-6 p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 flex items-start gap-3 animate-in fade-in zoom-in duration-500">
-                                        <AlertCircle size={16} className="text-yellow-500 shrink-0 mt-0.5" />
-                                        <p className="text-[10px] text-yellow-500/70 text-left leading-relaxed">
-                                            ACE-Monetization is currently undergoing protocol maintenance. You can still upload <b>Public Datasets</b> by turning off the encryption toggle below.
-                                        </p>
-                                    </div>
-                                )}
 
                                 <div
                                     onClick={(e) => {
@@ -1162,8 +1103,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                             const fullUrl = `${window.location.origin}/buy/${encodeURIComponent(link.id)}${sellerQuery}`;
                                             return (
                                                 <div key={idx} className="flex items-center gap-2 md:gap-4 p-2 md:p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/10 group hover:border-yellow-500/30 transition-all backdrop-blur-sm">
-                                                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-500 shrink-0">
-                                                        <Banknote size={16} className="md:w-6 md:h-6" />
+                                                    <div className={`w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 ${encryptionEnabled ? 'bg-color-primary/10 text-color-primary shadow-[0_0_15px_rgba(232,58,118,0.2)]' : 'bg-yellow-500/10 text-yellow-500'}`}>
+                                                        {encryptionEnabled ? <Lock size={16} className="md:w-6 md:h-6" /> : <Banknote size={16} className="md:w-6 md:h-6" />}
                                                     </div>
 
                                                     <div className="flex-1 min-w-0 text-left flex flex-col justify-center">

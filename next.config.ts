@@ -26,8 +26,7 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
-  // @ts-ignore
-  turbopack: {},
+
   async headers() {
     return [
       {
