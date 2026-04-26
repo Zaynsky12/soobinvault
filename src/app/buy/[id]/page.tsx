@@ -87,13 +87,8 @@ export default function BuyPage() {
         const checkAccess = async () => {
             if (!effectiveMetadata || !metadataReady) return;
 
-            // If price is 0, it's free to all
-            if (parseFloat(effectiveMetadata.price) === 0) {
-                setPurchased(true);
-                return;
-            }
-
-            // If user is the seller/owner, they don't need to buy
+            // Only auto-unlock for owner. For MicroPaylinks (even free ones), 
+            // we want the user to explicitly 'Get Access' to obtain the permit.
             if (connected && account && sellerAddress) {
                 const addrStr = account.address.toString();
                 if (addrStr === sellerAddress) {
@@ -313,6 +308,12 @@ export default function BuyPage() {
         }
 
         if (!effectiveMetadata) return;
+        
+        // Prevent purchase if price is still syncing
+        if (effectiveMetadata.price === '…') {
+            toast.error("Synchronizing asset price... Please wait a moment.");
+            return;
+        }
 
         setPurchasing(true);
         try {
@@ -346,7 +347,11 @@ export default function BuyPage() {
             }
 
             setPurchased(true);
-            toast.success("Purchase successful! Initializing download...");
+            toast.success("Purchase successful! Securing on-chain permit...");
+            
+            // Wait for indexer to catch up (crucial for ACE permit generation)
+            await new Promise(r => setTimeout(r, 3000));
+            
             handleDownload(finalSeller);
         } catch (err: any) {
             console.error("Purchase failed:", err);
@@ -369,7 +374,15 @@ export default function BuyPage() {
         if (!effectiveMetadata) return;
         setDownloading(true);
         try {
-            const buffer = await downloadWithRetry(shelbyClient, owner, blobName);
+            const sdkSigner = connected && account ? {
+                account: account.address.toString(),
+                signMessage: async (msg: string) => {
+                    const response = await signMessage({ message: msg, nonce: Math.floor(Date.now() / 1000).toString() });
+                    return (response as any).signature;
+                }
+            } : undefined;
+
+            const buffer = await downloadWithRetry(shelbyClient, owner, blobName, 5, sdkSigner);
             if (!buffer) throw new Error("Asset retrieval failed: connection lost.");
             
             const finalBufferData = new Uint8Array(buffer);
@@ -459,6 +472,31 @@ export default function BuyPage() {
 
                 <div className="buy-card">
                     <GlassCard className="p-0 border-white/10 bg-white/[0.01] relative overflow-hidden backdrop-blur-3xl rounded-[2rem] sm:rounded-[3rem]">
+                        {/* Pay Banner (matches Shelby Explorer style) */}
+                        {!purchased && effectiveMetadata.price !== '0.00' && effectiveMetadata.price !== '…' && (
+                            <div className="mx-5 sm:mx-10 mt-5 sm:mt-10 p-4 sm:p-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between animate-in slide-in-from-top duration-500">
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center text-indigo-400">
+                                        <Lock size={18} />
+                                    </div>
+                                    <div>
+                                        <p className="text-white font-bold text-sm sm:text-base">
+                                            Pay {effectiveMetadata.price} ShelbyUSD to access this blob.
+                                        </p>
+                                        <p className="text-white/40 text-[10px] sm:text-xs uppercase tracking-widest font-medium mt-0.5">
+                                            On-Chain Access Control Active
+                                        </p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={handleBuy}
+                                    disabled={purchasing}
+                                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                    {purchasing ? "..." : "Pay"}
+                                </button>
+                            </div>
+                        )}
                         {/* Enhanced Creator Trust Header (Ultra-Premium & Compact Mobile) */}
                         <div className="border-b border-white/5 bg-gradient-to-b from-white/[0.04] to-transparent p-5 sm:p-10 relative overflow-hidden group/header">
                             {/* Dynamic Ambient Glow */}
@@ -599,7 +637,7 @@ export default function BuyPage() {
                                                     </>
                                                 ) : (
                                                     <>
-                                                        Buy Now <ChevronLeft size={18} className="rotate-180" />
+                                                        {effectiveMetadata.price === '0.00' ? 'Get Free Access' : 'Buy Now'} <ChevronLeft size={18} className="rotate-180" />
                                                     </>
                                                 )}
                                             </button>

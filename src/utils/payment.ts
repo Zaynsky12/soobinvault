@@ -48,16 +48,17 @@ export function parseAssetId(id: string) {
     const originalName = parts.slice(2).join('--');
     const title = originalName.replace(/_[0-9a-f]+$/, '');
     
+    const isMonetized = id.endsWith('.svmarket');
     return {
-      category: 'Public Dataset',
-      price: '0.00',
+      category: isMonetized ? 'Secured Dataset' : 'Public Dataset',
+      price: isMonetized ? '…' : '0.00',
       seller: seller,
-      description: 'Public marketplace asset',
+      description: isMonetized ? 'Protocol-encrypted marketplace asset' : 'Public marketplace asset',
       title: title,
       originalName: originalName,
       version: 4,
       isNewFormat: true,
-      isPublic: true
+      isPublic: !isMonetized
     };
   }
 
@@ -138,10 +139,6 @@ export async function handlePurchaseTransaction(
   const parsedPrice = parseFloat(price);
   const amount = isNaN(parsedPrice) ? 0 : Math.floor(parsedPrice * 100_000_000);
   
-  if (amount === 0) {
-    return { hash: "free_access" };
-  }
-
   // Call the marketplace smart contract directly as per the official registry system
   return await signAndSubmitTransaction({
     data: {
@@ -154,12 +151,13 @@ export async function handlePurchaseTransaction(
 /**
  * Downloads a blob from Shelby with retry logic for indexing delays.
  */
-export async function downloadWithRetry(shelbyClient: any, owner: string, blobName: string, retries = 5) {
+export async function downloadWithRetry(shelbyClient: any, owner: string, blobName: string, retries = 5, signer?: any) {
   for (let i = 0; i < retries; i++) {
     try {
       const blob = await shelbyClient.download({
         account: owner,
-        blobName: blobName
+        blobName: blobName,
+        signer: signer
       });
       
       const reader = blob.readable.getReader();

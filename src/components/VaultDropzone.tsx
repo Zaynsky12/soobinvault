@@ -154,7 +154,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const [failCount, setFailCount] = useState<number>(0);
 
     const [pendingUploads, setPendingUploads] = useState<{
-        blobs: { blobName: string, blobData: Blob | Uint8Array }[],
+        blobs: { blobName: string, blobData: Blob | Uint8Array, isEncrypted?: boolean }[],
         files: File[]
     } | null>(null);
     const [generatedLinks, setGeneratedLinks] = useState<{ name: string, id: string, seller?: string, price?: string }[]>([]);
@@ -243,7 +243,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 }
                 return {
                     blobName: b.blobName,
-                    blobData: bytes
+                    blobData: bytes,
+                    isEncrypted: b.isEncrypted || false
                 };
             }));
 
@@ -478,7 +479,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         const sumSize = files.reduce((acc, f) => acc + f.size, 0);
         setTotalSize(sumSize);
 
-        const blobs: { blobName: string, blobData: Blob | Uint8Array }[] = [];
+        const blobs: { blobName: string, blobData: Blob | Uint8Array, isEncrypted?: boolean }[] = [];
         const processedFiles: File[] = [];
 
         try {
@@ -508,7 +509,8 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
                     blobs.push({
                         blobName: marketName,
-                        blobData: fileBlob
+                        blobData: fileBlob,
+                        isEncrypted: true
                     });
                     processedFiles.push(file);
 
@@ -534,11 +536,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(3)))
                         .map(b => b.toString(16).padStart(2, '0')).join('');
                     const safeName = getSafeMarketName(file.name);
-                    const marketName = `paylink--${account.address.toString()}--${safeName}_${uniqueId}`;
+                    const marketName = `paylink--${account.address.toString()}--${safeName}_${uniqueId}.svmarket`;
                     
                     blobs.push({
                         blobName: marketName,
-                        blobData: file // USE ORIGINAL FILE OBJECT (SAME AS VAULT)
+                        blobData: file,
+                        isEncrypted: true
                     });
                     processedFiles.push(file);
 
@@ -550,7 +553,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 }
 
                 setPendingUploads({ blobs, files: processedFiles });
-                setUploadStatusText("Assets ready for marketplace (unencrypted).");
+                setUploadStatusText("Assets secured via Shelby On-Chain Policy (Free Access) and ready for deployment.");
             } else if (encryptionEnabled) {
                 // --- ENCRYPTED PATH ---
                 setUploadStatusText("Initializing security protocol...");
@@ -864,6 +867,10 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                                         <span className="text-[9px] font-black text-yellow-400 uppercase tracking-widest ml-1 mr-1.5 select-none">SUSD</span>
                                                     </div>
                                                 </div>
+                                                <p className="mt-2 text-[10px] text-emerald-400/70 font-medium px-1 flex items-center gap-1.5 animate-in slide-in-from-left duration-700">
+                                                    <ShieldCheck size={11} className="shrink-0" />
+                                                    Protocol-level encryption enabled. Access will be allowlisted on-chain for buyers.
+                                                </p>
                                             </>
                                         )}
 

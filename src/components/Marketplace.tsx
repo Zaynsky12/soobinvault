@@ -35,6 +35,7 @@ import {
   SortAsc,
   ArrowUpDown,
   Shield,
+  ShieldCheck,
   ExternalLink,
   RefreshCw,
   Loader2,
@@ -118,6 +119,18 @@ const CATEGORY_META: Record<
     color: "text-white/40",
     bg: "bg-white/5",
     border: "border-white/10",
+  },
+  "Secured Dataset": {
+    icon: Shield,
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-500/30",
+  },
+  "Public Dataset": {
+    icon: Globe,
+    color: "text-yellow-400",
+    bg: "bg-yellow-500/10",
+    border: "border-yellow-500/30",
   },
 };
 
@@ -595,7 +608,9 @@ export function Marketplace() {
                 category,
                 downloads: displayDownloads,
                 isFree: price === 0,
-                tags: [category, d.is_optimistic ? "Just Uploaded" : null].filter(Boolean),
+                isMonetized: blobName.endsWith(".svmarket"),
+                isAllowlisted: blobName.endsWith(".svmarket"),
+                tags: [category, d.is_optimistic ? "Just Uploaded" : null, blobName.endsWith(".svmarket") ? "Allowlisted" : null].filter(Boolean),
                 updatedAgo: d.from_contract ? "Verified" : d.is_optimistic ? "Syncing..." : "Active",
               };
             })
@@ -986,9 +1001,18 @@ export function Marketplace() {
             <DownloadCloud size={11} />
             {dataset.downloads}
           </span>
-          <span className="w-24 hidden xl:flex items-center justify-center gap-1.5 text-[10px] text-white/20">
-            <Shield size={11} className="text-blue-400/50" />
-            On-chain
+          <span className="w-24 flex items-center justify-center gap-1.5 text-[10px] text-white/20">
+            {dataset.isAllowlisted ? (
+              <>
+                <ShieldCheck size={11} className="text-emerald-400" />
+                <span className="text-emerald-400/80">Allowlisted</span>
+              </>
+            ) : (
+              <>
+                <Shield size={11} className="text-blue-400/50" />
+                On-chain
+              </>
+            )}
           </span>
 
           {/* Desktop Price */}
@@ -1113,9 +1137,18 @@ export function Marketplace() {
               <DownloadCloud size={11} />
               {dataset.downloads}
             </span>
-            <span className="flex items-center gap-1 text-blue-400/50">
-              <Shield size={11} />
-              On-chain
+            <span className="flex items-center gap-1">
+              {dataset.isAllowlisted ? (
+                <>
+                  <ShieldCheck size={11} className="text-emerald-400" />
+                  <span className="text-emerald-400/80">Allowlisted</span>
+                </>
+              ) : (
+                <>
+                  <Shield size={11} className="text-blue-400/50" />
+                  On-chain
+                </>
+              )}
             </span>
           </div>
           {/* Action */}
