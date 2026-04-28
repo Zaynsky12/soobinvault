@@ -134,8 +134,25 @@ export function buildAceProofOfPermission(params: {
     fullMessage: string;
 }): ace.ProofOfPermission {
     const userAddr = AccountAddress.from(params.accountAddress);
-    const publicKey = new Ed25519PublicKey(params.publicKeyHex);
-    const signature = new Ed25519Signature(params.signatureHex);
+
+    // Normalize hex strings (strip 0x prefix for length analysis)
+    const pubHex = params.publicKeyHex.startsWith('0x')
+        ? params.publicKeyHex.slice(2)
+        : params.publicKeyHex;
+
+    // Wallet adapters may return AnyPublicKey format (33 bytes = 66 hex chars):
+    //   byte 0 = scheme (0x00 for Ed25519)
+    //   bytes 1-32 = raw Ed25519 key
+    // Bare Ed25519PublicKey is 32 bytes (64 hex chars).
+    // Ed25519PublicKey constructor requires exactly 32 bytes, so strip the prefix if present.
+    const finalPubHex = pubHex.length === 66 ? pubHex.slice(2) : pubHex;
+    const publicKey = new Ed25519PublicKey('0x' + finalPubHex);
+
+    // Normalize signature (strip 0x prefix if present)
+    const sigHex = params.signatureHex.startsWith('0x')
+        ? params.signatureHex
+        : '0x' + params.signatureHex;
+    const signature = new Ed25519Signature(sigHex);
 
     return ace.ProofOfPermission.createAptos({
         userAddr,
