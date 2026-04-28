@@ -40,6 +40,9 @@
   ],
   "exclude": [
     "node_modules",
-    "antigravity-awesome-skills"
+    "antigravity-awesome-skills",
+    "scratch",
+    "scratch_test.ts",
+    "scratch_test.js"
   ]
 }

@@ -8,6 +8,7 @@ import { useShelbyClient } from "@shelby-protocol/react";
 import { parseAssetId, handlePurchaseTransaction, downloadWithRetry, isSvMarketFile } from '@/utils/payment';
 import { decryptFile } from '@/utils/crypto';
 import { MARKETPLACE_REGISTRY_ADDRESS } from '@/lib/constants';
+import { buildFullDecryptionDomain, buildAceProofOfPermission, aceDecryptBuffer } from '@/utils/ace-utils';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MagneticButton } from '@/components/ui/MagneticButton';
@@ -374,6 +375,7 @@ export default function BuyPage() {
         if (!effectiveMetadata) return;
         setDownloading(true);
         try {
+            // Signer for Shelby's own access control (download the raw ciphertext)
             const sdkSigner = connected && account ? {
                 account: account.address.toString(),
                 signMessage: async (msg: string) => {
@@ -384,11 +386,42 @@ export default function BuyPage() {
 
             const buffer = await downloadWithRetry(shelbyClient, owner, blobName, 5, sdkSigner);
             if (!buffer) throw new Error("Asset retrieval failed: connection lost.");
-            
-            const finalBufferData = new Uint8Array(buffer);
 
-            // Determine file extension and MIME type for proper browser handling
-            const assetTitle = effectiveMetadata.title || blobName;
+            let finalBufferData: Uint8Array = new Uint8Array(buffer);
+
+            // --- ACE DECRYPTION (for .svmarket ACE-encrypted files) ---
+            if (isSvMarketFile(blobName) && connected && account) {
+                toast.loading('Requesting ACE decryption key from workers...', { id: 'ace-decrypt' });
+
+                // Build the message the user must sign (deterministic from blobName)
+                const fullDecDomain = buildFullDecryptionDomain(blobName);
+                const msgToSign = fullDecDomain.toPrettyMessage();
+
+                // Wallet signs the domain
+                const signOutput = await signMessage({ message: msgToSign, nonce: '0' }) as any;
+
+                const proof = buildAceProofOfPermission({
+                    accountAddress: account.address.toString(),
+                    publicKeyHex: account.publicKey.toString(),
+                    signatureHex: typeof signOutput.signature === 'string'
+                        ? signOutput.signature
+                        : signOutput.signature?.toString?.() ?? '',
+                    fullMessage: signOutput.fullMessage ?? msgToSign,
+                });
+
+                finalBufferData = await aceDecryptBuffer(
+                    finalBufferData,
+                    blobName,
+                    proof,
+                    (msg) => toast.loading(msg, { id: 'ace-decrypt' })
+                );
+                toast.dismiss('ace-decrypt');
+            }
+
+            // Determine file extension and MIME type
+            // Strip .svmarket wrapper to get original file extension
+            const rawTitle = effectiveMetadata.title || blobName;
+            const assetTitle = rawTitle.replace(/\.svmarket$/i, '');
             const ext = assetTitle.split('.').pop()?.toLowerCase() || '';
             const mimeMap: Record<string, string> = {
                 jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
@@ -402,26 +435,26 @@ export default function BuyPage() {
                 zip: 'application/zip', rar: 'application/x-rar-compressed',
                 '7z': 'application/x-7z-compressed', tar: 'application/x-tar'
             };
-            
             const forcedMimeType = mimeMap[ext] || 'application/octet-stream';
-            
-            // Create download link with explicit MIME type
-            const blob = new Blob([finalBufferData], { type: forcedMimeType });
+
+            const blob = new Blob([finalBufferData.buffer.slice(
+                finalBufferData.byteOffset,
+                finalBufferData.byteOffset + finalBufferData.byteLength
+            ) as ArrayBuffer], { type: forcedMimeType });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            
-            // Ensure download name is clean and has extension
             a.download = assetTitle;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
-            toast.success("Download complete!");
+
+            toast.success('Download complete!');
         } catch (err: any) {
-            console.error("Download failed:", err);
-            toast.error("Decentralized retrieval failed. Please try again in a few moments.", { id: 'decryption-status' });
+            toast.dismiss('ace-decrypt');
+            console.error('Download failed:', err);
+            toast.error('Decentralized retrieval failed. Please try again in a few moments.', { id: 'decryption-status' });
         } finally {
             setDownloading(false);
         }

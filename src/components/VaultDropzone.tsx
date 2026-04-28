@@ -6,6 +6,7 @@ import { UploadCloud, File as FileIcon, CheckCircle, Link as LinkIcon, Lock, Unl
 import { encryptFile, encryptText } from '../utils/crypto';
 import { useVaultKey } from '../context/VaultKeyContext';
 import { MARKETPLACE_REGISTRY_ADDRESS, SHELBYUSD_FA_METADATA_ADDRESS } from '../lib/constants';
+import { aceEncryptFile } from '../utils/ace-utils';
 import gsap from 'gsap';
 import toast from 'react-hot-toast';
 import { GlassCard } from './ui/GlassCard';
@@ -191,12 +192,12 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         }
     }, [uploadState, currentIndex, pendingUploads]);
 
-    // Automatically set access to 'free' for Public MicroPaylinks
+    // Force encryption ON whenever switching to MicroPaylink mode
     useEffect(() => {
-        if (uploadMode === 'micropayment' && !encryptionEnabled) {
-            setDatasetAccess('free');
+        if (uploadMode === 'micropayment') {
+            setEncryptionEnabled(true);
         }
-    }, [uploadMode, encryptionEnabled]);
+    }, [uploadMode]);
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -484,17 +485,14 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
 
         try {
             if (uploadMode === 'micropayment' && encryptionEnabled) {
-                // --- SHELBY ENCRYPTED MICROPAYMENT PATH ---
-                setUploadStatusText("Initializing security protocol...");
+                // --- ACE ENCRYPTED MICROPAYMENT PATH ---
+                setUploadStatusText("Initializing ACE security protocol...");
 
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
                     setCurrentFile(file);
                     setCurrentIndex(i);
-                    setUploadStatusText(`Securing ${file.name} for Marketplace (${i + 1}/${files.length})...`);
 
-                    const effectivePrice = datasetAccess === 'free' ? '0' : priceShelbyUSD;
-                    
                     // Stricter sanitization for URL-safe blob names on Shelby nodes
                     const fileExt = file.name.split('.').pop() || '';
                     const baseName = file.name.includes('.') ? file.name.split('.').slice(0, -1).join('.') : file.name;
@@ -503,13 +501,24 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(4)))
                         .map(b => b.toString(16).padStart(2, '0')).join('');
                     const marketName = `paylink--${account.address.toString()}--${safeBase}${fileExt ? '.' + fileExt : ''}_${uniqueId}.svmarket`;
-                    console.log(`[Shelby Access Control] Blob name: ${marketName}`);
+                    console.log(`[ACE] Encrypting blob: ${marketName}`);
 
-                    const fileBlob = new Blob([file]);
+                    // Step 1: Convert file to bytes
+                    setUploadStatusText(`[ACE] Reading ${file.name} (${i + 1}/${files.length})...`);
+                    const fileArrayBuffer = await file.arrayBuffer();
+                    const fileBytes = new Uint8Array(fileArrayBuffer);
+
+                    // Step 2: ACE encrypt — workers are contacted to get threshold IBE public key
+                    const ciphertextBytes = await aceEncryptFile(
+                        fileBytes,
+                        marketName,
+                        (msg) => setUploadStatusText(`[ACE ${i + 1}/${files.length}] ${msg}`)
+                    );
+                    console.log(`[ACE] Ciphertext size: ${ciphertextBytes.length} bytes`);
 
                     blobs.push({
                         blobName: marketName,
-                        blobData: fileBlob,
+                        blobData: ciphertextBytes,
                         isEncrypted: true
                     });
                     processedFiles.push(file);
@@ -522,7 +531,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                 }
 
                 setPendingUploads({ blobs, files: processedFiles });
-                setUploadStatusText("Assets secured via Shelby On-Chain Policy and ready for deployment.");
+                setUploadStatusText("ACE ciphertext ready. Awaiting on-chain registration...");
             } else if (uploadMode === 'micropayment' && !encryptionEnabled) {
                 // --- PLAINTEXT MICROPAYMENT PATH (ALIGNED WITH VAULT) ---
                 // We use original File objects to avoid simulation errors, same as Private Vault
@@ -793,13 +802,11 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                 </div>
 
                                 <h3 className="text-xl md:text-3xl font-bold mb-1 md:mb-2 text-white tracking-tight">
-                                    {uploadMode === 'micropayment' 
-                                        ? (encryptionEnabled ? 'Monetize AI Dataset' : 'Share Public Dataset')
-                                        : 'Deploy Assets'}
+                                    {uploadMode === 'micropayment' ? 'Monetize AI Dataset' : 'Deploy Assets'}
                                 </h3>
                                 <p className="text-color-support/80 mb-4 md:mb-6 text-xs md:text-sm px-4">
-                                    {uploadMode === 'micropayment' 
-                                        ? (encryptionEnabled ? 'Upload files and set a price in ShelbyUSD for encrypted access.' : 'Upload files for public access. These assets will be free for everyone.')
+                                    {uploadMode === 'micropayment'
+                                        ? 'Upload files and set a price in ShelbyUSD for encrypted access.'
                                         : 'Drag and drop your files, or select from your device.'}
                                 </p>
 
@@ -867,10 +874,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                                         <span className="text-[9px] font-black text-yellow-400 uppercase tracking-widest ml-1 mr-1.5 select-none">SUSD</span>
                                                     </div>
                                                 </div>
-                                                <p className="mt-2 text-[10px] text-emerald-400/70 font-medium px-1 flex items-center gap-1.5 animate-in slide-in-from-left duration-700">
-                                                    <ShieldCheck size={11} className="shrink-0" />
-                                                    Protocol-level encryption enabled. Access will be allowlisted on-chain for buyers.
-                                                </p>
+
                                             </>
                                         )}
 
@@ -937,40 +941,43 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                                     Select Files
                                 </button>
 
-                                <div
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEncryptionEnabled(v => !v);
-                                    }}
-                                    className={`w-full max-w-xs md:max-w-[420px] mx-auto flex items-center justify-center gap-3 cursor-pointer group px-2`}
-                                >
-                                    {/* Checkbox square */}
-                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 shrink-0 ${encryptionEnabled
-                                        ? 'bg-color-primary border-color-primary text-white shadow-[0_0_10px_rgba(232,58,118,0.4)]'
-                                        : 'border-white/40 bg-transparent group-hover:border-white/60'
-                                        }`}>
-                                        {encryptionEnabled && <Check size={14} strokeWidth={3} />}
+                                {/* Encryption toggle — only visible in Private Vault mode */}
+                                {uploadMode !== 'micropayment' && (
+                                    <div
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEncryptionEnabled(v => !v);
+                                        }}
+                                        className={`w-full max-w-xs md:max-w-[420px] mx-auto flex items-center justify-center gap-3 cursor-pointer group px-2`}
+                                    >
+                                        {/* Checkbox square */}
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all duration-300 shrink-0 ${encryptionEnabled
+                                            ? 'bg-color-primary border-color-primary text-white shadow-[0_0_10px_rgba(232,58,118,0.4)]'
+                                            : 'border-white/40 bg-transparent group-hover:border-white/60'
+                                            }`}>
+                                            {encryptionEnabled && <Check size={14} strokeWidth={3} />}
+                                        </div>
+
+                                        {/* Lock Icon */}
+                                        {encryptionEnabled ? (
+                                            <Lock
+                                                size={20}
+                                                className="shrink-0 text-yellow-400 fill-yellow-400/20 drop-shadow-[0_0_12px_rgba(250,204,21,0.9)] transition-all duration-300 scale-110"
+                                            />
+                                        ) : (
+                                            <Unlock
+                                                size={18}
+                                                className="shrink-0 text-yellow-500/80 transition-colors duration-300 group-hover:text-yellow-400"
+                                            />
+                                        )}
+
+                                        {/* Text */}
+                                        <span className={`text-[12px] md:text-sm tracking-wide transition-colors ${encryptionEnabled ? 'text-white font-medium' : 'text-white/60 group-hover:text-white/80'
+                                            }`}>
+                                            Encrypt file before upload
+                                        </span>
                                     </div>
-
-                                    {/* Lock Icon */}
-                                    {encryptionEnabled ? (
-                                        <Lock
-                                            size={20}
-                                            className="shrink-0 text-yellow-400 fill-yellow-400/20 drop-shadow-[0_0_12px_rgba(250,204,21,0.9)] transition-all duration-300 scale-110"
-                                        />
-                                    ) : (
-                                        <Unlock
-                                            size={18}
-                                            className="shrink-0 text-yellow-500/80 transition-colors duration-300 group-hover:text-yellow-400"
-                                        />
-                                    )}
-
-                                    {/* Text */}
-                                    <span className={`text-[12px] md:text-sm tracking-wide transition-colors ${encryptionEnabled ? 'text-white font-medium' : 'text-white/60 group-hover:text-white/80'
-                                        }`}>
-                                        {uploadMode === 'micropayment' && !encryptionEnabled ? 'Upload as Public (Free)' : 'Encrypt file before upload'}
-                                    </span>
-                                </div>
+                                )}
                             </div>
                         )}
                         {/* Uploading / Encrypting state */}
