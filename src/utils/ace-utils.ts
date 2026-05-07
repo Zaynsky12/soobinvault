@@ -107,11 +107,17 @@ export async function aceDecryptBuffer(
     const contractId = buildAceContractId();
     const domain = new TextEncoder().encode(blobName);
 
-    // Retry config: up to 3 attempts, delays of 3s → 6s → 12s
-    const MAX_RETRIES = 3;
-    const BASE_DELAY_MS = 3000;
+    // Retry config: up to 5 attempts, delays of 5s → 10s → 20s → 40s → 80s
+    const MAX_RETRIES = 5;
+    const BASE_DELAY_MS = 5000;
 
-    let lastError = '';
+    const ciphertextResult = ace.Ciphertext.fromBytes(ciphertextBytes);
+    if (!ciphertextResult.isOk) {
+        throw new Error(`Invalid ACE ciphertext: ${ciphertextResult.errValue}`);
+    }
+    const ciphertext = ciphertextResult.okValue!;
+
+    let lastError: any = '';
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         onStatus?.(attempt === 1
             ? 'Requesting ACE decryption key from workers...'
@@ -123,30 +129,33 @@ export async function aceDecryptBuffer(
             const decryptionKey = decKeyResult.okValue!;
 
             onStatus?.('Decrypting file...');
-            const ciphertextResult = ace.Ciphertext.fromBytes(ciphertextBytes);
-            if (!ciphertextResult.isOk) {
-                throw new Error(`Invalid ACE ciphertext: ${ciphertextResult.errValue}`);
-            }
-
-            const plainResult = ace.decrypt({ decryptionKey, ciphertext: ciphertextResult.okValue! });
+            const plainResult = ace.decrypt({ decryptionKey, ciphertext });
             if (!plainResult.isOk) {
-                throw new Error(`ACE decryption failed: ${plainResult.errValue}`);
+                throw new Error(`ACE inner decryption failed: ${plainResult.errValue}`);
             }
 
             return plainResult.okValue!;
         }
 
-        lastError = String(decKeyResult.errValue);
-        const isRetryable = lastError.toLowerCase().includes('insufficient shares')
-            || lastError.toLowerCase().includes('unavailable')
-            || lastError.toLowerCase().includes('timeout');
-
-        if (!isRetryable || attempt === MAX_RETRIES) {
-            // Permission explicitly denied or non-retryable error — stop immediately
-            break;
+        // Handle error and retry
+        lastError = decKeyResult.errValue;
+        console.warn(`[ACE] Attempt ${attempt} failed: ${lastError}`);
+        
+        // Log individual worker results if available in the 'extra' field
+        if ((decKeyResult as any).extra) {
+            console.dir((decKeyResult as any).extra);
         }
 
-        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1); // 3s, 6s, 12s
+        const errStr = String(lastError).toLowerCase();
+        const isRetryable = errStr.includes('insufficient shares')
+            || errStr.includes('unavailable')
+            || errStr.includes('timeout');
+
+        if (!isRetryable || attempt === MAX_RETRIES) {
+            throw new Error(`ACE workers denied access or are unavailable after ${attempt} attempts: ${lastError}`);
+        }
+
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
         onStatus?.(`Workers indexing on-chain state... retrying in ${delay / 1000}s`);
         console.warn(`[ACE] Attempt ${attempt} failed (${lastError}). Retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
