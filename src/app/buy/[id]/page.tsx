@@ -345,14 +345,19 @@ export default function BuyPage() {
 
             if (response && response.hash) {
                 setLastTxHash(response.hash);
+                // Wait for on-chain confirmation before requesting ACE decryption key
+                toast.loading('Confirming transaction on-chain...', { id: 'tx-confirm' });
+                try {
+                    await aptosClient.waitForTransaction({ transactionHash: response.hash });
+                } catch (waitErr) {
+                    console.warn('[Buy] waitForTransaction timed out, proceeding anyway:', waitErr);
+                } finally {
+                    toast.dismiss('tx-confirm');
+                }
             }
 
             setPurchased(true);
-            toast.success("Purchase successful! Securing on-chain permit...");
-            
-            // Wait for indexer to catch up (crucial for ACE permit generation)
-            await new Promise(r => setTimeout(r, 3000));
-            
+            toast.success('Purchase successful! Securing on-chain permit...');
             handleDownload(finalSeller);
         } catch (err: any) {
             console.error("Purchase failed:", err);
@@ -397,15 +402,13 @@ export default function BuyPage() {
                 const fullDecDomain = buildFullDecryptionDomain(blobName);
                 const msgToSign = fullDecDomain.toPrettyMessage();
 
-                // Wallet signs the domain
-                const signOutput = await signMessage({ message: msgToSign, nonce: '0' }) as any;
+                // Wallet signs the domain; use a unique nonce per request to prevent replay
+                const signOutput = await signMessage({ message: msgToSign, nonce: Date.now().toString() }) as any;
 
                 const proof = buildAceProofOfPermission({
                     accountAddress: account.address.toString(),
-                    publicKeyHex: account.publicKey.toString(),
-                    signatureHex: typeof signOutput.signature === 'string'
-                        ? signOutput.signature
-                        : signOutput.signature?.toString?.() ?? '',
+                    publicKey: account.publicKey,
+                    signature: signOutput.signature,
                     fullMessage: signOutput.fullMessage ?? msgToSign,
                 });
 

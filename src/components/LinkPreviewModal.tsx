@@ -5,6 +5,7 @@ import { getFileType } from '../utils/file';
 import { useVaultKey } from '../context/VaultKeyContext';
 import gsap from 'gsap';
 import { GlassCard } from './ui/GlassCard';
+import { buildFullDecryptionDomain, buildAceProofOfPermission, aceDecryptBuffer } from '../utils/ace-utils';
 
 interface LinkPreviewModalProps {
     isOpen: boolean;
@@ -143,32 +144,58 @@ export function LinkPreviewModal({
                 return;
             }
 
-            // --- SHELBY ON-CHAIN POLICY ---
+            // --- ACE ENCRYPTED (owner preview via ACE workers) ---
             if (isAceEncrypted) {
-                const ext = assetName.split('.').pop()?.toLowerCase() || '';
+                if (!isOwner || !account || !signMessage) {
+                    setFetchError('ACE_NOT_OWNER');
+                    setIsProcessing(false);
+                    return;
+                }
+
+                // Build the domain and ask the owner to sign it
+                const fullDecDomain = buildFullDecryptionDomain(blobName!);
+                const msgToSign = fullDecDomain.toPrettyMessage();
+
+                let signOutput: any;
+                try {
+                    signOutput = await signMessage({ message: msgToSign, nonce: Date.now().toString() });
+                } catch (signErr: any) {
+                    throw new Error(`Wallet signing cancelled or failed: ${signErr?.message || signErr}`);
+                }
+
+                const proof = buildAceProofOfPermission({
+                    accountAddress: account.address.toString(),
+                    publicKey: account.publicKey,
+                    signature: signOutput.signature,
+                    fullMessage: signOutput.fullMessage ?? msgToSign,
+                });
+
+                const decryptedBytes = await aceDecryptBuffer(rawBuffer, blobName!, proof);
+
+                // Determine MIME type from original file name (strip .svmarket suffix)
+                const cleanName = assetName.replace(/\.svmarket$/i, '');
+                const ext = cleanName.split('.').pop()?.toLowerCase() || '';
                 const mimeMap: Record<string, string> = {
                     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
                     webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff',
                     ico: 'image/x-icon', avif: 'image/avif',
                     mp4: 'video/mp4', webm: 'video/webm', ogg: 'video/ogg', mov: 'video/quicktime',
                     mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', aac: 'audio/aac',
-                    m4a: 'audio/mp4',
-                    pdf: 'application/pdf',
+                    m4a: 'audio/mp4', pdf: 'application/pdf',
                     txt: 'text/plain', md: 'text/plain', json: 'application/json',
                 };
                 const forcedMimeType = mimeMap[ext] || 'application/octet-stream';
-                const finalBlob = new Blob([rawBuffer], { type: forcedMimeType });
-
+                const finalBlob = new Blob([new Uint8Array(decryptedBytes)], { type: forcedMimeType });
                 const url = URL.createObjectURL(finalBlob);
-                const name = assetName.toLowerCase();
+                const name = cleanName.toLowerCase();
 
                 setDecryptedData({
                     url,
-                    name: assetName,
+                    name: cleanName,
                     type: forcedMimeType,
                     isImage: !!name.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|ico|avif|heic)$/),
                     isVideo: !!name.match(/\.(mp4|webm|ogg|mov|mkv|avi|m4v|flv|wmv|3gp)$/),
-                    isText: !!name.match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|bash|zsh|fish|log|env|csv|sql|graphql|gql|ini|cfg|conf)$/),
+                    isText: !!name.match(/\.(txt|md|json|js|ts|tsx|jsx|html|css|py|go|rs|c|cpp|h|yaml|yml|toml|xml|sh|log|env|csv|sql|ini|cfg|conf)$/),
                     isAudio: !!name.match(/\.(mp3|wav|ogg|flac|aac|m4a|opus|wma)$/),
                     isDocument: !!name.match(/\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf|epub|pages|numbers|key|zip|rar|7z|gz|tar)$/),
                 });
@@ -236,7 +263,7 @@ export function LinkPreviewModal({
             }
             setIsProcessing(false);
         }
-    }, [blobName, blobAccount, shelbyClient, accountAddress, ensureKey, isEncrypted, assetName, isAceEncrypted, account, signMessage]);
+    }, [blobName, blobAccount, shelbyClient, accountAddress, ensureKey, isEncrypted, assetName, isAceEncrypted, isOwner, account, signMessage]);
 
     useEffect(() => {
         if (isOpen) {
@@ -501,6 +528,16 @@ export function LinkPreviewModal({
                                     <span className="text-color-primary font-mono text-[10px] tracking-[0.2em] uppercase animate-pulse">
                                         {isOwner ? 'Owner Handshake...' : isEncrypted ? 'Decrypting...' : 'Loading...'}
                                     </span>
+                                </div>
+                            ) : fetchError === 'ACE_NOT_OWNER' ? (
+                                <div className="flex flex-col items-center justify-center gap-4 text-center px-10 py-12">
+                                    <div className="w-16 h-16 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
+                                        <Lock size={28} className="text-yellow-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-white font-bold text-lg mb-1">Owner Access Only</h3>
+                                        <p className="text-white/40 text-sm max-w-xs">ACE-encrypted previews are only available to the file owner. Buyers must use the payment link to decrypt.</p>
+                                    </div>
                                 </div>
                             ) : (fetchError === 'DECRYPTION_FAILED' && !isAceEncrypted) ? (
                                 <div className="flex flex-col items-center justify-center gap-6 text-center px-4 md:px-12 py-6 md:py-16 w-full max-w-xl mx-auto">

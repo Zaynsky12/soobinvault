@@ -550,7 +550,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     blobs.push({
                         blobName: marketName,
                         blobData: file,
-                        isEncrypted: true
+                        isEncrypted: false // Plaintext path — no ACE encryption applied
                     });
                     processedFiles.push(file);
 
