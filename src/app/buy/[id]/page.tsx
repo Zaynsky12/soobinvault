@@ -8,7 +8,8 @@ import { useShelbyClient } from "@shelby-protocol/react";
 import { parseAssetId, handlePurchaseTransaction, downloadWithRetry, isSvMarketFile } from '@/utils/payment';
 import { decryptFile } from '@/utils/crypto';
 import { MARKETPLACE_REGISTRY_ADDRESS } from '@/lib/constants';
-import { buildFullDecryptionDomain, buildAceProofOfPermission, aceDecryptBuffer } from '@/utils/ace-utils';
+import { buildFullDecryptionDomain, buildAceProofOfPermission, aceDecryptBuffer, buildAceContractId } from '@/utils/ace-utils';
+import { ace } from '@aptos-labs/ace-sdk';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { MagneticButton } from '@/components/ui/MagneticButton';
@@ -195,7 +196,8 @@ export default function BuyPage() {
                                 // For new .svmarket format: extract real metadata from contract
                                 if (metadata && metadata.isNewFormat && dataset) {
                                     const rawPrice = parseInt(dataset.price ?? '0');
-                                    const priceDecimal = (isNaN(rawPrice) ? 0 : rawPrice / 100_000_000).toFixed(2);
+                                    let calculatedPrice = (isNaN(rawPrice) ? 0 : rawPrice / 100_000_000);
+                                    const priceDecimal = calculatedPrice > 0 && calculatedPrice < 0.01 ? calculatedPrice.toFixed(4) : calculatedPrice.toFixed(2);
                                     setOverrideMeta({
                                         price: priceDecimal,
                                         category: dataset.category || 'Dataset',
@@ -260,7 +262,8 @@ export default function BuyPage() {
                             // Load missing metadata since we have the contract storefront!
                             if (metadata && metadata.isNewFormat) {
                                 const rawPrice = parseInt(matchingItem.price ?? '0');
-                                const priceDecimal = (isNaN(rawPrice) ? 0 : rawPrice / 100_000_000).toFixed(2);
+                                let calculatedPrice = (isNaN(rawPrice) ? 0 : rawPrice / 100_000_000);
+                                const priceDecimal = calculatedPrice > 0 && calculatedPrice < 0.01 ? calculatedPrice.toFixed(4) : calculatedPrice.toFixed(2);
                                 setOverrideMeta({
                                     price: priceDecimal,
                                     category: matchingItem.category || 'Dataset',
@@ -396,21 +399,36 @@ export default function BuyPage() {
 
             // --- ACE DECRYPTION (for .svmarket ACE-encrypted files) ---
             if (isSvMarketFile(blobName) && connected && account) {
+                console.log('[ACE-DEBUG] User Address:', account.address);
+                console.log('[ACE-DEBUG] User Public Key (Hex):', account.publicKey?.toString());
+                
                 toast.loading('Requesting ACE decryption key from workers...', { id: 'ace-decrypt' });
+                // Create decryption domain
+                const decryptionDomain = new ace.FullDecryptionDomain({
+                    contractId: buildAceContractId(),
+                    domain: new TextEncoder().encode(blobName),
+                });
 
-                // Build the message the user must sign (deterministic from blobName)
-                const fullDecDomain = buildFullDecryptionDomain(blobName);
-                const msgToSign = fullDecDomain.toPrettyMessage();
+                console.log('[ACE-DEBUG] Pretty Message to Sign:', `"${decryptionDomain.toPrettyMessage()}"`);
 
-                // Wallet signs the domain; use a unique nonce per request to prevent replay
-                const signOutput = await signMessage({ message: msgToSign, nonce: Date.now().toString() }) as any;
+                // Request signature
+                toast.loading('Please sign the decryption request in your wallet...', { id: 'ace-decrypt' });
+                const signOutput = await signMessage({
+                    message: decryptionDomain.toPrettyMessage(),
+                    nonce: Math.random().toString(36).substring(7)
+                });
 
+                console.log('[ACE-DEBUG] signOutput:', signOutput);
+
+                // Build proof
                 const proof = buildAceProofOfPermission({
                     accountAddress: account.address.toString(),
-                    publicKey: account.publicKey,
-                    signature: signOutput.signature,
-                    fullMessage: signOutput.fullMessage ?? msgToSign,
+                    publicKey: account.publicKey as any,
+                    signature: signOutput.signature as any,
+                    fullMessage: signOutput.fullMessage?.trim() || signOutput.fullMessage
                 });
+                
+                console.log('[ACE-DEBUG] Proof built. Hex length:', proof.toHex().length);
 
                 finalBufferData = await aceDecryptBuffer(
                     finalBufferData,
@@ -418,13 +436,30 @@ export default function BuyPage() {
                     proof,
                     (msg) => toast.loading(msg, { id: 'ace-decrypt' })
                 );
+                console.log('[ACE-DEBUG] Decryption successful. Buffer size:', finalBufferData.length);
+                console.log('[ACE-DEBUG] First 16 bytes (Hex):', Array.from(finalBufferData.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+                
                 toast.dismiss('ace-decrypt');
             }
 
             // Determine file extension and MIME type
-            // Strip .svmarket wrapper to get original file extension
+            // Strip .svmarket wrapper
             const rawTitle = effectiveMetadata.title || blobName;
-            const assetTitle = rawTitle.replace(/\.svmarket$/i, '');
+            let assetTitle = rawTitle.replace(/\.svmarket$/i, '');
+            
+            // Fix: If the name is "file.png_uniqueid", we want "file_uniqueid.png" 
+            // so the OS recognizes it.
+            if (assetTitle.includes('.') && assetTitle.includes('_')) {
+                const parts = assetTitle.split('.');
+                const lastPart = parts.pop() || ''; // e.g. "png_1b604610"
+                if (lastPart.includes('_')) {
+                    const [ext, id] = lastPart.split('_');
+                    assetTitle = `${parts.join('.')}_${id}.${ext}`;
+                } else {
+                    parts.push(lastPart);
+                    assetTitle = parts.join('.');
+                }
+            }
             const ext = assetTitle.split('.').pop()?.toLowerCase() || '';
             const mimeMap: Record<string, string> = {
                 jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',

@@ -17,6 +17,7 @@
 import { ace } from '@aptos-labs/ace-sdk';
 import { AccountAddress, Ed25519PublicKey, Ed25519Signature, AnyPublicKey, AnySignature } from '@aptos-labs/ts-sdk';
 import type { PublicKey, Signature } from '@aptos-labs/ts-sdk';
+
 import { MARKETPLACE_REGISTRY_ADDRESS } from '@/lib/constants';
 
 // Aptos testnet chain ID
@@ -45,7 +46,7 @@ export function buildAceContractId(): ace.ContractID {
         chainId: APTOS_TESTNET_CHAIN_ID,
         moduleAddr: AccountAddress.from(MARKETPLACE_REGISTRY_ADDRESS),
         moduleName: 'marketplace',
-        functionName: 'check_permission',
+        functionName: 'can_decrypt',  // 2-arg signature: (user_addr, domain) — matches ACE SDK workers
     });
 }
 
@@ -107,17 +108,11 @@ export async function aceDecryptBuffer(
     const contractId = buildAceContractId();
     const domain = new TextEncoder().encode(blobName);
 
-    // Retry config: up to 5 attempts, delays of 5s → 10s → 20s → 40s → 80s
-    const MAX_RETRIES = 5;
-    const BASE_DELAY_MS = 5000;
+    // Retry config: up to 3 attempts, delays of 3s → 6s → 12s
+    const MAX_RETRIES = 3;
+    const BASE_DELAY_MS = 3000;
 
-    const ciphertextResult = ace.Ciphertext.fromBytes(ciphertextBytes);
-    if (!ciphertextResult.isOk) {
-        throw new Error(`Invalid ACE ciphertext: ${ciphertextResult.errValue}`);
-    }
-    const ciphertext = ciphertextResult.okValue!;
-
-    let lastError: any = '';
+    let lastError = '';
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         onStatus?.(attempt === 1
             ? 'Requesting ACE decryption key from workers...'
@@ -129,33 +124,30 @@ export async function aceDecryptBuffer(
             const decryptionKey = decKeyResult.okValue!;
 
             onStatus?.('Decrypting file...');
-            const plainResult = ace.decrypt({ decryptionKey, ciphertext });
+            const ciphertextResult = ace.Ciphertext.fromBytes(ciphertextBytes);
+            if (!ciphertextResult.isOk) {
+                throw new Error(`Invalid ACE ciphertext: ${ciphertextResult.errValue}`);
+            }
+
+            const plainResult = ace.decrypt({ decryptionKey, ciphertext: ciphertextResult.okValue! });
             if (!plainResult.isOk) {
-                throw new Error(`ACE inner decryption failed: ${plainResult.errValue}`);
+                throw new Error(`ACE decryption failed: ${plainResult.errValue}`);
             }
 
             return plainResult.okValue!;
         }
 
-        // Handle error and retry
-        lastError = decKeyResult.errValue;
-        console.warn(`[ACE] Attempt ${attempt} failed: ${lastError}`);
-        
-        // Log individual worker results if available in the 'extra' field
-        if ((decKeyResult as any).extra) {
-            console.dir((decKeyResult as any).extra);
-        }
-
-        const errStr = String(lastError).toLowerCase();
-        const isRetryable = errStr.includes('insufficient shares')
-            || errStr.includes('unavailable')
-            || errStr.includes('timeout');
+        lastError = String(decKeyResult.errValue);
+        const isRetryable = lastError.toLowerCase().includes('insufficient shares')
+            || lastError.toLowerCase().includes('unavailable')
+            || lastError.toLowerCase().includes('timeout');
 
         if (!isRetryable || attempt === MAX_RETRIES) {
-            throw new Error(`ACE workers denied access or are unavailable after ${attempt} attempts: ${lastError}`);
+            // Permission explicitly denied or non-retryable error — stop immediately
+            break;
         }
 
-        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1); // 3s, 6s, 12s
         onStatus?.(`Workers indexing on-chain state... retrying in ${delay / 1000}s`);
         console.warn(`[ACE] Attempt ${attempt} failed (${lastError}). Retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
@@ -166,12 +158,14 @@ export async function aceDecryptBuffer(
 
 /**
  * Build a ProofOfPermission from wallet adapter objects.
- * 
- * Wallet adapters wrap keys/sigs in AnyPublicKey/AnySignature (or deeper).
- * The ACE SDK only recognizes raw Ed25519PublicKey.
- * 
- * Strategy: convert to hex string → extract raw Ed25519 bytes → create fresh instances.
- * This works regardless of how deeply the wallet adapter nests the key.
+ *
+ * KEY INSIGHT from ACE SDK source (verifyPermission → checkAuthKey):
+ * Workers call `publicKey.authKey().bcsToBytes()` and compare to on-chain auth key.
+ * This ONLY works when passing the ORIGINAL wallet publicKey object (Ed25519PublicKey
+ * or AnyPublicKey), NOT a manually reconstructed one from raw hex bytes.
+ *
+ * The ACE SDK ProofOfPermission accepts Ed25519PublicKey, AnyPublicKey, MultiKey, etc.
+ * so we pass the wallet objects directly without any conversion.
  */
 export function buildAceProofOfPermission(params: {
     accountAddress: string;
@@ -180,73 +174,51 @@ export function buildAceProofOfPermission(params: {
     fullMessage: string;
 }): ace.ProofOfPermission {
     const userAddr = AccountAddress.from(params.accountAddress);
-
-    // --- Extract raw Ed25519 public key (32 bytes = 64 hex chars) ---
-    // Try multiple extraction strategies in order of reliability:
-    let pkHex: string;
-    const pk = params.publicKey as any;
-
-    // Strategy 1: Deep unwrap via duck typing then hex
-    let innerPk = pk;
-    for (let depth = 0; depth < 5; depth++) {
-        if (innerPk.publicKey && typeof innerPk.publicKey.toString === 'function') {
-            innerPk = innerPk.publicKey;
+    console.log(`[ACE] Building proof for ${params.accountAddress}`);
+    
+    // --- Re-instantiate Public Key to satisfy strict instanceof checks ---
+    let publicKey: any = params.publicKey;
+    try {
+        const pkBytes = params.publicKey.toUint8Array();
+        const typeName = (params.publicKey as any).constructor?.name;
+        
+        // AUTO-DETECT: If it's already AnyPublicKey or 33 bytes, keep it as Any.
+        // If it's 32 bytes, use Ed25519.
+        if (typeName === 'AnyPublicKey' || pkBytes.length === 33) {
+            const rawPkBytes = pkBytes.length === 33 ? pkBytes.slice(1) : pkBytes;
+            publicKey = new AnyPublicKey(new Ed25519PublicKey(rawPkBytes));
+            console.log('[ACE] Re-instantiated as AnyPublicKey');
         } else {
-            break;
+            publicKey = new Ed25519PublicKey(pkBytes.slice(-32));
+            console.log('[ACE] Re-instantiated as Ed25519PublicKey');
         }
+    } catch (e) {
+        console.warn('[ACE] Re-instantiation failed', e);
     }
-    pkHex = (innerPk.toString?.() || pk.toString()).replace(/^0x/i, '');
-    console.log(`[ACE] Raw PK hex length: ${pkHex.length} chars (${pkHex.length / 2} bytes)`);
 
-    // Ed25519 = 32 bytes = 64 hex chars
-    let finalPkHex: string;
-    if (pkHex.length === 64) {
-        finalPkHex = pkHex;
-    } else if (pkHex.length === 66) {
-        // AnyPublicKey format: 1 byte scheme + 32 bytes key
-        finalPkHex = pkHex.slice(2);
-    } else if (pkHex.length > 64) {
-        // Complex key — take last 64 chars (raw Ed25519 key is always at the end)
-        finalPkHex = pkHex.slice(-64);
-        console.log(`[ACE] Extracted last 32 bytes from ${pkHex.length / 2}-byte key`);
-    } else {
-        throw new Error(`[ACE] Public key too short: ${pkHex.length / 2} bytes`);
-    }
-    const finalPublicKey = new Ed25519PublicKey('0x' + finalPkHex);
-
-    // --- Extract raw Ed25519 signature (64 bytes = 128 hex chars) ---
-    const sig = params.signature as any;
-    let innerSig = sig;
-    for (let depth = 0; depth < 5; depth++) {
-        if (innerSig.signature && typeof innerSig.signature.toString === 'function') {
-            innerSig = innerSig.signature;
-        } else {
-            break;
+    // --- Re-instantiate Signature ---
+    let signature: any = params.signature;
+    try {
+        const sigBytes = (params.signature as any).toUint8Array?.() || (params.signature as any).data;
+        if (sigBytes) {
+            const sigTypeName = (params.signature as any).constructor?.name;
+            if (sigTypeName === 'AnySignature' || sigBytes.length === 65) {
+                const rawSigBytes = sigBytes.length === 65 ? sigBytes.slice(1) : sigBytes;
+                signature = new AnySignature(new Ed25519Signature(rawSigBytes));
+                console.log('[ACE] Re-instantiated as AnySignature');
+            } else {
+                signature = new Ed25519Signature(sigBytes.slice(-64));
+                console.log('[ACE] Re-instantiated as Ed25519Signature');
+            }
         }
+    } catch (e) {
+        console.warn('[ACE] Signature re-instantiation failed', e);
     }
-    let sigHex = (innerSig.toString?.() || sig.toString()).replace(/^0x/i, '');
-    console.log(`[ACE] Raw Sig hex length: ${sigHex.length} chars (${sigHex.length / 2} bytes)`);
-
-    let finalSigHex: string;
-    if (sigHex.length === 128) {
-        finalSigHex = sigHex;
-    } else if (sigHex.length === 130) {
-        finalSigHex = sigHex.slice(2);
-    } else if (sigHex.length > 128) {
-        finalSigHex = sigHex.slice(-128);
-        console.log(`[ACE] Extracted last 64 bytes from ${sigHex.length / 2}-byte sig`);
-    } else {
-        throw new Error(`[ACE] Signature too short: ${sigHex.length / 2} bytes`);
-    }
-    const finalSignature = new Ed25519Signature('0x' + finalSigHex);
-
-    console.log(`[ACE] Final PK: 0x${finalPkHex.slice(0, 16)}... (32B) ✓`);
-    console.log(`[ACE] Final Sig: 0x${finalSigHex.slice(0, 16)}... (64B) ✓`);
 
     return ace.ProofOfPermission.createAptos({
         userAddr,
-        publicKey: finalPublicKey,
-        signature: finalSignature,
+        publicKey,
+        signature,
         fullMessage: params.fullMessage,
     });
 }

@@ -329,6 +329,26 @@ module marketplace_addr::marketplace {
         false
     }
 
+    /// Dedicated view function for ACE workers to check permission.
+    /// This signature is locked on-chain (backward compatibility).
+    #[view]
+    public fun ace_check_permission(
+        label: vector<u8>,
+        _enc_pk: vector<u8>,
+        user_addr: address
+    ): bool acquires UserPurchases, UserStorefront, BlobOwnership {
+        check_permission(user_addr, label)
+    }
+
+    /// NEW FUNCTION: ACE SDK calls this as: can_decrypt(user_addr: address, domain: vector<u8>)
+    #[view]
+    public fun can_decrypt(
+        user_addr: address,
+        domain: vector<u8>
+    ): bool acquires UserPurchases, UserStorefront, BlobOwnership {
+        check_permission(user_addr, domain)
+    }
+
     #[view]
     public fun get_purchased_datasets(user: address): vector<String> acquires UserPurchaseHistory {
         if (!exists<UserPurchaseHistory>(user)) {
