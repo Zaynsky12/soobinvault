@@ -353,7 +353,9 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                     console.log(`[Marketplace] Dedicated registration phase for: ${marketName}`);
                     
                     // Delay slightly to ensure wallet resets
-                    await new Promise(r => setTimeout(r, 1500)); 
+                    // Delay more robustly to ensure Petra/Aptos wallets reset internal state
+                    setUploadStatusText(`Step 2/2: Awaiting listing approval for ${marketName}...`);
+                    await new Promise(r => setTimeout(r, 3000)); 
 
                     try {
                         const mkPayload: any = {
