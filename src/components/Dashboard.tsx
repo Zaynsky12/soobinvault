@@ -40,6 +40,13 @@ export function Dashboard() {
     const [activeListings, setActiveListings] = useState<any[]>([]);
     const [purchasedAssets, setPurchasedAssets] = useState<any[]>([]);
     const [delistedNames, setDelistedNames] = useState<string[]>([]);
+    const [hasFetchedSinceUnlock, setHasFetchedSinceUnlock] = useState(false);
+
+    useEffect(() => {
+        if (!encryptionKey) {
+            setHasFetchedSinceUnlock(false);
+        }
+    }, [encryptionKey]);
 
     // Effect for hydration
     useEffect(() => {
@@ -330,6 +337,7 @@ export function Dashboard() {
             }
         } finally {
             setIsLoading(false);
+            setHasFetchedSinceUnlock(true);
         }
     };
 
@@ -667,7 +675,7 @@ export function Dashboard() {
 
                         {/* Asset Rows/List */}
                         <div className="md:divide-y md:divide-white/5 min-h-[200px] md:max-w-none max-w-2xl mx-auto divide-y divide-white/5 bg-[#0D0D0D]/40 border border-white/5 rounded-2xl md:rounded-t-none md:rounded-b-2xl relative shadow-2xl mx-6 mb-10 mt-2 md:mx-6 md:mb-10 md:mt-0 overflow-hidden">
-                            {isLoading ? (
+                            {isLoading || (encryptionKey && !hasFetchedSinceUnlock) ? (
                             <div className="p-12 text-center text-color-support flex flex-col items-center justify-center min-h-[200px]">
                                 <div className="w-8 h-8 rounded-full border-t-2 border-b-2 border-color-primary animate-spin mb-4" />
                                 <p className="text-sm text-color-support/60">Authenticating secure session and fetching decentralized storage records...</p>
