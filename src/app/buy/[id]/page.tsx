@@ -536,7 +536,7 @@ export default function BuyPage() {
             <div className="container mx-auto max-w-6xl relative z-10">
                 {/* Back Link */}
                 <button 
-                    onClick={() => router.push('/vault')}
+                    onClick={() => router.push('/upload')}
                     className="inline-flex items-center gap-2 text-red-500/50 hover:text-red-400 transition-all mb-6 sm:mb-10 group bg-red-500/5 px-4 py-2 rounded-full border border-red-500/10"
                 >
                     <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />

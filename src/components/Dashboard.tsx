@@ -646,7 +646,7 @@ export function Dashboard() {
                                         Your secure environment is ready, but no assets have been provisioned yet.
                                     </p>
                                     <button
-                                        onClick={() => window.location.href = '/vault'}
+                                        onClick={() => window.location.href = '/upload'}
                                         className="px-10 py-4 rounded-2xl bg-gradient-to-r from-color-primary to-color-accent text-white font-bold uppercase tracking-widest text-xs hover:scale-105 transition-all shadow-[0_0_30px_rgba(232,58,118,0.3)] hover:shadow-[0_0_50px_rgba(232,58,118,0.5)]"
                                     >
                                         Deploy First Asset
@@ -852,7 +852,7 @@ export function Dashboard() {
 
             {/* Floating Action Button (Mobile) */}
             <Link
-                href="/vault"
+                href="/upload"
                 className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-gradient-to-br from-color-primary to-color-accent rounded-2xl flex items-center justify-center text-white shadow-[0_8px_32px_rgba(232,58,118,0.4)] z-[50] animate-in zoom-in-50 duration-500 hover:scale-110 active:scale-95 transition-transform"
             >
                 <PlusCircle size={28} />

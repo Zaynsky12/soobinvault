@@ -63,8 +63,8 @@ export default function Navbar(): React.ReactNode {
 
     const navLinks = [
         { name: 'Home', href: '/', icon: Home },
-        { name: 'Upload', href: '/vault', icon: PlusCircle },
-        { name: 'Vault', href: '/dashboard', icon: FileText },
+        { name: 'Upload', href: '/upload', icon: PlusCircle },
+        { name: 'Vault', href: '/vault', icon: FileText },
         { name: 'Account', href: '/account', icon: User },
     ];
 

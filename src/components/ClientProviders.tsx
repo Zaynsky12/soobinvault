@@ -47,7 +47,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
     }, []);
 
     const pathname = usePathname();
-    const hideFooterPages = ['/dashboard', '/vault', '/marketplace', '/account'].includes(pathname) || pathname.startsWith('/buy');
+    const hideFooterPages = ['/vault', '/upload', '/marketplace', '/account'].includes(pathname) || pathname.startsWith('/buy');
 
     return (
         <WalletProvider>

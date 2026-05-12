@@ -2,12 +2,12 @@
 
 import dynamic from "next/dynamic";
 
-const VaultDropzone = dynamic(() => import("@/components/VaultDropzone").then(mod => mod.VaultDropzone), { ssr: false });
+const Dashboard = dynamic(() => import("@/components/Dashboard").then(mod => mod.Dashboard), { ssr: false });
 
-export default function VaultPage() {
+export default function DashboardPage() {
   return (
     <div className="pt-24 min-h-screen">
-      <VaultDropzone />
+      <Dashboard />
     </div>
   );
 }
