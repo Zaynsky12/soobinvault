@@ -84,7 +84,7 @@ export function WalletSelector({ isOpen, onClose }: WalletSelectorProps): React.
                 {/* Wallet List - Compact */}
                 <div className="p-4 max-h-[55vh] overflow-y-auto custom-scrollbar">
                     <div className="space-y-2">
-                        {wallets?.map((wallet: AdapterWallet) => (
+                        {wallets?.filter(w => !w.name.toLowerCase().includes('aptos connect') && !w.name.toLowerCase().includes('google') && !w.name.toLowerCase().includes('apple') && !w.name.toLowerCase().includes('keyless')).map((wallet: AdapterWallet) => (
                             <button
                                 key={wallet.name}
                                 onClick={() => onWalletClick(wallet.name)}
@@ -101,9 +101,6 @@ export function WalletSelector({ isOpen, onClose }: WalletSelectorProps): React.
                                     </div>
                                     <div className="text-left">
                                         <h3 className="text-white font-bold tracking-tight text-sm">{wallet.name}</h3>
-                                        {wallet.name === 'Aptos Connect' && (
-                                            <span className="text-[8px] uppercase tracking-[0.15em] text-color-accent font-bold">Social Login Enabled</span>
-                                        )}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">

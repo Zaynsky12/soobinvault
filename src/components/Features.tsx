@@ -17,14 +17,14 @@ const features = [
     },
     {
         icon: Network,
-        title: "Mandatory PIN Protection",
-        description: "Every session is secured by a user-defined 6-digit PIN, encrypting your local vault key with a hardware-grade approach.",
+        title: "Stateless Cryptography",
+        description: "Session keys are derived deterministically in-memory via wallet signature. No keys are ever stored on your hard drive.",
         speed: 1.2
     },
     {
         icon: Wallet,
-        title: "Master Key Restoration",
-        description: "Lose your PIN? No problem. Restore your entire vault seamlessly using your unique 64-character Master Key backup.",
+        title: "AI Data Monetization",
+        description: "Deploy encrypted datasets to the MicroPaylink Marketplace and earn ShelbyUSD directly to your Aptos wallet.",
         speed: 0.9
     }
 ];
@@ -122,8 +122,8 @@ export function Features() {
                             </div>
 
                             <div className="relative z-10 mt-auto">
-                                <h3 className="text-2xl font-semibold mb-2 text-white">Mandatory PIN</h3>
-                                <p className="text-color-support/80 text-sm font-light">Every session is secured by a user-defined 6-digit PIN, encrypting your local vault key with a hardware-grade approach.</p>
+                                <h3 className="text-2xl font-semibold mb-2 text-white">Stateless Cryptography</h3>
+                                <p className="text-color-support/80 text-sm font-light">Session keys are derived deterministically in-memory via wallet signature. Zero local storage footprint.</p>
                             </div>
                             <div className="absolute -top-10 -right-10 w-48 h-48 bg-[radial-gradient(ellipse_at_center,rgba(232,58,118,0.15)_0%,transparent_70%)] pointer-events-none" />
                         </GlassCard>
@@ -139,8 +139,8 @@ export function Features() {
                             <div className="absolute bottom-0 right-0 w-full h-1/2 bg-gradient-to-t from-[#F472B6]/10 to-transparent pointer-events-none" />
 
                             <div className="relative z-10 mt-auto">
-                                <h3 className="text-2xl font-semibold mb-2 text-white">Master Key Recovery</h3>
-                                <p className="text-color-support/80 text-sm font-light">Seamlessly restore your vault using a 64-character backup if you forget your PIN or switch devices.</p>
+                                <h3 className="text-2xl font-semibold mb-2 text-white">Data Monetization</h3>
+                                <p className="text-color-support/80 text-sm font-light">Deploy encrypted datasets to the MicroPaylink Marketplace and earn ShelbyUSD directly to your Aptos wallet.</p>
                             </div>
                         </GlassCard>
                     </div>

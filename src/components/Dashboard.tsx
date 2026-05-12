@@ -36,7 +36,7 @@ export function Dashboard() {
     const [searchQuery, setSearchQuery] = useState("");
     const [optimisticAssets, setOptimisticAssets] = useState<any[]>([]);
     const [isClient, setIsClient] = useState(false);
-    const { ensureKey, encryptionKey, importKeyManual, lockVault } = useVaultKey();
+    const { ensureKey, encryptionKey, lockVault } = useVaultKey();
     const [activeListings, setActiveListings] = useState<any[]>([]);
     const [purchasedAssets, setPurchasedAssets] = useState<any[]>([]);
     const [delistedNames, setDelistedNames] = useState<string[]>([]);

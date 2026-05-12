@@ -372,7 +372,11 @@ export default function BuyPage() {
 
     const handleWalletAction = () => {
         if (connected) {
-            disconnect();
+            try {
+                disconnect();
+            } catch (e) {
+                console.warn("Wallet already disconnected or encountered error:", e);
+            }
             toast.success("Wallet disconnected.");
         } else {
             setIsSelectorOpen(true);

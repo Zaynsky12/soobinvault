@@ -131,7 +131,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     const [isDragging, setIsDragging] = useState(false);
     const [encryptionEnabled, setEncryptionEnabled] = useState(false);
     const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'success'>('idle');
-    const [uploadStatusText, setUploadStatusText] = useState<string>("Encrypting and distributing to nodes...");
+    const [uploadStatusText, setUploadStatusText] = useState("Awaiting files for deployment...");
     const [lastTxHash, setLastTxHash] = useState<string | null>(null);
     const [selectedDuration, setSelectedDuration] = useState(DURATION_OPTIONS[1]); // Default 1 Month
     const [totalSize, setTotalSize] = useState<number>(0);
@@ -469,12 +469,19 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         }
     };
 
-    const prepareUploads = async (files: File[]) => {
+    const prepareUploads = async (rawFiles: File[]) => {
         if (!account) {
             toast.error("Please connect your Aptos wallet first!");
             return;
         }
-        if (files.length === 0) return;
+        if (rawFiles.length === 0) return;
+
+        // MicroPaylink constraint: Max 1 file to prevent wallet signature spam
+        let files = rawFiles;
+        if (uploadMode === 'micropayment' && rawFiles.length > 1) {
+            toast.error("MicroPaylink limits upload to 1 file per transaction. Only the first file will be processed.", { duration: 5000 });
+            files = [rawFiles[0]];
+        }
 
         setUploadState('uploading');
         setQueue(files);
@@ -660,7 +667,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
         setUploadState('idle');
-        setUploadStatusText("Encrypting and distributing to nodes...");
+        setUploadStatusText("Awaiting files for deployment...");
         setLastTxHash(null);
         setPendingUploads(null);
         setTotalSize(0);

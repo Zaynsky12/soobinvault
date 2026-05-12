@@ -45,6 +45,7 @@ compile_error*.txt
 compile_tail*.txt
 scratch_*.ts
 scratch_ace.ts
+scratch/
 # aptos build
 marketplace_contract/build/
 

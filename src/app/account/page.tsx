@@ -16,7 +16,10 @@ import {
     AlertCircle,
     Info,
     ArrowUpRight,
-    Lock
+    Lock,
+    LogOut,
+    Settings,
+    Globe
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MARKETPLACE_REGISTRY_ADDRESS } from '@/lib/constants';
@@ -28,8 +31,8 @@ const aptosConfig = new AptosConfig({ network: Network.TESTNET });
 const aptosClient = new Aptos(aptosConfig);
 
 export default function AccountPage() {
-    const { account, connected, signAndSubmitTransaction } = useWallet();
-    const { keyFingerprint, encryptionKey, ensureKey } = useVaultKey();
+    const { account, connected, signAndSubmitTransaction, disconnect } = useWallet();
+    const { keyFingerprint, encryptionKey, ensureKey, lockVault } = useVaultKey();
     const shelbyClient = useShelbyClient();
 
     const [xHandle, setXHandle] = useState("");
@@ -185,40 +188,18 @@ export default function AccountPage() {
                             <GlassCard className="p-8 border-white/5 relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-color-primary/5 blur-2xl group-hover:bg-color-primary/10 transition-colors" />
                                 
-                                <div className="flex items-start justify-between mb-8">
+                                <div className="flex items-start justify-between relative z-10">
                                     <div className="flex-1 min-w-0 pr-4">
                                         <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Authenticated Wallet</p>
                                         <h3 className="text-lg font-mono text-white break-all">
                                             {account?.address.toString()}
                                         </h3>
                                     </div>
-                                    <div className="p-2 rounded-xl bg-white/5 text-white/20">
+                                    <div className="p-2 rounded-xl bg-white/5 text-white/20 relative z-10">
                                         <Copy size={16} className="cursor-pointer hover:text-white transition-colors" onClick={() => {
                                             navigator.clipboard.writeText(account?.address.toString() || "");
                                             toast.success("Address copied!");
                                         }} />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-6">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2">Vault Session Hash</p>
-                                        <div className="flex items-center gap-3">
-                                            <div className="px-4 py-2 rounded-xl bg-color-primary/10 border border-color-primary/20 flex items-center gap-3">
-                                                <Fingerprint size={20} className="text-color-primary" />
-                                                <span className="text-xl font-mono font-black text-color-primary tracking-widest uppercase">
-                                                    {keyFingerprint || "LOCKED"}
-                                                </span>
-                                            </div>
-                                            {!encryptionKey && (
-                                                <button onClick={() => ensureKey()} className="p-2 rounded-xl bg-white/5 text-white/40 hover:text-white transition-all">
-                                                    <RefreshCcw size={16} />
-                                                </button>
-                                            )}
-                                        </div>
-                                        <p className="text-[9px] text-white/20 mt-3 flex items-center gap-1.5 uppercase tracking-widest leading-relaxed">
-                                            <Info size={10} /> This identifier proves your local session is valid without exposing your Master Key.
-                                        </p>
                                     </div>
                                 </div>
                             </GlassCard>
@@ -239,6 +220,8 @@ export default function AccountPage() {
                                 </GlassCard>
                             </div>
                         </div>
+
+
                     </div>
 
                     {/* RIGHT COLUMN: VERIFICATION */}

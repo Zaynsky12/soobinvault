@@ -99,12 +99,13 @@ export function Hero() {
                     <span className="text-[10px] md:text-xs font-mono font-medium text-color-support uppercase tracking-widest">Build on Shelby</span>
                 </div>
 
-                <h1 className="animate-in text-4xl sm:text-5xl md:text-7xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-color-support drop-shadow-lg leading-tight md:leading-[1.1] tracking-tight">
-                    Your Digital Legacy, <br className="hidden md:block" /> Locked with <span className="text-color-accent">Zero-Knowledge</span>.
+                <h1 className="animate-in text-5xl sm:text-6xl md:text-7xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-color-accent drop-shadow-[0_0_30px_rgba(232,58,118,0.4)] leading-tight md:leading-[1.1] tracking-tight">
+                    Decentralized Storage, <br className="hidden md:block" /> 
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FBB3CC] to-[#E83A76] drop-shadow-[0_0_30px_rgba(232,58,118,0.4)]">Zero-Knowledge Monetization.</span>
                 </h1>
 
-                <p className="animate-in text-lg md:text-2xl text-[#A3A3A3] mb-10 md:mb-12 max-w-3xl mx-auto font-normal leading-relaxed px-4 md:px-0">
-                    Protect your private files with <span className="text-white font-semibold">Signer-Based Encryption</span> and mandatory <span className="text-color-accent">PIN Security</span>.
+                <p className="animate-in text-base md:text-xl text-color-support/80 mb-10 md:mb-12 max-w-3xl mx-auto font-light leading-relaxed px-4 md:px-0">
+                    Secure your digital legacy in a <span className="text-white font-semibold">Stateless Encrypted Vault</span> using deterministic wallet signatures, or monetize your AI datasets via <span className="text-color-accent font-semibold">MicroPaylinks</span>. No PINs, no passwords. Pure Web3 cryptography.
                 </p>
 
                 <div className="animate-in flex flex-col sm:flex-row items-center justify-center gap-4 px-4 md:px-0 max-w-sm mx-auto sm:max-w-none">

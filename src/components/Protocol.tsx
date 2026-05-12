@@ -43,8 +43,8 @@ export function Protocol() {
 
                         {[
                             { step: '01', title: 'Initialize Session', desc: 'Securely link your Aptos wallet to authenticate without vulnerable passwords or centralized databases.' },
-                            { step: '02', title: 'Unlock Secure Vault', desc: 'Sign the cryptographic message and set your 6-digit local PIN to encrypt your master vault key.' },
-                            { step: '03', title: 'Manage Assets', desc: 'Drag and drop your files to encrypt them locally and distribute them across the decentralized network.' }
+                            { step: '02', title: 'Unlock Secure Vault', desc: 'Sign the cryptographic message to deterministically derive your session key directly in-memory.' },
+                            { step: '03', title: 'Deploy & Monetize', desc: 'Encrypt files locally for your private vault, or deploy them to the MicroPaylink Marketplace to earn ShelbyUSD.' }
                         ].map((item, i) => (
                             <GlassCard key={i} className="protocol-step relative z-10 p-6 flex flex-col md:flex-row items-center text-center md:text-left gap-6 bg-[#0A0A0A]/90 border border-white/5 hover:border-color-accent/40 transition-all duration-300 group">
                                 <div className="shrink-0 w-16 h-16 rounded-2xl bg-black flex items-center justify-center text-color-accent font-mono font-bold text-2xl shadow-[0_0_20px_rgba(232,58,118,0.15)] border border-white/10 group-hover:border-color-accent/50 z-10 transition-colors">
