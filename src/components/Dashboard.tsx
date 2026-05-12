@@ -432,7 +432,7 @@ export function Dashboard() {
             window.removeEventListener('vault:uploadSuccess', handleUploadSuccess);
             window.removeEventListener('vault:refresh', handleManualRefresh);
         };
-    }, [account, shelbyClient]);
+    }, [account, shelbyClient, encryptionKey]);
 
     useEffect(() => {
         const ctx = gsap.context(() => {
@@ -660,10 +660,10 @@ export function Dashboard() {
 
                         {/* Asset Rows/List */}
                         <div className="md:divide-y md:divide-white/5 min-h-[200px] md:max-w-none max-w-2xl mx-auto divide-y divide-white/5 bg-[#0D0D0D]/40 border border-white/5 rounded-2xl md:rounded-t-none md:rounded-b-2xl relative shadow-2xl mx-6 mb-10 mt-2 md:mx-6 md:mb-10 md:mt-0 overflow-hidden">
-                            {isLoading && assets.length === 0 ? (
-                            <div className="p-12 text-center text-color-support flex flex-col items-center">
+                            {isLoading ? (
+                            <div className="p-12 text-center text-color-support flex flex-col items-center justify-center min-h-[200px]">
                                 <div className="w-8 h-8 rounded-full border-t-2 border-b-2 border-color-primary animate-spin mb-4" />
-                                <p>Authenticating secure session and fetching decentralized storage records...</p>
+                                <p className="text-sm text-color-support/60">Authenticating secure session and fetching decentralized storage records...</p>
                             </div>
                         ) : assets.length === 0 && optimisticAssets.length === 0 ? (
                             <div className="p-20 text-center flex flex-col items-center justify-center bg-[#050505] m-6 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
