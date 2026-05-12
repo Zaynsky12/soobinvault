@@ -215,7 +215,7 @@ export default function AccountPage() {
                     <div className="flex-1 space-y-8">
                         <div className="account-section">
                             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-color-primary mb-4 flex items-center gap-2">
-                                <Shield size={14} /> SECURITY ARCHITECTURE
+                                <User size={14} /> ACCOUNT OVERVIEW
                             </h2>
                             <GlassCard className="p-8 border-white/5 relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-color-primary/5 blur-2xl group-hover:bg-color-primary/10 transition-colors" />
@@ -238,7 +238,7 @@ export default function AccountPage() {
                         </div>
 
                         <div className="account-section">
-                            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-4 flex items-center gap-2">
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-color-primary mb-4 flex items-center gap-2">
                                 <Activity size={14} /> VAULT STATISTICS
                             </h2>
                             <div className="grid grid-cols-2 gap-4">

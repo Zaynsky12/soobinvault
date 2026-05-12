@@ -534,102 +534,133 @@ export function Dashboard() {
                     </div>
 
                     {/* Mobile Filter Chips */}
-                    <div className="flex flex-wrap justify-center gap-2 mt-4 pb-2 pointer-events-auto">
-                        {['All', 'Image', 'Video', 'Document'].map((chip) => (
-                            <button
-                                key={chip}
-                                className={`px-4 py-1.5 rounded-full border text-[11px] font-bold uppercase tracking-widest whitespace-nowrap transition-all ${(chip === 'All' && !searchQuery) || (searchQuery && chip.toLowerCase().includes(searchQuery.toLowerCase()))
-                                    ? 'bg-color-primary/20 border-color-primary/40 text-color-primary'
-                                    : 'bg-white/5 border-white/5 text-color-support/40'
-                                    }`}
-                                onClick={() => {
-                                    if (chip === 'All') setSearchQuery('');
-                                    else setSearchQuery(chip.toLowerCase());
-                                }}
-                            >
-                                {chip}
-                            </button>
-                        ))}
+                    <div className="flex items-center justify-start sm:justify-center gap-1 mt-4 pb-2 overflow-x-auto pointer-events-auto max-w-full px-1 scrollbar-none">
+                        {[
+                            { id: 'All', count: counts.all },
+                            { id: 'Image', count: counts.images },
+                            { id: 'Video', count: counts.videos },
+                            { id: 'Document', count: counts.docs }
+                        ].map((tab) => {
+                            const isActive = currentCategory === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    className={`px-2.5 sm:px-4 py-1.5 rounded-full border text-[9px] sm:text-[11px] font-bold uppercase tracking-widest whitespace-nowrap transition-all shrink-0 ${isActive
+                                        ? 'bg-color-primary/20 border-color-primary/40 text-color-primary shadow-[0_0_15px_rgba(232,58,118,0.2)]'
+                                        : 'bg-white/5 border-white/5 text-color-support/40 hover:text-white/80'
+                                        }`}
+                                    onClick={() => {
+                                        setCurrentCategory(tab.id);
+                                    }}
+                                >
+                                    {tab.id} <span className="opacity-60 font-mono ml-0.5">({tab.count})</span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
-                <div className="assets-container p-0 md:p-0 overflow-hidden border-none bg-transparent md:bg-[#0A0A0A]/60 md:backdrop-blur-3xl rounded-[2.5rem] max-w-4xl mx-auto md:shadow-2xl relative">
-
-                    {/* Integrated Desktop Header (Search & Tabs) */}
-                    <div className="hidden md:block mx-6 pt-10 pb-0">
-                        {/* Elegant Search Bar */}
-                        <div className="relative mb-8 group/search">
-                            <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none text-color-support/40 group-focus-within/search:text-color-primary transition-colors">
-                                <Search size={20} />
+                {!account || !encryptionKey ? (
+                    <div className="container mx-auto max-w-2xl relative my-4">
+                        <GlassCard className="transition-all duration-500 overflow-hidden relative bg-[#111827]/80 backdrop-blur-2xl border-white/10">
+                            <div className="w-full min-h-[300px] md:min-h-[400px] flex flex-col items-center justify-center p-5 md:p-10 relative z-10 rounded-3xl">
+                                {!account ? (
+                                    <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500 w-full px-4">
+                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-support/40 bg-black/40 shadow-[0_0_30px_rgba(255,255,255,0.05)] border border-white/10">
+                                            <Lock size={40} strokeWidth={1.5} className="md:hidden text-color-support/60" />
+                                            <Lock size={48} strokeWidth={1.5} className="hidden md:block text-color-support/60" />
+                                        </div>
+                                        <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Vault Locked</h3>
+                                        <p className="text-color-support/70 mb-8 text-sm md:text-lg">Connect your Petra Wallet to view your decentralized storage vault.</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500 w-full px-4">
+                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(232,58,118,0.2)] border border-color-primary/30">
+                                            <Lock size={40} strokeWidth={1.5} className="md:hidden text-color-primary" />
+                                            <Lock size={48} strokeWidth={1.5} className="hidden md:block text-color-primary" />
+                                        </div>
+                                        <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Vault Locked</h3>
+                                        <p className="text-color-support/70 mb-8 text-sm md:text-lg">Unlock your vault session to access, decrypt, and manage your stored digital assets.</p>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); ensureKey(true); }}
+                                            className="mt-4 px-10 py-4 rounded-full bg-color-primary/20 border border-color-primary/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-primary hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
+                                        >
+                                            Unlock Vault
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                            <input
-                                type="text"
-                                placeholder="Search your assets..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-[#0A0A0A]/60 border border-white/5 rounded-2xl py-5 pl-16 pr-16 text-white text-lg outline-none focus:border-color-primary/30 focus:ring-1 focus:ring-color-primary/20 focus:bg-[#0A0A0A] transition-all placeholder:text-color-support/20 font-medium shadow-inner"
-                            />
-                            <button
-                                onClick={() => fetchBlobs()}
-                                disabled={isLoading}
-                                className={`absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/5 border border-white/10 text-color-support/40 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center group/sync ${isLoading ? 'opacity-50' : ''}`}
-                                title="Refresh Records"
-                            >
-                                <RefreshCw size={18} className={`transition-transform duration-1000 ${isLoading ? 'animate-spin' : 'group-hover/sync:rotate-180'}`} />
-                            </button>
+                        </GlassCard>
+                    </div>
+                ) : (
+                    <div className="assets-container p-0 md:p-0 overflow-hidden border-none bg-transparent md:bg-[#0A0A0A]/60 md:backdrop-blur-3xl rounded-[2.5rem] max-w-4xl mx-auto md:shadow-2xl relative">
+
+                        {/* Integrated Desktop Header (Search & Tabs) */}
+                        <div className="hidden md:block mx-6 pt-10 pb-0">
+                            {/* Elegant Search Bar */}
+                            <div className="relative mb-8 group/search">
+                                <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none text-color-support/40 group-focus-within/search:text-color-primary transition-colors">
+                                    <Search size={20} />
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Search your assets..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full bg-[#0A0A0A]/60 border border-white/5 rounded-2xl py-5 pl-16 pr-16 text-white text-lg outline-none focus:border-color-primary/30 focus:ring-1 focus:ring-color-primary/20 focus:bg-[#0A0A0A] transition-all placeholder:text-color-support/20 font-medium shadow-inner"
+                                />
+                                <button
+                                    onClick={() => fetchBlobs()}
+                                    disabled={isLoading}
+                                    className={`absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/5 border border-white/10 text-color-support/40 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center group/sync ${isLoading ? 'opacity-50' : ''}`}
+                                    title="Refresh Records"
+                                >
+                                    <RefreshCw size={18} className={`transition-transform duration-1000 ${isLoading ? 'animate-spin' : 'group-hover/sync:rotate-180'}`} />
+                                </button>
+                            </div>
+
+                            {/* Filter Tabs with Icons & Counts */}
+                            <div className="flex items-center justify-center gap-20 border-b border-white/5">
+                                {[
+                                    { id: 'All', icon: LayoutGrid, count: counts.all },
+                                    { id: 'Image', icon: ImageIcon, count: counts.images },
+                                    { id: 'Video', icon: Video, count: counts.videos },
+                                    { id: 'Document', icon: FileText, count: counts.docs }
+                                ].map((tab) => {
+                                    const isActive = currentCategory === tab.id;
+                                    const Icon = tab.icon;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => {
+                                                setCurrentCategory(tab.id);
+                                            }}
+                                            className={`relative pb-6 flex items-center gap-3 group transition-all ${isActive ? 'text-color-primary' : 'text-color-support/40 hover:text-white'}`}
+                                        >
+                                            <Icon size={18} className={`${isActive ? 'text-color-primary' : 'text-color-support/30 group-hover:text-white/60'}`} />
+                                            <span className="text-[11px] font-black uppercase tracking-[0.2em]">
+                                                {tab.id} <span className="opacity-40 font-mono ml-1">({tab.count})</span>
+                                            </span>
+                                            {isActive && (
+                                                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-gradient-to-r from-color-primary to-color-accent rounded-full shadow-[0_0_15px_rgba(232,58,118,0.5)]" />
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
 
-                        {/* Filter Tabs with Icons & Counts */}
-                        <div className="flex items-center justify-center gap-20 border-b border-white/5">
-                            {[
-                                { id: 'All', icon: LayoutGrid, count: counts.all },
-                                { id: 'Image', icon: ImageIcon, count: counts.images },
-                                { id: 'Video', icon: Video, count: counts.videos },
-                                { id: 'Document', icon: FileText, count: counts.docs }
-                            ].map((tab) => {
-                                const isActive = currentCategory === tab.id;
-                                const Icon = tab.icon;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => {
-                                            setCurrentCategory(tab.id);
-                                            // Reset search query if clicking categories to avoid conflict unless searching
-                                            if (searchQuery && !['image', 'video', 'document'].includes(searchQuery.toLowerCase())) {
-                                                // Keep search query if it's text, but if it was a category chip reset it
-                                            }
-                                        }}
-                                        className={`relative pb-6 flex items-center gap-3 group transition-all ${isActive ? 'text-color-primary' : 'text-color-support/40 hover:text-white'}`}
-                                    >
-                                        <Icon size={18} className={`${isActive ? 'text-color-primary' : 'text-color-support/30 group-hover:text-white/60'}`} />
-                                        <span className="text-[11px] font-black uppercase tracking-[0.2em]">
-                                            {tab.id} <span className="opacity-40 font-mono ml-1">({tab.count})</span>
-                                        </span>
-                                        {isActive && (
-                                            <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-gradient-to-r from-color-primary to-color-accent rounded-full shadow-[0_0_15px_rgba(232,58,118,0.5)]" />
-                                        )}
-                                    </button>
-                                );
-                            })}
+                        {/* Table Header (Desktop Only) */}
+                        <div className="hidden md:grid grid-cols-12 gap-4 mx-6 px-10 py-6 border-b border-white/5 text-color-support/30 text-[10px] font-bold uppercase tracking-[0.25em] bg-black/20 rounded-t-2xl">
+                            <div className="col-span-5">Asset Name</div>
+                            <div className="col-span-2 text-center">Capacity</div>
+                            <div className="col-span-2 text-center">Status</div>
+                            <div className="col-span-3 text-center">Actions</div>
                         </div>
-                    </div>
 
-                    {/* Table Header (Desktop Only) */}
-                    <div className="hidden md:grid grid-cols-12 gap-4 mx-6 px-10 py-6 border-b border-white/5 text-color-support/30 text-[10px] font-bold uppercase tracking-[0.25em] bg-black/20 rounded-t-2xl">
-                        <div className="col-span-5">Asset Name</div>
-                        <div className="col-span-2 text-center">Capacity</div>
-                        <div className="col-span-2 text-center">Status</div>
-                        <div className="col-span-3 text-center">Actions</div>
-                    </div>
-
-                    {/* Asset Rows/List */}
-                    <div className="md:divide-y md:divide-white/5 min-h-[200px] md:max-w-none max-w-2xl mx-auto divide-y divide-white/5 bg-[#0D0D0D]/40 border border-white/5 rounded-2xl md:rounded-t-none md:rounded-b-2xl relative shadow-2xl mx-6 mb-10 mt-2 md:mx-6 md:mb-10 md:mt-0 overflow-hidden">
-                        {!account ? (
-                            <div className="p-12 text-center text-color-support/60 flex flex-col items-center">
-                                <Lock size={48} className="mb-4 opacity-50" />
-                                <p>Connect your Petra Wallet to view your secure Vault.</p>
-                            </div>
-                        ) : isLoading && assets.length === 0 ? (
+                        {/* Asset Rows/List */}
+                        <div className="md:divide-y md:divide-white/5 min-h-[200px] md:max-w-none max-w-2xl mx-auto divide-y divide-white/5 bg-[#0D0D0D]/40 border border-white/5 rounded-2xl md:rounded-t-none md:rounded-b-2xl relative shadow-2xl mx-6 mb-10 mt-2 md:mx-6 md:mb-10 md:mt-0 overflow-hidden">
+                            {isLoading && assets.length === 0 ? (
                             <div className="p-12 text-center text-color-support flex flex-col items-center">
                                 <div className="w-8 h-8 rounded-full border-t-2 border-b-2 border-color-primary animate-spin mb-4" />
                                 <p>Authenticating secure session and fetching decentralized storage records...</p>
@@ -819,6 +850,7 @@ export function Dashboard() {
 
                     <div className="pb-8" />
                 </div>
+                )}
             </div>
 
             {/* Link Preview Modal */}

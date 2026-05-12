@@ -733,7 +733,7 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
     return (
         <section id="vault" className="py-20 md:py-24 relative z-10 px-6">
             <div className="container mx-auto max-w-4xl text-center mb-8 md:mb-12">
-                <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white tracking-tight">The Storage Vault</h2>
+                <h2 className="text-3xl md:text-5xl font-bold mb-4 text-white tracking-tight">Secure Upload</h2>
                 <p className="text-color-support/70 text-base md:text-xl font-light max-w-2xl mx-auto">Drag &amp; drop your digital assets to fracture them across the global network.</p>
             </div>
 
@@ -758,21 +758,32 @@ export function VaultDropzone({ refetch }: VaultDropzoneProps) {
                         />
 
                         {/* Vault Locked */}
-                        {!encryptionKey ? (
-                            <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500 w-full px-4">
-                                <div ref={iconRef} className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(232,58,118,0.2)] border border-color-primary/30">
-                                    <Lock size={40} strokeWidth={1.5} className="md:hidden text-color-primary" />
-                                    <Lock size={48} strokeWidth={1.5} className="hidden md:block text-color-primary" />
+                        {!account || !encryptionKey ? (
+                            !account ? (
+                                <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500 w-full px-4">
+                                    <div className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-support/40 bg-black/40 shadow-[0_0_30px_rgba(255,255,255,0.05)] border border-white/10">
+                                        <Lock size={40} strokeWidth={1.5} className="md:hidden text-color-support/60" />
+                                        <Lock size={48} strokeWidth={1.5} className="hidden md:block text-color-support/60" />
+                                    </div>
+                                    <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Upload Locked</h3>
+                                    <p className="text-color-support/70 mb-8 text-sm md:text-lg">Please connect your wallet to upload and secure your digital assets.</p>
                                 </div>
-                                <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Vault Locked</h3>
-                                <p className="text-color-support/70 mb-8 text-sm md:text-lg">Unlock your vault to secure new assets.</p>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); ensureKey(false); }}
-                                    className="mt-4 px-10 py-4 rounded-full bg-color-primary/20 border border-color-primary/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-primary hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
-                                >
-                                    Unlock Vault
-                                </button>
-                            </div>
+                            ) : (
+                                <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500 w-full px-4">
+                                    <div ref={iconRef} className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(232,58,118,0.2)] border border-color-primary/30">
+                                        <Lock size={40} strokeWidth={1.5} className="md:hidden text-color-primary" />
+                                        <Lock size={48} strokeWidth={1.5} className="hidden md:block text-color-primary" />
+                                    </div>
+                                    <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Upload Locked</h3>
+                                    <p className="text-color-support/70 mb-8 text-sm md:text-lg">Unlock your vault session to upload and secure your digital assets.</p>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); ensureKey(false); }}
+                                        className="mt-4 px-10 py-4 rounded-full bg-color-primary/20 border border-color-primary/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-primary hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
+                                    >
+                                        Unlock Vault
+                                    </button>
+                                </div>
+                            )
                         ) : uploadState === 'idle' && (
                             <div className="flex flex-col items-center text-center w-full max-w-lg mx-auto px-1 md:px-4">
 
