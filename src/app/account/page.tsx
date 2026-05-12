@@ -156,20 +156,52 @@ export default function AccountPage() {
         toast("Post the tweet then click Link Account below.", { icon: '🐦' });
     };
 
-    if (!connected) {
+    if (!connected || !encryptionKey) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#050505] px-6">
-                <GlassCard className="max-w-md p-10 text-center border-white/5">
-                    <Lock size={48} className="text-white/20 mx-auto mb-4" />
-                    <h1 className="text-2xl font-bold text-white mb-2">Private Access</h1>
-                    <p className="text-white/40 mb-8">Please connect your wallet to manage your decentralized account and security settings.</p>
-                </GlassCard>
+            <div className="min-h-screen bg-color-deep pt-32 pb-20 px-4 sm:px-6 flex items-center justify-center relative overflow-hidden">
+                {/* Background Aesthetics */}
+                <div className="fixed inset-0 z-0 pointer-events-none">
+                    <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-color-primary/5 rounded-full blur-[120px]" />
+                    <div className="absolute bottom-[10%] right-[-5%] w-[30%] h-[50%] bg-color-accent/5 rounded-full blur-[100px]" />
+                </div>
+
+                <div className="container mx-auto max-w-2xl relative z-10 my-auto w-full">
+                    <GlassCard className="transition-all duration-500 overflow-hidden relative bg-[#111827]/80 backdrop-blur-2xl border-white/10 w-full">
+                        <div className="w-full min-h-[300px] md:min-h-[400px] flex flex-col items-center justify-center p-5 md:p-10 relative z-10 rounded-3xl">
+                            {!connected ? (
+                                <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500 w-full px-4">
+                                    <div className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-support/40 bg-black/40 shadow-[0_0_30px_rgba(255,255,255,0.05)] border border-white/10">
+                                        <Lock size={40} strokeWidth={1.5} className="md:hidden text-color-support/60" />
+                                        <Lock size={48} strokeWidth={1.5} className="hidden md:block text-color-support/60" />
+                                    </div>
+                                    <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Account Locked</h3>
+                                    <p className="text-color-support/70 mb-8 text-sm md:text-lg">Please connect your wallet to view your account details and verify your creator profile.</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500 w-full px-4">
+                                    <div className="w-20 h-20 md:w-24 md:h-24 rounded-full glass-panel flex items-center justify-center mb-6 text-color-primary bg-[#1A0D12] shadow-[0_0_30px_rgba(232,58,118,0.2)] border border-color-primary/30">
+                                        <Lock size={40} strokeWidth={1.5} className="md:hidden text-color-primary" />
+                                        <Lock size={48} strokeWidth={1.5} className="hidden md:block text-color-primary" />
+                                    </div>
+                                    <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Account Locked</h3>
+                                    <p className="text-color-support/70 mb-8 text-sm md:text-lg">Unlock your vault session to view your account details and verify your creator profile.</p>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); ensureKey(true); }}
+                                        className="mt-4 px-10 py-4 rounded-full bg-color-primary/20 border border-color-primary/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-primary hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
+                                    >
+                                        Unlock Vault
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </GlassCard>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#030303] pt-32 pb-20 px-4 sm:px-6 relative overflow-hidden">
+        <div className="min-h-screen bg-color-deep pt-32 pb-20 px-4 sm:px-6 relative overflow-hidden">
             {/* Background Aesthetics */}
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-color-primary/5 rounded-full blur-[120px]" />
