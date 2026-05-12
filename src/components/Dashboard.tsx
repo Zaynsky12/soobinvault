@@ -632,7 +632,7 @@ export function Dashboard() {
                         ) : isLoading && assets.length === 0 ? (
                             <div className="p-12 text-center text-color-support flex flex-col items-center">
                                 <div className="w-8 h-8 rounded-full border-t-2 border-b-2 border-color-primary animate-spin mb-4" />
-                                <p>Decrypting records and fetching from network nodes...</p>
+                                <p>Authenticating secure session and fetching decentralized storage records...</p>
                             </div>
                         ) : assets.length === 0 && optimisticAssets.length === 0 ? (
                             <div className="p-20 text-center flex flex-col items-center justify-center bg-[#050505] m-6 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
