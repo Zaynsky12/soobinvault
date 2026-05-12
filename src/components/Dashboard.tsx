@@ -582,7 +582,14 @@ export function Dashboard() {
                                         <h3 className="text-2xl md:text-3xl font-semibold mb-3 text-white tracking-tight">Vault Locked</h3>
                                         <p className="text-color-support/70 mb-8 text-sm md:text-lg">Unlock your vault session to access, decrypt, and manage your stored digital assets.</p>
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); ensureKey(true); }}
+                                            onClick={async (e) => { 
+                                                e.stopPropagation(); 
+                                                setIsLoading(true);
+                                                const key = await ensureKey(true);
+                                                if (!key) {
+                                                    setIsLoading(false);
+                                                }
+                                            }}
                                             className="mt-4 px-10 py-4 rounded-full bg-color-primary/20 border border-color-primary/40 text-white transition-all duration-700 font-bold shadow-lg shadow-[0_0_20px_rgba(232,58,118,0.2)] hover:bg-color-primary hover:scale-110 hover:shadow-[0_0_35px_rgba(232,58,118,0.5)] animate-glow-activate w-full sm:w-auto uppercase text-xs tracking-widest"
                                         >
                                             Unlock Vault
